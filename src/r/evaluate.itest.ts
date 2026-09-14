@@ -33,7 +33,22 @@ describe('evaluateR', () => {
   test('captures warnings separately from errors', async () => {
     const result = await evaluateR(webR, 'warning("careful")');
     expect(result.errored).toBe(false);
-    expect(result.output.some((o) => o.type === 'warning')).toBe(true);
+    expect(result.output.some((o) => o.type === 'warning' && o.data.includes('careful'))).toBe(true);
+  });
+
+  test('reports the real message for a typical student mistake', async () => {
+    // The commonest error a beginner sees. If condition objects are not
+    // unwrapped, this reads "[object Object]" instead.
+    const result = await evaluateR(webR, 'undefined_fn(1)');
+    expect(result.errored).toBe(true);
+    expect(text(result)).toContain('could not find function');
+    expect(text(result)).not.toContain('[object Object]');
+  });
+
+  test('captures messages, which are neither warnings nor errors', async () => {
+    const result = await evaluateR(webR, 'message("hello")');
+    expect(result.errored).toBe(false);
+    expect(result.output.some((o) => o.type === 'message' && o.data.includes('hello'))).toBe(true);
   });
 
   test('captures stdout from explicit printing', async () => {
