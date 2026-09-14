@@ -8,6 +8,7 @@ import {
   markExercise,
   markQuiz,
   saveDraft,
+  subscribeProgress,
   touchLesson,
 } from './progress';
 
@@ -73,5 +74,32 @@ describe('progress store', () => {
     });
     expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
     spy.mockRestore();
+  });
+
+  test('rejects an import whose version is right but whose lessons are malformed', () => {
+    // The one untrusted input in the app: a file the student supplies.
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': {} } }))).toBe(false);
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': 'nope' } }))).toBe(false);
+  });
+
+  test('a malformed stored payload cannot make a later write throw', () => {
+    localStorage.setItem('statlab.progress.v1', JSON.stringify({ version: 1, lessons: { '06-1': {} } }));
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+  });
+
+  test('a throwing subscriber breaks neither the write nor the other subscribers', () => {
+    const seen: string[] = [];
+    const offA = subscribeProgress(() => {
+      throw new Error('subscriber exploded');
+    });
+    const offB = subscribeProgress(() => seen.push('b'));
+
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(seen).toContain('b');
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+
+    offA();
+    offB();
   });
 });

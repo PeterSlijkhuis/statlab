@@ -25,10 +25,25 @@ export function subscribeProgress(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function isLessonProgress(value: unknown): value is LessonProgress {
+  if (!isRecord(value)) return false;
+  return isRecord(value.exercises) && isRecord(value.quizzes) && isRecord(value.drafts);
+}
+
+/**
+ * Validates every lesson, not just the envelope. `importProgress` accepts a
+ * file the student supplies — the only untrusted input in the app — and a
+ * payload with the right version but a malformed lesson would otherwise be
+ * stored and then throw out of `markExercise` on the next write.
+ */
 function isProgress(value: unknown): value is Progress {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<Progress>;
-  return candidate.version === 1 && typeof candidate.lessons === 'object' && candidate.lessons !== null;
+  if (!isRecord(value)) return false;
+  if (value.version !== 1) return false;
+  if (!isRecord(value.lessons)) return false;
+  return Object.values(value.lessons).every(isLessonProgress);
 }
 
 export function getProgress(): Progress {
@@ -49,7 +64,14 @@ function write(next: Progress): void {
   } catch {
     // Progress simply is not saved; never break the lesson over it.
   }
-  for (const fn of listeners) fn();
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch {
+      // One broken subscriber must not stop the others, nor fail the write
+      // it is reacting to.
+    }
+  }
 }
 
 function update(lessonId: string, fn: (lesson: LessonProgress) => void): void {
