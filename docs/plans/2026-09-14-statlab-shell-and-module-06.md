@@ -155,8 +155,9 @@ describe('vite config', () => {
     expect(config.base).toBe('/statlab/');
   });
 
-  test('no webR URL uses the floating latest tag', () => {
-    expect(JSON.stringify(config)).not.toContain('webr.r-wasm.org/latest');
+  test('base path is absolute and ends in a slash, as Vite requires', () => {
+    expect(config.base?.startsWith('/')).toBe(true);
+    expect(config.base?.endsWith('/')).toBe(true);
   });
 });
 ```
@@ -1948,14 +1949,43 @@ git commit -m "feat: predict, quiz, and interpret blocks on a shared choice prim
 ### Task 11: Exercise component
 
 **Files:**
-- Create: `src/components/Exercise.tsx`, `src/components/Exercise.css`
+- Create: `src/content/exercises/index.ts`, `src/content/exercises/module-06.ts`, `src/components/Exercise.tsx`, `src/components/Exercise.css`
 - Test: `src/components/Exercise.test.tsx`
 
 **Interfaces:**
 - Consumes: `runExercise` + `ExerciseDef` (Task 7), `useLesson` (Task 9), `markExercise`/drafts (Task 6), `REditor`, `OutputPane`
-- Produces: `<Exercise id={string} />`, resolving the definition from `src/content/exercises/`
+- Produces: `getExercise(id: string): ExerciseDef | undefined`, `ALL_EXERCISES: ExerciseDef[]`, `<Exercise id={string} />`
 
-- [ ] **Step 1: Write the failing test**
+> `Exercise.tsx` imports `getExercise`, so the exercise registry must exist for
+> the type check and the build to pass — Step 1 creates it here, empty. Task 14
+> tests it and Task 15 fills it with Module 6's exercises.
+
+- [ ] **Step 1: Create the empty exercise registry**
+
+`src/content/exercises/module-06.ts`:
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module06: ExerciseDef[] = [];
+```
+
+`src/content/exercises/index.ts`:
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+import { module06 } from './module-06';
+
+export const ALL_EXERCISES: ExerciseDef[] = [...module06];
+
+const byId = new Map(ALL_EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+export function getExercise(id: string): ExerciseDef | undefined {
+  return byId.get(id);
+}
+```
+
+- [ ] **Step 2: Write the failing test**
 
 Create `src/components/Exercise.test.tsx`.
 
@@ -2074,12 +2104,12 @@ describe('Exercise', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
 Expected: FAIL — cannot resolve `./Exercise`.
 
-- [ ] **Step 3: Implement `src/components/Exercise.tsx`**
+- [ ] **Step 4: Implement `src/components/Exercise.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -2193,7 +2223,7 @@ export default function Exercise({ id }: { id: string }) {
 }
 ```
 
-- [ ] **Step 4: Create `src/components/Exercise.css`**
+- [ ] **Step 5: Create `src/components/Exercise.css`**
 
 ```css
 .exercise { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
@@ -2214,15 +2244,21 @@ export default function Exercise({ id }: { id: string }) {
 .exercise-missing { color: #b91c1c; font-weight: 600; }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
-Expected: PASS, 7 tests. (`getExercise` is mocked here; it is implemented in Task 15.)
+Expected: PASS, 7 tests. The test mocks `getExercise`; the real registry exists
+but is empty until Task 15.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Verify the project still type-checks**
+
+Run: `npx tsc --noEmit`
+Expected: clean. This is what the registry created in Step 1 is for.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/components/Exercise.tsx src/components/Exercise.css src/components/Exercise.test.tsx
+git add src/content/exercises/ src/components/Exercise.tsx src/components/Exercise.css src/components/Exercise.test.tsx
 git commit -m "feat: exercise component with staged hints and distinct check outcomes"
 ```
 
@@ -3079,8 +3115,8 @@ git commit -m "feat: application shell with navigation, R status, and progress e
 ### Task 14: Content pipeline and lesson page
 
 **Files:**
-- Create: `src/content/exercises/index.ts`, `src/content/mdxComponents.tsx`, `src/pages/Lesson.tsx`
-- Modify: `src/r/session.ts` (add `prepareSession`)
+- Create: `src/content/mdxComponents.tsx`, `src/pages/Lesson.tsx`
+- Modify: `src/r/session.ts` (add `prepareSession` and `fetchDataset`), `src/App.tsx` (lesson route), `src/App.css`
 - Test: `src/content/exercises/index.test.ts`
 
 **Interfaces:**
@@ -3171,28 +3207,13 @@ describe('exercise definitions', () => {
 Run: `npx vitest run src/content/exercises/index.test.ts`
 Expected: FAIL — cannot resolve `./index`.
 
-- [ ] **Step 4: Implement `src/content/exercises/index.ts`**
+- [ ] **Step 4: Confirm the exercise registry from Task 11 is unchanged**
 
-```ts
-import type { ExerciseDef } from '../../r/checker';
-import { module06 } from './module-06';
-
-export const ALL_EXERCISES: ExerciseDef[] = [...module06];
-
-const byId = new Map(ALL_EXERCISES.map((exercise) => [exercise.id, exercise]));
-
-export function getExercise(id: string): ExerciseDef | undefined {
-  return byId.get(id);
-}
-```
-
-Create `src/content/exercises/module-06.ts` as an empty export for now; Task 15 fills it.
-
-```ts
-import type { ExerciseDef } from '../../r/checker';
-
-export const module06: ExerciseDef[] = [];
-```
+`src/content/exercises/index.ts` and `src/content/exercises/module-06.ts` were
+created in Task 11 so `Exercise.tsx` could compile. Read them and confirm
+`index.ts` exports `ALL_EXERCISES` and `getExercise`, and that `module06` is
+still an empty array. Do not rewrite either file — the test written in Step 2
+is what this task adds. Task 15 fills `module06`.
 
 - [ ] **Step 5: Implement `src/content/mdxComponents.tsx`**
 
