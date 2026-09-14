@@ -1585,6 +1585,16 @@ describe('OutputPane', () => {
     expect(screen.getByText('[1] 42').textContent).toBe('[1] 42');
   });
 
+  test('the plot canvas carries the hidden attribute when there is no plot', () => {
+    // jsdom does not apply the CSS cascade, so this checks only the attribute.
+    // That the attribute actually hides the element is asserted by the
+    // Playwright smoke test, where real CSS applies.
+    const { container } = render(
+      <OutputPane result={result([{ type: 'stdout', data: '[1] 42' }])} running={false} />,
+    );
+    expect(container.querySelector('canvas')?.hasAttribute('hidden')).toBe(true);
+  });
+
   test('announces that R is running', () => {
     render(<OutputPane result={null} running />);
     expect(screen.getByText(/running/i)).toBeDefined();
@@ -1679,7 +1689,14 @@ export default function OutputPane({ result, running }: Props) {
 .output-warning { color: #fcd34d; }
 .output-message { color: #93c5fd; }
 .output-stderr { color: #fcd34d; }
-.output-plot { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
+/* :not([hidden]) is required, not decorative. An author-stylesheet `display`
+   declaration beats the user-agent `[hidden] { display: none }` rule, so a
+   plain `.output-plot { display: block }` would leave the canvas visible even
+   when hidden — showing an empty white box before any code runs, and leaving
+   the previous plot on screen after a run that produced none. jsdom does not
+   apply the cascade, so no unit test can catch this; the Playwright smoke
+   test asserts the canvas is not visible before a plot exists. */
+.output-plot:not([hidden]) { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -1966,7 +1983,7 @@ export default function CodeBlock({ id, code }: Props) {
 - [ ] **Step 7: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/CodeBlock.test.tsx`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 8: Commit**
 
@@ -3321,6 +3338,9 @@ links fall through to the catch-all and land on the home page.
 
 ```css
 :root { color-scheme: light; }
+/* Author `display` declarations outrank the user-agent [hidden] rule, so a
+   component style can silently un-hide an element. This makes `hidden` win. */
+[hidden] { display: none !important; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
 .app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }
 .sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; }
@@ -4694,6 +4714,10 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
 
   await page.getByRole('link', { name: 'R playground' }).click();
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+
+  // Real CSS applies here, unlike jsdom: proves the hidden attribute actually
+  // hides the plot canvas, which an author `display` rule would silently defeat.
+  await expect(page.locator('canvas.output-plot')).toBeHidden();
 
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.locator('.output-console')).toContainText('stress', { timeout: 120_000 });
