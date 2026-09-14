@@ -108,7 +108,7 @@ statlab/
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "node scripts/validate-content.mjs",
+    "validate": "vitest run src/content/content.test.ts src/content/exercises/validate.itest.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -722,7 +722,6 @@ Create `src/r/session.itest.ts`.
 
 ```ts
 // @vitest-environment node
-import { readFile } from 'node:fs/promises';
 import { WebR } from 'webr';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { evaluateR } from './evaluate';
@@ -730,12 +729,14 @@ import { DATASET_FILES, mountDatasets } from './session';
 
 let webR: WebR;
 
+// A synthetic file, so this task does not depend on the real dataset
+// existing yet. Task 15 adds the test that reads the committed CSV.
+const SYNTHETIC = 'id,score\n1,10\n2,20\n3,30\n';
+
 beforeAll(async () => {
   webR = new WebR();
   await webR.init();
-  await mountDatasets(webR, async (name) =>
-    new Uint8Array(await readFile(new URL(`../../public/data/${name}`, import.meta.url))),
-  );
+  await mountDatasets(webR, async () => new TextEncoder().encode(SYNTHETIC));
 }, 300_000);
 
 afterAll(async () => {
@@ -749,10 +750,16 @@ describe('dataset mounting', () => {
     expect(DATASET_FILES.length).toBeGreaterThan(0);
   });
 
-  test('read.csv finds the mounted file at the documented relative path', async () => {
-    const result = await evaluateR(webR, 'nrow(read.csv("data/wellbeing-population.csv"))');
+  test('read.csv finds a mounted file at the documented relative path', async () => {
+    const result = await evaluateR(webR, `nrow(read.csv("data/${DATASET_FILES[0]}"))`);
     expect(result.errored).toBe(false);
-    expect(text(result)).toContain('5000');
+    expect(text(result)).toContain('3');
+  });
+
+  test('mounting twice succeeds, as it must after a reload', async () => {
+    await mountDatasets(webR, async () => new TextEncoder().encode(SYNTHETIC));
+    const result = await evaluateR(webR, `nrow(read.csv("data/${DATASET_FILES[0]}"))`);
+    expect(result.errored).toBe(false);
   });
 });
 ```
@@ -801,7 +808,7 @@ export async function mountDatasets(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/session.itest.ts`
-Expected: the `DATASET_FILES` test PASSES. The `read.csv` test fails until the CSV exists (Task 15) — note this and move on.
+Expected: PASS, 3 tests. Nothing here depends on the real dataset, so the suite must be fully green before this task is reviewed.
 
 - [ ] **Step 5: Commit**
 
@@ -1542,19 +1549,18 @@ describe('CodeBlock', () => {
     await waitFor(() => expect(getDraft('06-1', 'b1')).toBe('mean(x)'));
   });
 
-  test('restores a saved draft over the starter code', async () => {
-    render(
-      <LessonProvider value={{ lessonId: '06-1', webR: {} as never, env: {} as never, ready: true }}>
-        <CodeBlock id="b1" code="1 + 1" />
-      </LessonProvider>,
-    );
+  test('a fresh mount initialises from the saved draft, not the starter code', async () => {
+    const first = renderBlock();
     await userEvent.clear(screen.getByLabelText('R code'));
     await userEvent.type(screen.getByLabelText('R code'), 'sd(x)');
     await waitFor(() => expect(getDraft('06-1', 'b1')).toBe('sd(x)'));
 
-    screen.getByRole('button', { name: /reset/i });
+    // Unmount before re-rendering, so the assertion below can only be
+    // satisfied by state initialised from storage on the new mount.
+    first.unmount();
+
     renderBlock();
-    expect(screen.getAllByLabelText('R code')[1]).toHaveProperty('value', 'sd(x)');
+    expect(screen.getByLabelText('R code')).toHaveProperty('value', 'sd(x)');
   });
 
   test('reset restores the starter code', async () => {
@@ -3001,9 +3007,6 @@ import { Route, Routes } from 'react-router-dom';
 import RStatus from './components/RStatus';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
-import Lesson from './pages/Lesson';
-import Playground from './pages/Playground';
-import TestChooser from './pages/TestChooser';
 import './App.css';
 
 export default function App() {
@@ -3014,9 +3017,6 @@ export default function App() {
         <RStatus />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/lesson/:lessonId" element={<Lesson />} />
-          <Route path="/playground" element={<Playground />} />
-          <Route path="/which-test" element={<TestChooser />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
@@ -3025,7 +3025,10 @@ export default function App() {
 }
 ```
 
-`Lesson`, `Playground`, and `TestChooser` arrive in Tasks 14 and 16. Until then, create each as a one-line placeholder component so the build passes, and replace it in its own task.
+Only the routes whose pages exist are registered. Tasks 14 and 16 each add their
+own route alongside the page they create, so `tsc --noEmit` passes after every
+task and no placeholder files are ever needed. Until then the sidebar's lesson
+links fall through to the catch-all and land on the home page.
 
 - [ ] **Step 8: Create `src/App.css`**
 
@@ -3126,10 +3129,6 @@ import { describe, expect, test } from 'vitest';
 import { ALL_EXERCISES, getExercise } from './index';
 
 describe('exercise definitions', () => {
-  test('at least one exercise is defined', () => {
-    expect(ALL_EXERCISES.length).toBeGreaterThan(0);
-  });
-
   test('ids are unique', () => {
     const ids = ALL_EXERCISES.map((exercise) => exercise.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -3158,8 +3157,10 @@ describe('exercise definitions', () => {
     }
   });
 
-  test('lookup by id works and unknown ids return undefined', () => {
-    expect(getExercise(ALL_EXERCISES[0].id)).toBeDefined();
+  test('every defined exercise can be looked up, and unknown ids return undefined', () => {
+    for (const exercise of ALL_EXERCISES) {
+      expect(getExercise(exercise.id)).toBe(exercise);
+    }
     expect(getExercise('no-such-exercise')).toBeUndefined();
   });
 });
@@ -3315,7 +3316,19 @@ export default function Lesson() {
 }
 ```
 
-- [ ] **Step 7: Add lesson styles to `src/App.css`**
+- [ ] **Step 7: Register the lesson route in `src/App.tsx`**
+
+Add the import and the route alongside the existing home route:
+
+```tsx
+import Lesson from './pages/Lesson';
+```
+
+```tsx
+<Route path="/lesson/:lessonId" element={<Lesson />} />
+```
+
+- [ ] **Step 8: Add lesson styles to `src/App.css`**
 
 ```css
 .lesson h1 { margin-top: 0; }
@@ -3327,15 +3340,17 @@ export default function Lesson() {
 .lesson-nav .lesson-next { margin-left: auto; }
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [ ] **Step 9: Run the test to verify it passes**
 
 Run: `npx vitest run src/content/exercises/index.test.ts`
-Expected: the uniqueness, forbidden-function, and lookup tests PASS; "at least one exercise is defined" FAILS until Task 15. Note it and move on.
+Expected: PASS, 5 tests. Every test here holds vacuously on an empty exercise
+list; Task 15 adds the test that requires the list to be non-empty, once there
+are exercises to require.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/content/exercises/ src/content/mdxComponents.tsx src/pages/Lesson.tsx src/r/session.ts src/App.css
+git add src/content/exercises/ src/content/mdxComponents.tsx src/pages/Lesson.tsx src/r/session.ts src/App.tsx src/App.css
 git commit -m "feat: MDX lesson pipeline with per-lesson R session setup"
 ```
 
@@ -3775,17 +3790,50 @@ claim that, from a single sample, without ever repeating the study.
 />
 ````
 
-- [ ] **Step 7: Run the content tests to verify they now pass**
+- [ ] **Step 7: Add the tests that require real content to exist**
+
+Append to `src/content/exercises/index.test.ts`:
+
+```ts
+test('Module 6 defines its exercises', () => {
+  expect(ALL_EXERCISES.length).toBeGreaterThanOrEqual(3);
+});
+```
+
+Append to `src/r/session.itest.ts` a suite that reads the committed CSV rather
+than the synthetic one:
+
+```ts
+describe('the real course dataset', () => {
+  test('mounts and reads back the full population', async () => {
+    const real = new WebR();
+    await real.init();
+    try {
+      const { readFile } = await import('node:fs/promises');
+      await mountDatasets(real, async (name) =>
+        new Uint8Array(await readFile(new URL(`../../public/data/${name}`, import.meta.url))),
+      );
+      const result = await evaluateR(real, 'nrow(read.csv("data/wellbeing-population.csv"))');
+      expect(result.errored).toBe(false);
+      expect(text(result)).toContain('5000');
+    } finally {
+      await real.close();
+    }
+  }, 300_000);
+});
+```
+
+- [ ] **Step 8: Run the content tests to verify they pass**
 
 Run: `npx vitest run src/content/exercises/index.test.ts src/r/session.itest.ts`
-Expected: PASS. The `read.csv` test from Task 5 now finds the CSV and reports 5000 rows.
+Expected: PASS. The new dataset test reports 5000 rows.
 
-- [ ] **Step 8: Verify the lessons render in the browser**
+- [ ] **Step 9: Verify the lessons render in the browser**
 
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/06-1`.
 Expected: prose renders, R boots, the code blocks run and plot, the CLT simulation responds to the slider.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add scripts/generate-datasets.mjs public/data/ src/content/lessons/ src/content/exercises/module-06.ts
@@ -3797,7 +3845,8 @@ git commit -m "feat: Module 6 lessons, exercises, and the course population data
 ### Task 16: Playground and the test chooser
 
 **Files:**
-- Create (replacing the Task 13 placeholders): `src/pages/Playground.tsx`, `src/pages/TestChooser.tsx`
+- Create: `src/pages/Playground.tsx`, `src/pages/TestChooser.tsx`
+- Modify: `src/App.tsx` (register both routes), `src/App.css`
 - Test: `src/pages/TestChooser.test.tsx`
 
 **Interfaces:**
@@ -3917,7 +3966,7 @@ describe('TestChooser', () => {
 - [ ] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/pages/TestChooser.test.tsx`
-Expected: FAIL — the placeholder has none of this.
+Expected: FAIL — cannot resolve `./TestChooser`.
 
 - [ ] **Step 4: Implement `src/pages/TestChooser.tsx`**
 
@@ -4104,15 +4153,30 @@ As later modules land, set `lessonId` on the answers they teach so each leaf lin
 .link-button { border: none; background: none; color: #1d4ed8; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [ ] **Step 6: Register both routes in `src/App.tsx`**
 
-Run: `npx vitest run src/pages/TestChooser.test.tsx`
-Expected: PASS, 4 tests.
+With these two, every route in the spec exists and the catch-all is only a
+genuine fallback:
 
-- [ ] **Step 7: Commit**
+```tsx
+import Playground from './pages/Playground';
+import TestChooser from './pages/TestChooser';
+```
+
+```tsx
+<Route path="/playground" element={<Playground />} />
+<Route path="/which-test" element={<TestChooser />} />
+```
+
+- [ ] **Step 7: Run the test suite to verify nothing regressed**
+
+Run: `npx tsc --noEmit && npx vitest run`
+Expected: type check clean; every suite PASSES, integration suites included.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/pages/Playground.tsx src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx src/App.css
+git add src/pages/Playground.tsx src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx src/App.tsx src/App.css
 git commit -m "feat: R playground and the which-test decision tree"
 ```
 
@@ -4270,6 +4334,18 @@ describe.each(ALL_EXERCISES.map((exercise) => [exercise.id, exercise] as const))
 Run: `npx vitest run src/content/exercises/validate.itest.ts`
 Expected: PASS. Every solution passes and every wrong answer is rejected with status `fail`.
 
+Two things to confirm while you are here, because both get expensive to diagnose
+once there are thirty exercises rather than three:
+
+1. **One webR boot serves the whole file.** `beforeAll` is file-scoped and the
+   `describe.each` suites live inside it, so the run should show a single boot,
+   not one per exercise. If wall-clock time scales with exercise count rather
+   than staying roughly flat, the suites are re-booting and the setup needs
+   hoisting.
+2. **Exercises do not accumulate state across runs.** Temporarily duplicate one
+   exercise definition under a new id and re-run. Both copies must pass
+   independently. Revert the duplicate afterwards.
+
 - [ ] **Step 5: Prove the validator actually catches a broken check**
 
 This step verifies the safety net itself. Temporarily edit the `check` of `m6-1-a` to `list(pass = TRUE, message = "ok")` and re-run.
@@ -4277,16 +4353,21 @@ This step verifies the safety net itself. Temporarily edit the `check` of `m6-1-
 Run: `npx vitest run src/content/exercises/validate.itest.ts`
 Expected: FAIL on both of `m6-1-a`'s wrong answers. **Revert the edit** and confirm the suite passes again. Do not commit the temporary edit.
 
-- [ ] **Step 6: Add the `validate` script to `package.json`**
+- [ ] **Step 6: Confirm the `validate` script runs both files**
+
+The script was added in Task 1 and should already read:
 
 ```json
 "validate": "vitest run src/content/content.test.ts src/content/exercises/validate.itest.ts"
 ```
 
+Run: `npm run validate`
+Expected: both suites PASS. This is the exact command CI runs.
+
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/content/content.test.ts src/content/exercises/validate.itest.ts package.json
+git add src/content/content.test.ts src/content/exercises/validate.itest.ts
 git commit -m "test: validate lesson content and exercise checks against real R"
 ```
 
@@ -4423,7 +4504,13 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-`npx vitest run` in the verify job runs the integration suites too, which is intended: they are the only tests that exercise real R.
+`npx vitest run` in the verify job runs the integration suites too, which is
+intended: they are the only tests that exercise real R. Each of those files boots
+its own webR, so the job pays that cost several times over — but under Node webR
+loads its binaries from the installed npm package rather than the network, so the
+boots are local and the whole job stays in the low minutes. If it ever becomes
+the bottleneck on pull-request feedback, split the unit and integration runs into
+separate jobs rather than dropping either.
 
 - [ ] **Step 5: Enable Pages and push**
 
