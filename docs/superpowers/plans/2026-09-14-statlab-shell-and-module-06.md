@@ -35,6 +35,11 @@ Every task's requirements implicitly include this section. Values are copied ver
   applied via `patch-package` (Task 3). 0.6.0 is the latest release, so there is
   no version to upgrade to. The patch is a no-op on Linux, where `import()`
   already accepts absolute paths, so CI behaviour is unchanged.
+- **R objects are freed with `webR.destroy(obj)`, never `obj.destroy()`.** The
+  RObject proxy has no `destroy` method in webR 0.6.0 — destruction lives on
+  `WebR`/`Shelter`. This has already caused three separate defects in this plan,
+  one of which silently reported every correct exercise answer as a broken
+  exercise. (CodeMirror's `EditorView.destroy()` is unrelated and is correct.)
 - **Captured R conditions are RObject proxies, not strings.** For `error`,
   `warning`, and `message` output items, `data` is an async R object with
   `names()` of `["message", "call"]`. The text comes from
@@ -1440,7 +1445,7 @@ export async function runExercise(
       try {
         const result = (await webR.evalR(wrapCheck(exercise.check), { env: checkEnv })) as RCharacter;
         raw = ((await result.toArray()) as (string | null)[]).map((v) => v ?? '');
-        await result.destroy();
+        await webR.destroy(result);
       } finally {
         await destroyEnv(webR, checkEnv);
       }
