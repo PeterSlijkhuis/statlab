@@ -1,0 +1,12 @@
+.choice-block { border-left: 4px solid #6366f1; background: #eef2ff; padding: 0.9rem 1.1rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+.choice-predict { border-left-color: #f59e0b; background: #fffbeb; }
+.choice-interpret { border-left-color: #0d9488; background: #f0fdfa; }
+.choice-label { margin: 0 0 0.35rem; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; }
+.choice-question { margin: 0 0 0.75rem; font-weight: 600; }
+.choice-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.choice-options button { width: 100%; text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.95rem; }
+.choice-options button:disabled { cursor: default; }
+.choice-options button.chosen { border-color: #4338ca; box-shadow: 0 0 0 2px #c7d2fe; }
+.choice-response { margin-top: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 6px; background: #fff; border: 1px solid #cbd5e1; }
+.choice-response.right { border-color: #16a34a; }
+.choice-response.wrong { border-color: #dc2626; }
