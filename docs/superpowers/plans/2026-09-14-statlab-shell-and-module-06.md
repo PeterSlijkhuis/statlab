@@ -28,6 +28,19 @@ Every task's requirements implicitly include this section. Values are copied ver
 - **Every exercise carries at least one `wrongAnswers` entry**, and each must fail because the check returned `pass = FALSE`, not because the code threw.
 - **Progress is student-local** under localStorage key `statlab.progress.v1`. No backend, no accounts, no instructor dashboard.
 - **Node ≥ 17** is required to run webR under Node (CI uses Node 22).
+- **webR 0.6.0 cannot boot under Node on Windows without a patch.** Its worker
+  does `await import(path.resolve(e))`; on Windows `path.resolve` returns
+  `C:\...`, which Node's ESM loader rejects (`ERR_UNSUPPORTED_ESM_URL_SCHEME`,
+  "Received protocol 'c:'"). The fix is to wrap that path in `pathToFileURL`,
+  applied via `patch-package` (Task 3). 0.6.0 is the latest release, so there is
+  no version to upgrade to. The patch is a no-op on Linux, where `import()`
+  already accepts absolute paths, so CI behaviour is unchanged.
+- **Captured R conditions are RObject proxies, not strings.** For `error`,
+  `warning`, and `message` output items, `data` is an async R object with
+  `names()` of `["message", "call"]`. The text comes from
+  `await (await data.get('message')).toArray()`. Calling `String()` on it
+  yields `[object Object]` — which is what a student would then see instead of
+  their error message. Only `stdout`/`stderr` items carry plain strings.
 
 ---
 
@@ -457,6 +470,56 @@ git commit -m "feat: webR client with pinned v0.6.0 and restart support"
 
 This takes the `WebR` instance as a parameter rather than importing the singleton, so Node tests and the CI validator can pass their own instance. That is the seam that makes the whole R layer testable.
 
+- [ ] **Step 0: Patch webR so it can boot under Node on Windows**
+
+Without this, every R integration test in the project fails before running a
+line of R. webR 0.6.0's worker does `await import(path.resolve(e))`; on Windows
+`path.resolve` yields `C:\...`, and Node's ESM loader rejects it with
+`ERR_UNSUPPORTED_ESM_URL_SCHEME` ("Received protocol 'c:'"). Wrapping the path
+in `pathToFileURL` fixes it, and is a no-op on Linux where `import()` already
+accepts absolute paths.
+
+Install the tool and add the hook:
+
+```bash
+npm install --save-dev patch-package
+```
+
+Add to `package.json` scripts:
+
+```json
+"postinstall": "patch-package"
+```
+
+Then edit `node_modules/webr/dist/webr-worker.js`, replacing the single
+occurrence of:
+
+```js
+await import((await import("path")).default.resolve(e))
+```
+
+with:
+
+```js
+await import((await import("url")).pathToFileURL((await import("path")).default.resolve(e)).href)
+```
+
+and record it:
+
+```bash
+npx patch-package webr
+```
+
+This writes `patches/webr+0.6.0.patch`, which must be committed. Verify the
+patch survives a clean install before moving on:
+
+```bash
+rm -rf node_modules && npm ci
+```
+
+`npm ci` must print that patch-package applied the webr patch. If it does not,
+the patch is not wired up and every later R task will fail on a fresh clone.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `src/r/evaluate.itest.ts`. This boots real R under Node.
@@ -497,7 +560,22 @@ describe('evaluateR', () => {
   test('captures warnings separately from errors', async () => {
     const result = await evaluateR(webR, 'warning("careful")');
     expect(result.errored).toBe(false);
-    expect(result.output.some((o) => o.type === 'warning')).toBe(true);
+    expect(result.output.some((o) => o.type === 'warning' && o.data.includes('careful'))).toBe(true);
+  });
+
+  test('reports the real message for a typical student mistake', async () => {
+    // The commonest error a beginner sees. If condition objects are not
+    // unwrapped, this reads "[object Object]" instead.
+    const result = await evaluateR(webR, 'undefined_fn(1)');
+    expect(result.errored).toBe(true);
+    expect(text(result)).toContain('could not find function');
+    expect(text(result)).not.toContain('[object Object]');
+  });
+
+  test('captures messages, which are neither warnings nor errors', async () => {
+    const result = await evaluateR(webR, 'message("hello")');
+    expect(result.errored).toBe(false);
+    expect(result.output.some((o) => o.type === 'message' && o.data.includes('hello'))).toBe(true);
   });
 
   test('captures stdout from explicit printing', async () => {
@@ -520,7 +598,7 @@ Expected: FAIL — cannot resolve `./evaluate`. First run downloads the R WebAss
 - [ ] **Step 3: Implement `src/r/evaluate.ts`**
 
 ```ts
-import type { RObject, WebR } from 'webr';
+import type { RCharacter, RObject, WebR } from 'webr';
 
 export type RunOutput = {
   type: 'stdout' | 'stderr' | 'message' | 'warning' | 'error';
@@ -543,6 +621,23 @@ export type EvaluateOptions = {
   graphics?: { width: number; height: number } | false;
 };
 
+/**
+ * stdout and stderr arrive as plain strings. Conditions (error, warning,
+ * message) arrive as R objects whose `$message` holds the text — `String()`
+ * on one yields "[object Object]", which is what the student would see in
+ * place of their error.
+ */
+async function conditionText(data: unknown): Promise<string> {
+  if (typeof data === 'string') return data;
+  try {
+    const message = await (data as RObject).get('message');
+    const parts = (await (message as RCharacter).toArray()) as (string | null)[];
+    return parts.map((part) => part ?? '').join('').trimEnd();
+  } catch {
+    return 'An R condition was raised, but its message could not be read.';
+  }
+}
+
 export async function evaluateR(
   webR: WebR,
   code: string,
@@ -561,10 +656,13 @@ export async function evaluateR(
       ...(env ? { env } : {}),
     });
 
-    const output: RunOutput[] = captured.output.map((item) => ({
-      type: item.type as RunOutput['type'],
-      data: typeof item.data === 'string' ? item.data : String(item.data),
-    }));
+    const output: RunOutput[] = [];
+    for (const item of captured.output) {
+      output.push({
+        type: item.type as RunOutput['type'],
+        data: await conditionText(item.data),
+      });
+    }
 
     return {
       output,
@@ -1360,13 +1458,21 @@ describe('OutputPane', () => {
 
   test('labels an error distinctly from ordinary output', () => {
     render(<OutputPane result={result([{ type: 'error', data: 'object not found' }])} running={false} />);
-    const line = screen.getByText('object not found');
+    const line = screen.getByText(/object not found/);
     expect(line.className).toContain('error');
+    expect(line.textContent).toBe('Error: object not found');
   });
 
   test('labels a warning distinctly from an error', () => {
     render(<OutputPane result={result([{ type: 'warning', data: 'NAs introduced' }])} running={false} />);
-    expect(screen.getByText('NAs introduced').className).toContain('warning');
+    const line = screen.getByText(/NAs introduced/);
+    expect(line.className).toContain('warning');
+    expect(line.textContent).toBe('Warning: NAs introduced');
+  });
+
+  test('does not prefix ordinary console output', () => {
+    render(<OutputPane result={result([{ type: 'stdout', data: '[1] 42' }])} running={false} />);
+    expect(screen.getByText('[1] 42').textContent).toBe('[1] 42');
   });
 
   test('announces that R is running', () => {
@@ -1391,6 +1497,19 @@ import './OutputPane.css';
 type Props = {
   result: RunResult | null;
   running: boolean;
+};
+
+/**
+ * R's captured conditions carry only their message text, so a bare error would
+ * read as an unexplained sentence. Labelling matches what students see in
+ * RStudio and tells them which kind of thing just happened.
+ */
+const PREFIX: Record<RunResult['output'][number]['type'], string> = {
+  stdout: '',
+  stderr: '',
+  message: '',
+  warning: 'Warning: ',
+  error: 'Error: ',
 };
 
 export default function OutputPane({ result, running }: Props) {
@@ -1427,6 +1546,7 @@ export default function OutputPane({ result, running }: Props) {
         <pre className="output-console">
           {result.output.map((line, index) => (
             <span key={index} className={`output-line output-${line.type}`}>
+              {PREFIX[line.type]}
               {line.data}
             </span>
           ))}
