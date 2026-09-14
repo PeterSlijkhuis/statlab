@@ -329,9 +329,16 @@ git commit -m "feat: scaffold Vite + React + MDX project with pinned base path"
 - Produces:
   - `WEBR_VERSION: 'v0.6.0'`, `WEBR_BASE_URL: string`
   - `getWebR(): Promise<WebR>` — browser singleton, initialises once
-  - `restartWebR(): Promise<WebR>` — closes and respawns the worker
+  - `getStatus(): RStatus`, `setStatus(s: RStatus): void`
   - `onStatus(fn: (s: RStatus) => void): () => void`
   - `type RStatus = { phase: 'idle'|'booting'|'installing'|'ready'|'error'; detail?: string }`
+
+> **No `restartWebR`.** Recovery from a wedged worker is a page reload (Task 13),
+> which clears the dead R session, the memoised course-session promise, and stale
+> component state in one move. An in-place respawn function with no caller would
+> be dead code, and the obvious implementation has a real race: called while the
+> first boot is still pending, it captures a null `instance`, leaves that boot
+> running, and lets it overwrite the singleton when it resolves.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -416,23 +423,9 @@ export function getWebR(): Promise<WebR> {
   return booting;
 }
 
-export async function restartWebR(): Promise<WebR> {
-  const previous = instance;
-  instance = null;
-  booting = null;
-  setStatus({ phase: 'booting', detail: 'Restarting R' });
-  if (previous) {
-    try {
-      await previous.close();
-    } catch {
-      // A wedged worker may refuse to close; respawning is still correct.
-    }
-  }
-  return getWebR();
-}
 ```
 
-`restartWebR` exists because the PostMessage channel cannot interrupt running R code (see Global Constraints). It is the only recovery path for a runaway loop.
+There is deliberately no in-place restart function here; see the note above.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -2968,10 +2961,10 @@ export default function RStatus() {
 ```
 
 Restart exists because the PostMessage channel cannot interrupt a running loop —
-a student's infinite loop has no other escape. `restartWebR()` from Task 2 stays
-available for the day the app needs in-place recovery that preserves scroll
-position and output; re-running the lesson's earlier code blocks automatically
-(spec §3.5) is deferred with it.
+a student's infinite loop has no other escape. Spec §3.5's in-place recovery,
+which would preserve scroll position and output and re-run the lesson's earlier
+code blocks, is deferred; when it is built it needs its own guard against a
+restart racing an in-flight first boot.
 
 - [ ] **Step 6: Implement `src/pages/Home.tsx`**
 
