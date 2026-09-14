@@ -1035,6 +1035,7 @@ import {
   markExercise,
   markQuiz,
   saveDraft,
+  subscribeProgress,
   touchLesson,
 } from './progress';
 
@@ -1094,6 +1095,33 @@ describe('progress store', () => {
     expect(getProgress()).toEqual({ version: 1, lessons: {} });
   });
 
+  test('rejects an import whose version is right but whose lessons are malformed', () => {
+    // The one untrusted input in the app: a file the student supplies.
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': {} } }))).toBe(false);
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': 'nope' } }))).toBe(false);
+  });
+
+  test('a malformed stored payload cannot make a later write throw', () => {
+    localStorage.setItem('statlab.progress.v1', JSON.stringify({ version: 1, lessons: { '06-1': {} } }));
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+  });
+
+  test('a throwing subscriber breaks neither the write nor the other subscribers', () => {
+    const seen: string[] = [];
+    const offA = subscribeProgress(() => {
+      throw new Error('subscriber exploded');
+    });
+    const offB = subscribeProgress(() => seen.push('b'));
+
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(seen).toContain('b');
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+
+    offA();
+    offB();
+  });
+
   test('works when localStorage throws', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota exceeded');
@@ -1139,10 +1167,25 @@ export function subscribeProgress(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function isLessonProgress(value: unknown): value is LessonProgress {
+  if (!isRecord(value)) return false;
+  return isRecord(value.exercises) && isRecord(value.quizzes) && isRecord(value.drafts);
+}
+
+/**
+ * Validates every lesson, not just the envelope. `importProgress` accepts a
+ * file the student supplies — the only untrusted input in the app — and a
+ * payload with the right version but a malformed lesson would otherwise be
+ * stored and then throw out of `markExercise` on the next write.
+ */
 function isProgress(value: unknown): value is Progress {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<Progress>;
-  return candidate.version === 1 && typeof candidate.lessons === 'object' && candidate.lessons !== null;
+  if (!isRecord(value)) return false;
+  if (value.version !== 1) return false;
+  if (!isRecord(value.lessons)) return false;
+  return Object.values(value.lessons).every(isLessonProgress);
 }
 
 export function getProgress(): Progress {
@@ -1163,7 +1206,14 @@ function write(next: Progress): void {
   } catch {
     // Progress simply is not saved; never break the lesson over it.
   }
-  for (const fn of listeners) fn();
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch {
+      // One broken subscriber must not stop the others, nor fail the write
+      // it is reacting to.
+    }
+  }
 }
 
 function update(lessonId: string, fn: (lesson: LessonProgress) => void): void {
@@ -1230,7 +1280,7 @@ export function importProgress(json: string): boolean {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/state/progress.test.ts`
-Expected: PASS, 10 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
