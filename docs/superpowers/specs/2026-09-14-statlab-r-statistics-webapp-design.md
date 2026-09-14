@@ -277,7 +277,12 @@ webR runs under Node.js (Node ≥ 17), so CI executes the actual R for every
 exercise before deployment:
 
 - Each exercise's **solution must pass** its own check.
-- Each exercise's **`wrongAnswers` must every one fail** its check.
+- Each exercise's **`wrongAnswers` must every one fail** its check — and fail
+  *for the right reason*. The validator distinguishes "the student's code threw
+  an R error" from "the check returned `pass = FALSE`", exactly as the live path
+  does (§5.2), and only the latter counts as a satisfied negative fixture. A
+  wrong answer that merely fails to run proves nothing about whether the check
+  can tell a correct answer from an incorrect one.
 
 The second half is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks
