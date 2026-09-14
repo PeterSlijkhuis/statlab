@@ -26,15 +26,14 @@ export default function OutputPane({ result, running }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     const images = result?.images ?? [];
-    if (!canvas) return;
+    // Nothing to draw: the canvas is hidden in that case, and assigning a new
+    // width below clears it before the next plot, so there is no stale frame
+    // to erase. Touching the 2D context here would be pointless work — and
+    // under jsdom it logs a "not implemented" error on every render.
+    if (!canvas || images.length === 0) return;
 
     const context = canvas.getContext('2d');
     if (!context) return;
-
-    if (images.length === 0) {
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
 
     // Show the final plot: intermediate frames of a multi-step plot are noise.
     const image = images[images.length - 1];
