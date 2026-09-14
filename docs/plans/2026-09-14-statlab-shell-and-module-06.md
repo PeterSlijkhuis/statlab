@@ -710,7 +710,11 @@ git commit -m "feat: R evaluation wrapper with captured output and safe graphics
 - Produces:
   - `createLessonEnv(webR: WebR): Promise<RObject>` — `new.env(parent = globalenv())`
   - `createChildEnv(webR: WebR, parent: RObject): Promise<RObject>`
-  - `destroyEnv(env: RObject): Promise<void>`
+  - `destroyEnv(webR: WebR, env: RObject): Promise<void>`
+
+> **Note:** webR 0.6.0 has no `.destroy()` on the RObject proxy — destruction lives
+> on `WebR`/`Shelter`. `destroyEnv` therefore takes the instance, like every other
+> function in the R layer.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -742,7 +746,7 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'x <- 42', { env });
     const result = await evaluateR(webR, 'x', { env });
     expect(text(result)).toContain('42');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('lessons cannot see each other objects', async () => {
@@ -751,15 +755,15 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'secret <- 99', { env: a });
     const result = await evaluateR(webR, 'secret', { env: b });
     expect(result.errored).toBe(true);
-    await destroyEnv(a);
-    await destroyEnv(b);
+    await destroyEnv(webR, a);
+    await destroyEnv(webR, b);
   });
 
   test('base R remains reachable from a lesson environment', async () => {
     const env = await createLessonEnv(webR);
     const result = await evaluateR(webR, 'mean(c(1, 2, 3))', { env });
     expect(text(result)).toContain('2');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('a child environment sees its parent objects but not the reverse', async () => {
@@ -774,8 +778,8 @@ describe('lesson environments', () => {
     const leaked = await evaluateR(webR, 'attempt', { env: parent });
     expect(leaked.errored).toBe(true);
 
-    await destroyEnv(child);
-    await destroyEnv(parent);
+    await destroyEnv(webR, child);
+    await destroyEnv(webR, parent);
   });
 });
 ```
@@ -808,8 +812,12 @@ export async function createChildEnv(webR: WebR, parent: RObject): Promise<RObje
   return webR.evalR('new.env(parent = environment())', { env: parent });
 }
 
-export async function destroyEnv(env: RObject): Promise<void> {
-  await env.destroy();
+/**
+ * webR 0.6.0 exposes destruction on the WebR/Shelter, not on the RObject proxy,
+ * so the instance is passed in — matching `evaluateR` and the two creators above.
+ */
+export async function destroyEnv(webR: WebR, env: RObject): Promise<void> {
+  await webR.destroy(env);
 }
 ```
 
@@ -1251,7 +1259,7 @@ const exercise: ExerciseDef = {
 async function run(code: string) {
   const env = await createLessonEnv(webR);
   const outcome = await runExercise(webR, exercise, code, env);
-  await destroyEnv(env);
+  await destroyEnv(webR, env);
   return outcome;
 }
 
@@ -1286,7 +1294,7 @@ describe('runExercise', () => {
     const broken = { ...exercise, check: 'stop("check is broken")' };
     const env = await createLessonEnv(webR);
     const outcome = await runExercise(webR, broken, exercise.solution, env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('broken-check');
   });
 
@@ -1294,7 +1302,7 @@ describe('runExercise', () => {
     const broken = { ...exercise, check: '"not a list"' };
     const env = await createLessonEnv(webR);
     const outcome = await runExercise(webR, broken, exercise.solution, env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('broken-check');
   });
 
@@ -1302,7 +1310,7 @@ describe('runExercise', () => {
     const env = await createLessonEnv(webR);
     await runExercise(webR, exercise, exercise.solution, env);
     const outcome = await runExercise(webR, exercise, 'y <- 1', env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('fail');
   });
 });
@@ -1398,7 +1406,7 @@ export async function runExercise(
         raw = ((await result.toArray()) as (string | null)[]).map((v) => v ?? '');
         await result.destroy();
       } finally {
-        await destroyEnv(checkEnv);
+        await destroyEnv(webR, checkEnv);
       }
     } catch (err) {
       return { status: 'broken-check', message: String(err), run };
@@ -1412,7 +1420,7 @@ export async function runExercise(
       ? { status: 'pass', message: raw[1] || 'Correct.', run }
       : { status: 'fail', message: raw[1] || 'Not quite.', run };
   } finally {
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   }
 }
 ```
@@ -3429,6 +3437,7 @@ export default function Lesson() {
     if (!meta) return;
     let live = true;
     let created: RObject | null = null;
+    let createdBy: WebR | null = null;
 
     void (async () => {
       try {
@@ -3436,10 +3445,11 @@ export default function Lesson() {
         await prepareSession(instance, fetchDataset);
         const lessonEnv = await createLessonEnv(instance);
         if (!live) {
-          await destroyEnv(lessonEnv);
+          await destroyEnv(instance, lessonEnv);
           return;
         }
         created = lessonEnv;
+        createdBy = instance;
         setWebR(instance);
         setEnv(lessonEnv);
         setStatus({ phase: 'ready' });
@@ -3450,7 +3460,7 @@ export default function Lesson() {
 
     return () => {
       live = false;
-      if (created) void destroyEnv(created);
+      if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, [meta]);
 
@@ -4042,6 +4052,7 @@ export default function Playground() {
   useEffect(() => {
     let live = true;
     let created: RObject | null = null;
+    let createdBy: WebR | null = null;
 
     void (async () => {
       try {
@@ -4049,10 +4060,11 @@ export default function Playground() {
         await prepareSession(instance, fetchDataset);
         const playgroundEnv = await createLessonEnv(instance);
         if (!live) {
-          await destroyEnv(playgroundEnv);
+          await destroyEnv(instance, playgroundEnv);
           return;
         }
         created = playgroundEnv;
+        createdBy = instance;
         setWebR(instance);
         setEnv(playgroundEnv);
         setStatus({ phase: 'ready' });
@@ -4063,7 +4075,7 @@ export default function Playground() {
 
     return () => {
       live = false;
-      if (created) void destroyEnv(created);
+      if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, []);
 
@@ -4474,7 +4486,7 @@ async function attempt(exerciseId: string, code: string) {
     // Graphics stay off: webr::canvas() needs OffscreenCanvas, absent in Node.
     return await runExercise(webR, exercise, code, env, false);
   } finally {
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   }
 }
 
