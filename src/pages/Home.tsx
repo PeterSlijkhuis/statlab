@@ -1,0 +1,53 @@
+import { Link } from 'react-router-dom';
+import { ALL_LESSONS, findLesson, MODULES } from '../content/manifest';
+import { exportProgress, getProgress, importProgress, lastVisitedLesson } from '../state/progress';
+
+function download(contents: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'statlab-progress.json';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function Home() {
+  const progress = getProgress();
+  const resumeId = lastVisitedLesson();
+  const resume = resumeId ? findLesson(resumeId) : undefined;
+  const started = ALL_LESSONS.filter((lesson) => progress.lessons[lesson.id]).length;
+
+  async function onImport(file: File) {
+    const ok = importProgress(await file.text());
+    if (ok) window.location.reload();
+    else window.alert('That file could not be read as StatLab progress.');
+  }
+
+  return (
+    <div className="home">
+      <h1>StatLab</h1>
+      <p className="home-tagline">Statistics and R for psychology and business students — University of Twente.</p>
+      <p>Everything here runs in your browser. Nothing is installed, nothing is uploaded, and your progress stays on this computer.</p>
+      {resume && <p className="home-resume"><Link to={`/lesson/${resume.id}`}>Continue: {resume.title}</Link></p>}
+      <p>{started} of {ALL_LESSONS.length} lessons started.</p>
+      {MODULES.map((module) => (
+        <section key={module.id}>
+          <h2>{module.number}. {module.title}</h2>
+          <ol>{module.lessons.map((lesson) => <li key={lesson.id}><Link to={`/lesson/${lesson.id}`}>{lesson.title}</Link></li>)}</ol>
+        </section>
+      ))}
+      <section>
+        <h2>Your progress</h2>
+        <p>Progress is saved only in this browser. Export it to move to another computer, or to hand in as evidence of completion.</p>
+        <button type="button" onClick={() => download(exportProgress())}>Export progress</button>
+        <label className="home-import">
+          Import progress
+          <input type="file" accept="application/json" onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void onImport(file);
+          }} />
+        </label>
+      </section>
+    </div>
+  );
+}
