@@ -54,10 +54,23 @@ Each layer depends only on those above it in the list. Components call into
 
 ### 2.3 Deployment and base path
 
-The site is served from a GitHub project page at `https://<user>.github.io/<repo>/`.
-Vite must be configured with `base: '/<repo>/'` and the router given a matching
-basename. Omitting either produces a blank page on first deploy — the most
-common failure mode for this hosting setup, and the reason it is stated here.
+The repository is `PeterSlijkhuis/statlab`, so the site is served from the
+GitHub project page at:
+
+    https://peterslijkhuis.github.io/statlab/
+
+Vite must therefore be configured with `base: '/statlab/'` and the router given
+a matching basename of `/statlab`. Omitting either produces a blank page on
+first deploy — the most common failure mode for this hosting setup, and the
+reason it is stated here.
+
+The repository starts **private**. GitHub Pages serves from a private repository
+only on a paid plan, so publishing to students means making the repository
+public — a deliberate, separate step once the course material is ready.
+
+The application is named **StatLab**. University of Twente affiliation appears
+in the site header and README rather than in the name, so the material stays
+reusable if other programmes adopt it.
 
 A GitHub Actions workflow runs on push to `main`: validate content, run tests,
 build, deploy to Pages. A failing content validation blocks deployment.
