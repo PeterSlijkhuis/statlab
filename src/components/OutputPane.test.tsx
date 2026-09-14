@@ -39,4 +39,14 @@ describe('OutputPane', () => {
     render(<OutputPane result={null} running />);
     expect(screen.getByText(/running/i)).toBeDefined();
   });
+
+  test('the plot canvas carries the hidden attribute when there is no plot', () => {
+    // jsdom does not apply the CSS cascade, so this checks only the attribute.
+    // That the attribute actually hides the element is asserted by the
+    // Playwright smoke test, where real CSS applies.
+    const { container } = render(
+      <OutputPane result={result([{ type: 'stdout', data: '[1] 42' }])} running={false} />,
+    );
+    expect(container.querySelector('canvas')?.hasAttribute('hidden')).toBe(true);
+  });
 });
