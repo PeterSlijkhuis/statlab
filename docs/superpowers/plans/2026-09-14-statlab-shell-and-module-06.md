@@ -670,12 +670,22 @@ export async function evaluateR(
       errored: output.some((o) => o.type === 'error'),
     };
   } finally {
-    shelter.purge();
+    // Awaited: purge() returns a promise, and an unawaited rejection here
+    // would surface as an unhandled rejection rather than reaching the caller.
+    await shelter.purge();
   }
 }
 ```
 
 `withAutoprint: true` is the line that makes `x` and ggplot objects render at all — webR defaults it to `false`.
+
+**Known, accepted limitation.** `data.get('message')` returns an R object that webR
+preserves but registers in no shelter, so nothing can free it — `shelter.destroy`,
+`webR.destroy` and `obj.destroy` all reject it. Measured cost is about two R cells
+(~120 bytes) per captured condition, within the noise of ordinary evaluation, and a
+page reload clears it. Avoiding it would mean binding the condition into an R
+environment for a shelter-scoped `conditionMessage()` call — more machinery in the
+hottest path of the app for no measurable gain.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
