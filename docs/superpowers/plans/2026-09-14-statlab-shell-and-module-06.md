@@ -4543,6 +4543,18 @@ describe('lesson content', () => {
     }
   });
 
+  test('block ids are unique within each lesson', () => {
+    // Progress is keyed by lesson id plus block id, so two blocks sharing an id
+    // in one lesson silently overwrite each other's saved draft or quiz result.
+    // Nothing at runtime can detect this; an author would just see answers go
+    // missing.
+    for (const [path, source] of Object.entries(sources)) {
+      const ids = [...source.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+      expect(duplicates, `${path} reuses block id(s): ${[...new Set(duplicates)].join(', ')}`).toEqual([]);
+    }
+  });
+
   test('no lesson uses a function that hangs on the PostMessage channel', () => {
     const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
     for (const [path, source] of Object.entries(sources)) {
@@ -4564,7 +4576,7 @@ describe('lesson content', () => {
 - [ ] **Step 2: Run it**
 
 Run: `npx vitest run src/content/content.test.ts`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 3: Write the R validation suite**
 
@@ -4866,4 +4878,3 @@ Run against the spec after completing the plan.
 **Remaining scope note**
 
 The five simulations other than `clt` (§6) and Modules 1–5 and 7–12 (§7) are out of scope here by the spec's own §10, and become content work against the interfaces this plan freezes.
-
