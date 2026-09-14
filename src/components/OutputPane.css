@@ -1,0 +1,9 @@
+.output-pane { background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 0.75rem; min-height: 3rem; }
+.output-status { margin: 0; color: #94a3b8; font-style: italic; }
+.output-console { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; }
+.output-line { display: block; }
+.output-error { color: #fca5a5; }
+.output-warning { color: #fcd34d; }
+.output-message { color: #93c5fd; }
+.output-stderr { color: #fcd34d; }
+.output-plot { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
