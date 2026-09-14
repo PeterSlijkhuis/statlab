@@ -864,7 +864,7 @@ Create `src/r/session.itest.ts`.
 import { WebR } from 'webr';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { evaluateR } from './evaluate';
-import { DATASET_FILES, mountDatasets } from './session';
+import { DATASET_FILES, installCoursePackages, mountDatasets } from './session';
 
 let webR: WebR;
 
@@ -900,6 +900,31 @@ describe('dataset mounting', () => {
     const result = await evaluateR(webR, `nrow(read.csv("data/${DATASET_FILES[0]}"))`);
     expect(result.errored).toBe(false);
   });
+});
+
+describe('course packages', () => {
+  // Slow (downloads binaries) and deliberately kept: the entire curriculum
+  // from Module 4 onward assumes webR publishes builds of these for this R
+  // version. Finding out here costs one minute; finding out at Module 4 costs
+  // a rewrite of every visualisation lesson.
+  test('dplyr and ggplot2 install and load', async () => {
+    await installCoursePackages(webR);
+
+    const loaded = await evaluateR(webR, 'suppressMessages({ library(dplyr); library(ggplot2) }); "ok"');
+    expect(loaded.errored, loaded.output.map((o) => o.data).join('\n')).toBe(false);
+
+    const piped = await evaluateR(
+      webR,
+      'as.character(nrow(filter(data.frame(x = 1:10), x > 6)))',
+    );
+    expect(text(piped)).toContain('4');
+
+    const plotted = await evaluateR(
+      webR,
+      'class(ggplot(data.frame(x = 1, y = 1), aes(x, y)) + geom_point())[1]',
+    );
+    expect(text(plotted)).toContain('gg');
+  }, 600_000);
 });
 ```
 
@@ -947,7 +972,9 @@ export async function mountDatasets(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/session.itest.ts`
-Expected: PASS, 3 tests. Nothing here depends on the real dataset, so the suite must be fully green before this task is reviewed.
+Expected: PASS, 4 tests. Nothing here depends on the real dataset, so the suite must be
+fully green before this task is reviewed. The package-install test downloads binaries and
+may take a minute or more on a first run.
 
 - [ ] **Step 5: Commit**
 
