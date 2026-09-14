@@ -36,3 +36,30 @@ export async function mountDatasets(
     await webR.FS.writeFile(`${dir}/${name}`, bytes);
   }
 }
+
+let prepared: Promise<void> | null = null;
+
+/** Install packages and mount datasets exactly once per webR instance. */
+export function prepareSession(
+  webR: WebR,
+  load: (name: string) => Promise<Uint8Array>,
+): Promise<void> {
+  if (!prepared) {
+    prepared = (async () => {
+      await mountDatasets(webR, load);
+      await installCoursePackages(webR);
+      // Every setup step is done; only this composer knows that.
+      setStatus({ phase: 'ready' });
+    })().catch((err) => {
+      prepared = null; // Allow a retry after a transient network failure.
+      throw err;
+    });
+  }
+  return prepared;
+}
+
+export async function fetchDataset(name: string): Promise<Uint8Array> {
+  const response = await fetch(`${import.meta.env.BASE_URL}data/${name}`);
+  if (!response.ok) throw new Error(`Could not load dataset ${name}: ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
