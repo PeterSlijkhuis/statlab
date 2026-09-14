@@ -1,0 +1,28 @@
+:root { color-scheme: light; }
+[hidden] { display: none !important; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
+.app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }
+.sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; }
+.sidebar-home { display: block; font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; color: #1d4ed8; text-decoration: none; }
+.sidebar h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin: 1rem 0 0.4rem; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar-lesson { display: block; padding: 0.3rem 0.5rem; border-radius: 5px; color: #0f172a; text-decoration: none; font-size: 0.92rem; }
+.sidebar-lesson:hover { background: #e2e8f0; }
+.sidebar-lesson.active { background: #dbeafe; font-weight: 600; }
+.sidebar-lesson.started::after { content: " ·"; color: #d97706; }
+.sidebar-lesson.complete::after { content: " ✓"; color: #16a34a; }
+.app-main { padding: 1.5rem 2rem 4rem; max-width: 52rem; }
+.r-status { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; padding: 0.4rem 0.7rem; border-radius: 6px; margin-bottom: 1rem; }
+.r-status.ready { background: #f0fdf4; color: #166534; }
+.r-status.busy { background: #fffbeb; color: #92400e; }
+.r-status.error { background: #fef2f2; color: #991b1b; display: block; }
+.r-status-detail { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
+.r-status button { margin-left: auto; padding: 0.2rem 0.6rem; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.home-tagline { color: #475569; font-size: 1.05rem; }
+.home-resume a { font-weight: 600; }
+.home-import { display: inline-flex; gap: 0.4rem; align-items: center; margin-left: 1rem; font-size: 0.9rem; }
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid #e2e8f0; }
+  .app-main { padding: 1rem; }
+}
