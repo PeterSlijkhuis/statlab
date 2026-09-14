@@ -42,9 +42,9 @@ statlab/
 ├── vitest.config.ts
 ├── playwright.config.ts
 ├── .github/workflows/deploy.yml      validate → test → build → Pages
+├── public/data/*.csv                 generated datasets, served at /statlab/data/
 ├── scripts/
-│   ├── generate-datasets.mjs         seeded CSV generation, run once
-│   └── validate-content.mjs          runs real R: solutions pass, wrong answers fail
+│   └── generate-datasets.mjs         seeded CSV generation, run once
 ├── e2e/smoke.spec.ts
 └── src/
     ├── main.tsx                      router mount
@@ -76,8 +76,8 @@ statlab/
     │   ├── LessonContext.tsx         per-lesson R environment + id
     │   ├── mdxComponents.tsx         component map passed to MDX
     │   ├── exercises/module-06.ts    exercise definitions
-    │   ├── lessons/*.mdx             lesson prose
-    │   └── datasets/*.csv            generated, committed
+    │   ├── content.test.ts           static content validation
+    │   └── lessons/*.mdx             lesson prose
     └── pages/
         ├── Home.tsx                  progress overview + continue
         ├── Lesson.tsx                MDX loader + lesson chrome
@@ -736,7 +736,7 @@ beforeAll(async () => {
   webR = new WebR();
   await webR.init();
   await mountDatasets(webR, async (name) =>
-    new Uint8Array(await readFile(new URL(`../content/datasets/${name}`, import.meta.url))),
+    new Uint8Array(await readFile(new URL(`../../public/data/${name}`, import.meta.url))),
   );
 }, 300_000);
 
@@ -2223,3 +2223,2260 @@ git commit -m "feat: exercise component with staged hints and distinct check out
 ```
 
 ---
+
+### Task 12: Sampling engine and the CLT simulation
+
+**Files:**
+- Create: `src/sims/rng.ts`, `src/sims/CLT.tsx`, `src/sims/CLT.css`, `src/sims/registry.ts`, `src/components/Simulation.tsx`
+- Test: `src/sims/rng.test.ts`, `src/components/Simulation.test.tsx`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `makeRng(seed: number): () => number`
+  - `type PopulationName = 'normal' | 'skewed' | 'uniform' | 'bimodal'`
+  - `POPULATIONS: Record<PopulationName, { label: string; mean: number; sd: number; draw: (rng) => number }>`
+  - `sampleMeans(population, n, replications, rng): number[]`
+  - `histogram(values: number[], bins: number): { edges: number[]; counts: number[] }`
+  - `mean(values)`, `sd(values)`
+  - `SIMULATIONS: Record<string, ComponentType>` with key `'clt'`
+  - `<Simulation name={string} />`
+
+The statistics run in TypeScript, not R. A slider must respond within a frame, and a round trip to the R worker cannot promise that.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `src/sims/rng.test.ts`.
+
+```ts
+import { describe, expect, test } from 'vitest';
+import { histogram, makeRng, mean, POPULATIONS, sampleMeans, sd } from './rng';
+
+describe('seeded rng', () => {
+  test('is deterministic for a given seed', () => {
+    const a = makeRng(42);
+    const b = makeRng(42);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+
+  test('differs between seeds', () => {
+    expect(makeRng(1)()).not.toBe(makeRng(2)());
+  });
+
+  test('stays within [0, 1)', () => {
+    const rng = makeRng(7);
+    for (let i = 0; i < 500; i += 1) {
+      const value = rng();
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1);
+    }
+  });
+});
+
+describe('populations', () => {
+  test('each declares a mean close to what it actually generates', () => {
+    for (const key of Object.keys(POPULATIONS) as (keyof typeof POPULATIONS)[]) {
+      const population = POPULATIONS[key];
+      const rng = makeRng(99);
+      const draws = Array.from({ length: 20_000 }, () => population.draw(rng));
+      expect(Math.abs(mean(draws) - population.mean)).toBeLessThan(population.sd * 0.1);
+    }
+  });
+
+  test('each declares an sd close to what it actually generates', () => {
+    for (const key of Object.keys(POPULATIONS) as (keyof typeof POPULATIONS)[]) {
+      const population = POPULATIONS[key];
+      const rng = makeRng(123);
+      const draws = Array.from({ length: 20_000 }, () => population.draw(rng));
+      expect(Math.abs(sd(draws) - population.sd)).toBeLessThan(population.sd * 0.15);
+    }
+  });
+});
+
+describe('sampleMeans', () => {
+  test('returns one mean per replication', () => {
+    expect(sampleMeans(POPULATIONS.normal, 10, 250, makeRng(3))).toHaveLength(250);
+  });
+
+  test('spread shrinks roughly as the square root of n — the point of the lesson', () => {
+    const small = sd(sampleMeans(POPULATIONS.skewed, 4, 4000, makeRng(5)));
+    const large = sd(sampleMeans(POPULATIONS.skewed, 64, 4000, makeRng(5)));
+    // Quadrupling n four times over should roughly quarter the spread.
+    expect(large).toBeLessThan(small / 2);
+  });
+
+  test('centres on the population mean regardless of n', () => {
+    const means = sampleMeans(POPULATIONS.skewed, 25, 4000, makeRng(11));
+    expect(Math.abs(mean(means) - POPULATIONS.skewed.mean)).toBeLessThan(POPULATIONS.skewed.sd * 0.05);
+  });
+});
+
+describe('histogram', () => {
+  test('counts every value exactly once', () => {
+    const { counts } = histogram([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 5);
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(10);
+  });
+
+  test('produces one more edge than bin', () => {
+    const { edges, counts } = histogram([1, 2, 3], 4);
+    expect(edges).toHaveLength(counts.length + 1);
+  });
+
+  test('handles identical values without producing NaN', () => {
+    const { counts } = histogram([5, 5, 5], 4);
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
+    expect(counts.every((c) => Number.isFinite(c))).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx vitest run src/sims/rng.test.ts`
+Expected: FAIL — cannot resolve `./rng`.
+
+- [ ] **Step 3: Implement `src/sims/rng.ts`**
+
+```ts
+/** mulberry32: small, fast, and seedable so simulations are reproducible. */
+export function makeRng(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function normal(rng: () => number, mu: number, sigma: number): number {
+  // Box-Muller; guard against log(0).
+  const u = Math.max(rng(), Number.EPSILON);
+  const v = rng();
+  return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+export type Population = {
+  label: string;
+  description: string;
+  mean: number;
+  sd: number;
+  draw: (rng: () => number) => number;
+};
+
+export type PopulationName = 'normal' | 'skewed' | 'uniform' | 'bimodal';
+
+export const POPULATIONS: Record<PopulationName, Population> = {
+  normal: {
+    label: 'Normal',
+    description: 'A symmetric, bell-shaped population.',
+    mean: 20,
+    sd: 5,
+    draw: (rng) => normal(rng, 20, 5),
+  },
+  skewed: {
+    label: 'Strongly skewed',
+    description: 'Most people score low, a few score very high — like stress or reaction times.',
+    mean: 20,
+    // Exponential with rate 1/20: mean = sd = 20.
+    sd: 20,
+    draw: (rng) => -20 * Math.log(Math.max(rng(), Number.EPSILON)),
+  },
+  uniform: {
+    label: 'Flat',
+    description: 'Every value between 0 and 40 is equally likely.',
+    mean: 20,
+    sd: 40 / Math.sqrt(12),
+    draw: (rng) => rng() * 40,
+  },
+  bimodal: {
+    label: 'Two peaks',
+    description: 'Two distinct groups, with almost nobody in the middle.',
+    mean: 20,
+    // Equal mixture of N(8, 3) and N(32, 3): sd = sqrt(3^2 + 12^2).
+    sd: Math.sqrt(9 + 144),
+    draw: (rng) => (rng() < 0.5 ? normal(rng, 8, 3) : normal(rng, 32, 3)),
+  },
+};
+
+export function mean(values: number[]): number {
+  if (values.length === 0) return Number.NaN;
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+export function sd(values: number[]): number {
+  if (values.length < 2) return Number.NaN;
+  const m = mean(values);
+  const variance = values.reduce((total, value) => total + (value - m) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance);
+}
+
+export function drawSample(population: Population, n: number, rng: () => number): number[] {
+  return Array.from({ length: n }, () => population.draw(rng));
+}
+
+export function sampleMeans(
+  population: Population,
+  n: number,
+  replications: number,
+  rng: () => number,
+): number[] {
+  return Array.from({ length: replications }, () => mean(drawSample(population, n, rng)));
+}
+
+export function histogram(values: number[], bins: number): { edges: number[]; counts: number[] } {
+  const counts = new Array<number>(bins).fill(0);
+  if (values.length === 0) return { edges: new Array(bins + 1).fill(0), counts };
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // A degenerate range would divide by zero; widen it symmetrically instead.
+  const lo = min === max ? min - 0.5 : min;
+  const hi = min === max ? max + 0.5 : max;
+  const width = (hi - lo) / bins;
+
+  const edges = Array.from({ length: bins + 1 }, (_, i) => lo + i * width);
+  for (const value of values) {
+    const index = Math.min(Math.floor((value - lo) / width), bins - 1);
+    counts[index] += 1;
+  }
+  return { edges, counts };
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx vitest run src/sims/rng.test.ts`
+Expected: PASS, 9 tests.
+
+- [ ] **Step 5: Implement `src/sims/CLT.tsx`**
+
+```tsx
+import { useMemo, useState } from 'react';
+import { histogram, makeRng, mean, POPULATIONS, sampleMeans, sd, type PopulationName } from './rng';
+import './CLT.css';
+
+const REPLICATIONS = 2000;
+const BINS = 34;
+const WIDTH = 640;
+const HEIGHT = 180;
+
+function Histogram({ values, colour, label }: { values: number[]; colour: string; label: string }) {
+  const { edges, counts } = useMemo(() => histogram(values, BINS), [values]);
+  const peak = Math.max(...counts, 1);
+  const lo = edges[0];
+  const hi = edges[edges.length - 1];
+  const span = hi - lo || 1;
+  const barWidth = WIDTH / BINS;
+
+  return (
+    <figure className="clt-figure">
+      <figcaption>{label}</figcaption>
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} className="clt-svg">
+        {counts.map((count, index) => {
+          const height = (count / peak) * (HEIGHT - 24);
+          return (
+            <rect
+              key={index}
+              x={index * barWidth}
+              y={HEIGHT - 20 - height}
+              width={Math.max(barWidth - 1, 1)}
+              height={height}
+              fill={colour}
+            />
+          );
+        })}
+        <line x1={0} y1={HEIGHT - 20} x2={WIDTH} y2={HEIGHT - 20} stroke="#334155" />
+        <text x={2} y={HEIGHT - 6} className="clt-axis">{lo.toFixed(1)}</text>
+        <text x={WIDTH - 4} y={HEIGHT - 6} textAnchor="end" className="clt-axis">{hi.toFixed(1)}</text>
+        <text x={WIDTH / 2} y={HEIGHT - 6} textAnchor="middle" className="clt-axis">
+          {(lo + span / 2).toFixed(1)}
+        </text>
+      </svg>
+    </figure>
+  );
+}
+
+export default function CLT() {
+  const [populationName, setPopulationName] = useState<PopulationName>('skewed');
+  const [n, setN] = useState(2);
+  const [seed, setSeed] = useState(1);
+
+  const population = POPULATIONS[populationName];
+
+  const populationDraws = useMemo(() => {
+    const rng = makeRng(seed * 7919);
+    return Array.from({ length: 4000 }, () => population.draw(rng));
+  }, [population, seed]);
+
+  const means = useMemo(
+    () => sampleMeans(population, n, REPLICATIONS, makeRng(seed * 104729)),
+    [population, n, seed],
+  );
+
+  const observedSe = sd(means);
+  const predictedSe = population.sd / Math.sqrt(n);
+
+  return (
+    <div className="clt">
+      <div className="clt-controls">
+        <label>
+          Population
+          <select
+            value={populationName}
+            onChange={(event) => setPopulationName(event.target.value as PopulationName)}
+          >
+            {(Object.keys(POPULATIONS) as PopulationName[]).map((key) => (
+              <option key={key} value={key}>
+                {POPULATIONS[key].label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="clt-slider">
+          Sample size (n) = <strong>{n}</strong>
+          <input
+            type="range"
+            min={1}
+            max={100}
+            value={n}
+            onChange={(event) => setN(Number(event.target.value))}
+          />
+        </label>
+
+        <button type="button" onClick={() => setSeed((s) => s + 1)}>
+          Draw again
+        </button>
+      </div>
+
+      <p className="clt-description">{population.description}</p>
+
+      <Histogram values={populationDraws} colour="#94a3b8" label="The population (individual people)" />
+      <Histogram
+        values={means}
+        colour="#1d4ed8"
+        label={`Sampling distribution: ${REPLICATIONS} sample means, each from n = ${n}`}
+      />
+
+      <table className="clt-readout">
+        <tbody>
+          <tr>
+            <th scope="row">Population mean (μ)</th>
+            <td>{population.mean.toFixed(2)}</td>
+            <th scope="row">Mean of the sample means</th>
+            <td>{mean(means).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <th scope="row">Population SD (σ)</th>
+            <td>{population.sd.toFixed(2)}</td>
+            <th scope="row">SD of the sample means</th>
+            <td>{observedSe.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <th scope="row">σ / √n predicts</th>
+            <td>{predictedSe.toFixed(2)}</td>
+            <th scope="row">Observed matches prediction</th>
+            <td>{Math.abs(observedSe - predictedSe) < predictedSe * 0.1 ? 'yes' : 'close'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Create `src/sims/CLT.css`**
+
+```css
+.clt { border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
+.clt-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
+.clt-controls label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+.clt-slider input { width: 12rem; }
+.clt-controls button { padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; }
+.clt-description { margin: 0 0 0.75rem; color: #475569; font-size: 0.9rem; }
+.clt-figure { margin: 0 0 0.75rem; }
+.clt-figure figcaption { font-size: 0.85rem; color: #334155; margin-bottom: 0.2rem; }
+.clt-svg { width: 100%; height: auto; background: #f8fafc; border-radius: 4px; }
+.clt-axis { font-size: 11px; fill: #475569; }
+.clt-readout { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.clt-readout th { text-align: left; font-weight: 500; color: #475569; padding: 0.2rem 0.5rem 0.2rem 0; }
+.clt-readout td { padding: 0.2rem 1.25rem 0.2rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+```
+
+- [ ] **Step 7: Implement the registry and `Simulation` component**
+
+`src/sims/registry.ts`:
+
+```ts
+import type { ComponentType } from 'react';
+import CLT from './CLT';
+
+export const SIMULATIONS: Record<string, ComponentType> = {
+  clt: CLT,
+};
+
+export const SIMULATION_NAMES = Object.keys(SIMULATIONS);
+```
+
+`src/components/Simulation.tsx`:
+
+```tsx
+import { SIMULATIONS } from '../sims/registry';
+
+export default function Simulation({ name }: { name: string }) {
+  const Component = SIMULATIONS[name];
+  if (!Component) {
+    return <p className="exercise-missing">Simulation “{name}” is not registered.</p>;
+  }
+  return <Component />;
+}
+```
+
+- [ ] **Step 8: Write and run the Simulation test**
+
+Create `src/components/Simulation.test.tsx`.
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import { describe, expect, test } from 'vitest';
+import Simulation from './Simulation';
+
+describe('Simulation', () => {
+  test('renders a registered simulation', () => {
+    render(<Simulation name="clt" />);
+    expect(screen.getByText(/sample size/i)).toBeDefined();
+  });
+
+  test('reports an unregistered name instead of rendering nothing', () => {
+    render(<Simulation name="nope" />);
+    expect(screen.getByText(/not registered/i)).toBeDefined();
+  });
+});
+```
+
+Run: `npx vitest run src/components/Simulation.test.tsx`
+Expected: PASS, 2 tests.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/sims/ src/components/Simulation.tsx src/components/Simulation.test.tsx
+git commit -m "feat: seeded sampling engine and the central limit theorem simulation"
+```
+
+---
+
+### Task 13: Application shell
+
+**Files:**
+- Create: `src/components/RStatus.tsx`, `src/components/Sidebar.tsx`, `src/pages/Home.tsx`, `src/App.css`
+- Modify: `src/App.tsx`
+- Test: `src/components/Sidebar.test.tsx`
+
+**Interfaces:**
+- Consumes: `manifest` (Task 14 — create a minimal version here and extend it there), `onStatus`/`restartWebR` (Task 2), progress (Task 6)
+- Produces: routed layout at `/`, `/lesson/:lessonId`, `/playground`, `/which-test`; `<Sidebar />`; `<RStatus />`
+
+> **Note for the implementer:** create `src/content/manifest.ts` in this task with the Module 6 entries below. Task 14 builds the loader that consumes it; Task 15 fills in the lesson files themselves.
+
+- [ ] **Step 1: Create `src/content/manifest.ts`**
+
+```ts
+export type LessonMeta = {
+  id: string;
+  title: string;
+  /** Matches the filename in src/content/lessons, without the extension. */
+  file: string;
+};
+
+export type ModuleMeta = {
+  id: string;
+  number: number;
+  title: string;
+  lessons: LessonMeta[];
+};
+
+export const MODULES: ModuleMeta[] = [
+  {
+    id: 'module-06',
+    number: 6,
+    title: 'Sampling',
+    lessons: [
+      { id: '06-1', title: 'Why two samples never agree', file: '06-1-samples-vary' },
+      { id: '06-2', title: 'The sampling distribution', file: '06-2-sampling-distribution' },
+      { id: '06-3', title: 'The Central Limit Theorem', file: '06-3-central-limit-theorem' },
+    ],
+  },
+];
+
+export const ALL_LESSONS: LessonMeta[] = MODULES.flatMap((module) => module.lessons);
+
+export function findLesson(id: string): LessonMeta | undefined {
+  return ALL_LESSONS.find((lesson) => lesson.id === id);
+}
+
+export function lessonNeighbours(id: string): { previous?: LessonMeta; next?: LessonMeta } {
+  const index = ALL_LESSONS.findIndex((lesson) => lesson.id === id);
+  if (index === -1) return {};
+  return { previous: ALL_LESSONS[index - 1], next: ALL_LESSONS[index + 1] };
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+Create `src/components/Sidebar.test.tsx`.
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeEach, describe, expect, test } from 'vitest';
+import Sidebar from './Sidebar';
+import { markExercise } from '../state/progress';
+
+function renderSidebar() {
+  return render(
+    <MemoryRouter>
+      <Sidebar />
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+describe('Sidebar', () => {
+  test('lists modules and their lessons', () => {
+    renderSidebar();
+    expect(screen.getByText(/sampling/i)).toBeDefined();
+    expect(screen.getByText('The Central Limit Theorem')).toBeDefined();
+  });
+
+  test('links each lesson to its route', () => {
+    renderSidebar();
+    const link = screen.getByRole('link', { name: 'The sampling distribution' });
+    expect(link.getAttribute('href')).toBe('/lesson/06-2');
+  });
+
+  test('marks a lesson as started once any exercise is attempted', () => {
+    markExercise('06-1', 'm6-e1', 'attempted');
+    renderSidebar();
+    const link = screen.getByRole('link', { name: /why two samples never agree/i });
+    expect(link.className).toContain('started');
+  });
+});
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `npx vitest run src/components/Sidebar.test.tsx`
+Expected: FAIL — cannot resolve `./Sidebar`.
+
+- [ ] **Step 4: Implement `src/components/Sidebar.tsx`**
+
+```tsx
+import { NavLink } from 'react-router-dom';
+import { MODULES } from '../content/manifest';
+import { getProgress } from '../state/progress';
+
+export default function Sidebar() {
+  const progress = getProgress();
+
+  function statusClass(lessonId: string): string {
+    const lesson = progress.lessons[lessonId];
+    if (!lesson) return '';
+    const results = Object.values(lesson.exercises);
+    if (results.length > 0 && results.every((status) => status === 'passed')) return 'complete';
+    if (results.length > 0 || lesson.visitedAt) return 'started';
+    return '';
+  }
+
+  return (
+    <nav className="sidebar" aria-label="Course navigation">
+      <NavLink to="/" className="sidebar-home">
+        StatLab
+      </NavLink>
+
+      {MODULES.map((module) => (
+        <section key={module.id}>
+          <h2>
+            {module.number}. {module.title}
+          </h2>
+          <ul>
+            {module.lessons.map((lesson) => (
+              <li key={lesson.id}>
+                <NavLink
+                  to={`/lesson/${lesson.id}`}
+                  className={({ isActive }) =>
+                    ['sidebar-lesson', statusClass(lesson.id), isActive ? 'active' : '']
+                      .filter(Boolean)
+                      .join(' ')
+                  }
+                >
+                  {lesson.title}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      <section>
+        <h2>Reference</h2>
+        <ul>
+          <li>
+            <NavLink to="/which-test" className="sidebar-lesson">
+              Which test should I use?
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/playground" className="sidebar-lesson">
+              R playground
+            </NavLink>
+          </li>
+        </ul>
+      </section>
+    </nav>
+  );
+}
+```
+
+- [ ] **Step 5: Implement `src/components/RStatus.tsx`**
+
+```tsx
+import { useEffect, useState } from 'react';
+import { onStatus, type RStatus as Status } from '../r/webrClient';
+
+/**
+ * Restarting reloads the page rather than respawning the worker in place.
+ * A wedged worker leaves behind a dead lesson environment, a memoised session
+ * promise, and stale component state; a reload clears all three at once, and
+ * nothing is lost because code drafts live in localStorage.
+ */
+function restart() {
+  window.location.reload();
+}
+
+export default function RStatus() {
+  const [status, setStatus] = useState<Status>({ phase: 'idle' });
+
+  useEffect(() => onStatus(setStatus), []);
+
+  if (status.phase === 'ready') {
+    return (
+      <div className="r-status ready">
+        <span>R is ready</span>
+        <button type="button" onClick={restart} title="Use this if R stops responding">
+          Restart R
+        </button>
+      </div>
+    );
+  }
+
+  if (status.phase === 'error') {
+    return (
+      <div className="r-status error">
+        <p>
+          R could not start. StatLab needs a recent browser and an internet connection the first time
+          it loads. You can still read the lessons and answer the questions.
+        </p>
+        <p className="r-status-detail">{status.detail}</p>
+        <button type="button" onClick={restart}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="r-status busy">
+      <span>{status.detail ?? (status.phase === 'installing' ? 'Installing packages…' : 'Starting R…')}</span>
+    </div>
+  );
+}
+```
+
+Restart exists because the PostMessage channel cannot interrupt a running loop —
+a student's infinite loop has no other escape. `restartWebR()` from Task 2 stays
+available for the day the app needs in-place recovery that preserves scroll
+position and output; re-running the lesson's earlier code blocks automatically
+(spec §3.5) is deferred with it.
+
+- [ ] **Step 6: Implement `src/pages/Home.tsx`**
+
+```tsx
+import { Link } from 'react-router-dom';
+import { ALL_LESSONS, findLesson, MODULES } from '../content/manifest';
+import { exportProgress, getProgress, importProgress, lastVisitedLesson } from '../state/progress';
+
+function download(contents: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'statlab-progress.json';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function Home() {
+  const progress = getProgress();
+  const resumeId = lastVisitedLesson();
+  const resume = resumeId ? findLesson(resumeId) : undefined;
+
+  const started = ALL_LESSONS.filter((lesson) => progress.lessons[lesson.id]).length;
+
+  async function onImport(file: File) {
+    const ok = importProgress(await file.text());
+    if (ok) window.location.reload();
+    else window.alert('That file could not be read as StatLab progress.');
+  }
+
+  return (
+    <div className="home">
+      <h1>StatLab</h1>
+      <p className="home-tagline">
+        Statistics and R for psychology and business students — University of Twente.
+      </p>
+
+      <p>
+        Everything here runs in your browser. Nothing is installed, nothing is uploaded, and your
+        progress stays on this computer.
+      </p>
+
+      {resume && (
+        <p className="home-resume">
+          <Link to={`/lesson/${resume.id}`}>Continue: {resume.title}</Link>
+        </p>
+      )}
+
+      <p>
+        {started} of {ALL_LESSONS.length} lessons started.
+      </p>
+
+      {MODULES.map((module) => (
+        <section key={module.id}>
+          <h2>
+            {module.number}. {module.title}
+          </h2>
+          <ol>
+            {module.lessons.map((lesson) => (
+              <li key={lesson.id}>
+                <Link to={`/lesson/${lesson.id}`}>{lesson.title}</Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+
+      <section>
+        <h2>Your progress</h2>
+        <p>
+          Progress is saved only in this browser. Export it to move to another computer, or to hand
+          in as evidence of completion.
+        </p>
+        <button type="button" onClick={() => download(exportProgress())}>
+          Export progress
+        </button>
+        <label className="home-import">
+          Import progress
+          <input
+            type="file"
+            accept="application/json"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void onImport(file);
+            }}
+          />
+        </label>
+      </section>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 7: Rewrite `src/App.tsx`**
+
+```tsx
+import { Route, Routes } from 'react-router-dom';
+import RStatus from './components/RStatus';
+import Sidebar from './components/Sidebar';
+import Home from './pages/Home';
+import Lesson from './pages/Lesson';
+import Playground from './pages/Playground';
+import TestChooser from './pages/TestChooser';
+import './App.css';
+
+export default function App() {
+  return (
+    <div className="app">
+      <Sidebar />
+      <main className="app-main">
+        <RStatus />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/lesson/:lessonId" element={<Lesson />} />
+          <Route path="/playground" element={<Playground />} />
+          <Route path="/which-test" element={<TestChooser />} />
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+```
+
+`Lesson`, `Playground`, and `TestChooser` arrive in Tasks 14 and 16. Until then, create each as a one-line placeholder component so the build passes, and replace it in its own task.
+
+- [ ] **Step 8: Create `src/App.css`**
+
+```css
+:root { color-scheme: light; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
+.app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }
+.sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; }
+.sidebar-home { display: block; font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; color: #1d4ed8; text-decoration: none; }
+.sidebar h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin: 1rem 0 0.4rem; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar-lesson { display: block; padding: 0.3rem 0.5rem; border-radius: 5px; color: #0f172a; text-decoration: none; font-size: 0.92rem; }
+.sidebar-lesson:hover { background: #e2e8f0; }
+.sidebar-lesson.active { background: #dbeafe; font-weight: 600; }
+.sidebar-lesson.started::after { content: " ·"; color: #d97706; }
+.sidebar-lesson.complete::after { content: " ✓"; color: #16a34a; }
+.app-main { padding: 1.5rem 2rem 4rem; max-width: 52rem; }
+.r-status { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; padding: 0.4rem 0.7rem; border-radius: 6px; margin-bottom: 1rem; }
+.r-status.ready { background: #f0fdf4; color: #166534; }
+.r-status.busy { background: #fffbeb; color: #92400e; }
+.r-status.error { background: #fef2f2; color: #991b1b; display: block; }
+.r-status-detail { font-family: ui-monospace, monospace; font-size: 0.75rem; word-break: break-all; }
+.r-status button { margin-left: auto; padding: 0.2rem 0.6rem; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.home-tagline { color: #475569; font-size: 1.05rem; }
+.home-resume a { font-weight: 600; }
+.home-import { display: inline-flex; gap: 0.4rem; align-items: center; margin-left: 1rem; font-size: 0.9rem; }
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid #e2e8f0; }
+  .app-main { padding: 1rem; }
+}
+```
+
+- [ ] **Step 9: Run the test to verify it passes**
+
+Run: `npx vitest run src/components/Sidebar.test.tsx`
+Expected: PASS, 3 tests.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/App.tsx src/App.css src/components/Sidebar.tsx src/components/RStatus.tsx src/pages/ src/content/manifest.ts src/components/Sidebar.test.tsx
+git commit -m "feat: application shell with navigation, R status, and progress export"
+```
+
+---
+
+### Task 14: Content pipeline and lesson page
+
+**Files:**
+- Create: `src/content/exercises/index.ts`, `src/content/mdxComponents.tsx`, `src/pages/Lesson.tsx`
+- Modify: `src/r/session.ts` (add `prepareSession`)
+- Test: `src/content/exercises/index.test.ts`
+
+**Interfaces:**
+- Consumes: manifest (Task 13), all block components (Tasks 9–12)
+- Produces:
+  - `getExercise(id: string): ExerciseDef | undefined`, `ALL_EXERCISES: ExerciseDef[]`
+  - `mdxComponents` — the component map handed to every MDX lesson
+  - `prepareSession(webR: WebR, load): Promise<void>` — memoised package install + dataset mount
+  - `<Lesson />` routed at `/lesson/:lessonId`
+
+- [ ] **Step 1: Add `prepareSession` to `src/r/session.ts`**
+
+```ts
+let prepared: Promise<void> | null = null;
+
+/** Install packages and mount datasets exactly once per webR instance. */
+export function prepareSession(
+  webR: WebR,
+  load: (name: string) => Promise<Uint8Array>,
+): Promise<void> {
+  if (!prepared) {
+    prepared = (async () => {
+      await mountDatasets(webR, load);
+      await installCoursePackages(webR);
+    })().catch((err) => {
+      prepared = null; // Allow a retry after a transient network failure.
+      throw err;
+    });
+  }
+  return prepared;
+}
+
+export async function fetchDataset(name: string): Promise<Uint8Array> {
+  const response = await fetch(`${import.meta.env.BASE_URL}data/${name}`);
+  if (!response.ok) throw new Error(`Could not load dataset ${name}: ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+Create `src/content/exercises/index.test.ts`. This enforces the exercise contract at the data level, so a malformed definition fails fast rather than during a lesson.
+
+```ts
+import { describe, expect, test } from 'vitest';
+import { ALL_EXERCISES, getExercise } from './index';
+
+describe('exercise definitions', () => {
+  test('at least one exercise is defined', () => {
+    expect(ALL_EXERCISES.length).toBeGreaterThan(0);
+  });
+
+  test('ids are unique', () => {
+    const ids = ALL_EXERCISES.map((exercise) => exercise.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('every exercise carries at least one wrong answer', () => {
+    for (const exercise of ALL_EXERCISES) {
+      expect(exercise.wrongAnswers.length, `${exercise.id} has no wrong answers`).toBeGreaterThan(0);
+    }
+  });
+
+  test('every exercise carries at least one hint and a solution', () => {
+    for (const exercise of ALL_EXERCISES) {
+      expect(exercise.hints.length, `${exercise.id} has no hints`).toBeGreaterThan(0);
+      expect(exercise.solution.trim().length, `${exercise.id} has no solution`).toBeGreaterThan(0);
+    }
+  });
+
+  test('no exercise uses a function that hangs on the PostMessage channel', () => {
+    const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
+    for (const exercise of ALL_EXERCISES) {
+      const sources = [exercise.starterCode, exercise.setupCode ?? '', exercise.solution, exercise.check];
+      for (const source of sources) {
+        expect(forbidden.test(source), `${exercise.id} uses a blocking function`).toBe(false);
+      }
+    }
+  });
+
+  test('lookup by id works and unknown ids return undefined', () => {
+    expect(getExercise(ALL_EXERCISES[0].id)).toBeDefined();
+    expect(getExercise('no-such-exercise')).toBeUndefined();
+  });
+});
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `npx vitest run src/content/exercises/index.test.ts`
+Expected: FAIL — cannot resolve `./index`.
+
+- [ ] **Step 4: Implement `src/content/exercises/index.ts`**
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+import { module06 } from './module-06';
+
+export const ALL_EXERCISES: ExerciseDef[] = [...module06];
+
+const byId = new Map(ALL_EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+export function getExercise(id: string): ExerciseDef | undefined {
+  return byId.get(id);
+}
+```
+
+Create `src/content/exercises/module-06.ts` as an empty export for now; Task 15 fills it.
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module06: ExerciseDef[] = [];
+```
+
+- [ ] **Step 5: Implement `src/content/mdxComponents.tsx`**
+
+```tsx
+import CodeBlock from '../components/CodeBlock';
+import Exercise from '../components/Exercise';
+import Interpret from '../components/Interpret';
+import Predict from '../components/Predict';
+import Quiz from '../components/Quiz';
+import Simulation from '../components/Simulation';
+
+export const mdxComponents = {
+  CodeBlock,
+  Exercise,
+  Interpret,
+  Predict,
+  Quiz,
+  Simulation,
+};
+```
+
+- [ ] **Step 6: Implement `src/pages/Lesson.tsx`**
+
+```tsx
+import { useEffect, useState, type ComponentType } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import type { RObject, WebR } from 'webr';
+import { LessonProvider } from '../content/LessonContext';
+import { findLesson, lessonNeighbours } from '../content/manifest';
+import { mdxComponents } from '../content/mdxComponents';
+import { createLessonEnv, destroyEnv } from '../r/environments';
+import { fetchDataset, prepareSession } from '../r/session';
+import { getWebR, setStatus } from '../r/webrClient';
+import { touchLesson } from '../state/progress';
+
+const lessonModules = import.meta.glob<{ default: ComponentType<{ components?: unknown }> }>(
+  '../content/lessons/*.mdx',
+);
+
+export default function Lesson() {
+  const { lessonId = '' } = useParams();
+  const meta = findLesson(lessonId);
+
+  const [Content, setContent] = useState<ComponentType<{ components?: unknown }> | null>(null);
+  const [webR, setWebR] = useState<WebR | null>(null);
+  const [env, setEnv] = useState<RObject | null>(null);
+
+  useEffect(() => {
+    if (!meta) return;
+    const loader = lessonModules[`../content/lessons/${meta.file}.mdx`];
+    if (!loader) return;
+    let live = true;
+    void loader().then((module) => {
+      if (live) setContent(() => module.default);
+    });
+    touchLesson(meta.id);
+    return () => {
+      live = false;
+    };
+  }, [meta]);
+
+  useEffect(() => {
+    if (!meta) return;
+    let live = true;
+    let created: RObject | null = null;
+
+    void (async () => {
+      try {
+        const instance = await getWebR();
+        await prepareSession(instance, fetchDataset);
+        const lessonEnv = await createLessonEnv(instance);
+        if (!live) {
+          await destroyEnv(lessonEnv);
+          return;
+        }
+        created = lessonEnv;
+        setWebR(instance);
+        setEnv(lessonEnv);
+        setStatus({ phase: 'ready' });
+      } catch (err) {
+        setStatus({ phase: 'error', detail: String(err) });
+      }
+    })();
+
+    return () => {
+      live = false;
+      if (created) void destroyEnv(created);
+    };
+  }, [meta]);
+
+  if (!meta) {
+    return (
+      <div>
+        <h1>Lesson not found</h1>
+        <p>
+          <Link to="/">Back to the course overview</Link>
+        </p>
+      </div>
+    );
+  }
+
+  const { previous, next } = lessonNeighbours(meta.id);
+
+  return (
+    <LessonProvider value={{ lessonId: meta.id, webR, env, ready: Boolean(webR && env) }}>
+      <article className="lesson">
+        <h1>{meta.title}</h1>
+        {Content ? <Content components={mdxComponents} /> : <p>Loading lesson…</p>}
+      </article>
+
+      <nav className="lesson-nav">
+        {previous && <Link to={`/lesson/${previous.id}`}>← {previous.title}</Link>}
+        {next && (
+          <Link to={`/lesson/${next.id}`} className="lesson-next">
+            {next.title} →
+          </Link>
+        )}
+      </nav>
+    </LessonProvider>
+  );
+}
+```
+
+- [ ] **Step 7: Add lesson styles to `src/App.css`**
+
+```css
+.lesson h1 { margin-top: 0; }
+.lesson h2 { margin-top: 2rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+.lesson p { max-width: 42rem; }
+.lesson blockquote { margin: 1.25rem 0; padding: 0.5rem 1rem; border-left: 4px solid #cbd5e1; color: #475569; background: #f8fafc; }
+.lesson code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
+.lesson-nav { display: flex; justify-content: space-between; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
+.lesson-nav .lesson-next { margin-left: auto; }
+```
+
+- [ ] **Step 8: Run the test to verify it passes**
+
+Run: `npx vitest run src/content/exercises/index.test.ts`
+Expected: the uniqueness, forbidden-function, and lookup tests PASS; "at least one exercise is defined" FAILS until Task 15. Note it and move on.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/content/exercises/ src/content/mdxComponents.tsx src/pages/Lesson.tsx src/r/session.ts src/App.css
+git commit -m "feat: MDX lesson pipeline with per-lesson R session setup"
+```
+
+---
+
+### Task 15: Datasets and Module 6 content
+
+**Files:**
+- Create: `scripts/generate-datasets.mjs`, `public/data/wellbeing-population.csv` (generated), `src/content/lessons/06-1-samples-vary.mdx`, `src/content/lessons/06-2-sampling-distribution.mdx`, `src/content/lessons/06-3-central-limit-theorem.mdx`
+- Modify: `src/content/exercises/module-06.ts`
+- Test: re-run `src/r/session.itest.ts` and `src/content/exercises/index.test.ts`
+
+**Interfaces:**
+- Consumes: `ExerciseDef` (Task 7), block components (Tasks 9–12)
+- Produces: `module06: ExerciseDef[]` with ids `m6-1-a`, `m6-2-a`, `m6-3-a`; three lesson MDX files matching the `file` fields in the manifest
+
+> **Dataset location:** CSVs live in `public/data/`, so Vite serves them at
+> `/statlab/data/<name>.csv` and Node reads them from `public/data/<name>.csv`.
+> This single location serves the browser, the tests, and the CI validator.
+
+- [ ] **Step 1: Create `scripts/generate-datasets.mjs`**
+
+```js
+// Generates the course population dataset deterministically.
+// Run once: `node scripts/generate-datasets.mjs`. The CSV is committed.
+import { mkdir, writeFile } from 'node:fs/promises';
+
+function makeRng(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const rng = makeRng(20260914);
+
+function normal(mu, sigma) {
+  const u = Math.max(rng(), Number.EPSILON);
+  const v = rng();
+  return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+const N = 5000;
+const rows = ['id,programme,stress,sleep_hours,exam_score'];
+
+for (let i = 1; i <= N; i += 1) {
+  const programme = rng() < 0.5 ? 'Psychology' : 'Business';
+  // Stress is skewed: most students low, a long tail of very stressed ones.
+  const stress = Math.min(40, -12 * Math.log(Math.max(rng(), Number.EPSILON)));
+  const sleep = Math.min(11, Math.max(3, normal(7.2 - stress * 0.03, 1.1)));
+  const exam = Math.min(100, Math.max(0, normal(62 + sleep * 2.4 - stress * 0.45, 11)));
+  rows.push(
+    [i, programme, stress.toFixed(2), sleep.toFixed(2), exam.toFixed(1)].join(','),
+  );
+}
+
+await mkdir(new URL('../public/data/', import.meta.url), { recursive: true });
+await writeFile(new URL('../public/data/wellbeing-population.csv', import.meta.url), `${rows.join('\n')}\n`);
+console.log(`Wrote ${N} rows.`);
+```
+
+- [ ] **Step 2: Generate and inspect the dataset**
+
+Run: `node scripts/generate-datasets.mjs`
+Expected: `Wrote 5000 rows.` Confirm the header and a few rows look sane before committing.
+
+- [ ] **Step 3: Fill in `src/content/exercises/module-06.ts`**
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module06: ExerciseDef[] = [
+  {
+    id: 'm6-1-a',
+    prompt:
+      'Draw a random sample of 25 students from the population and store their mean stress score in `sample_mean`.',
+    starterCode:
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\n\n# Take 25 stress scores at random and store their mean.\nsample_mean <- ',
+    setupCode: 'set.seed(1)',
+    solution:
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\nsample_mean <- mean(sample(population$stress, 25))',
+    wrongAnswers: [
+      'population <- read.csv("data/wellbeing-population.csv")\nsample_mean <- mean(population$stress)',
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\nsample_mean <- mean(sample(population$stress, 250))',
+    ],
+    check: `
+      if (!exists("sample_mean", inherits = TRUE)) {
+        list(pass = FALSE, message = "I could not find an object called sample_mean.")
+      } else if (!is.numeric(sample_mean) || length(sample_mean) != 1L) {
+        list(pass = FALSE, message = "sample_mean should be a single number.")
+      } else {
+        population <- read.csv("data/wellbeing-population.csv")
+        mu <- mean(population$stress)
+        se <- sd(population$stress) / sqrt(25)
+        if (isTRUE(all.equal(sample_mean, mu, tolerance = 1e-6))) {
+          list(pass = FALSE, message = "That is the mean of the whole population, not of a sample of 25.")
+        } else if (abs(sample_mean - mu) > 4 * se) {
+          list(pass = FALSE, message = "That is too far from the population mean to be a sample of 25. Check your sample size.")
+        } else {
+          list(pass = TRUE, message = paste0("Your sample mean is ", round(sample_mean, 2), ". The population mean is ", round(mu, 2), " - close, but not identical. That gap is sampling error."))
+        }
+      }
+    `,
+    hints: [
+      'sample(x, 25) draws 25 values at random from the vector x.',
+      'The stress column is population$stress.',
+      'Combine them: mean(sample(population$stress, 25)).',
+    ],
+  },
+  {
+    id: 'm6-2-a',
+    prompt:
+      'Build a sampling distribution: take 1000 samples of size 10 from `population$stress`, and store the 1000 sample means in `means`.',
+    starterCode:
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\n\nmeans <- replicate(1000, )\n',
+    setupCode: 'set.seed(42)',
+    solution:
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 10)))',
+    wrongAnswers: [
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 100)))',
+      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- sample(population$stress, 1000)',
+    ],
+    check: `
+      if (!exists("means", inherits = TRUE)) {
+        list(pass = FALSE, message = "I could not find an object called means.")
+      } else if (length(means) != 1000L) {
+        list(pass = FALSE, message = paste0("means has ", length(means), " values, but you need 1000 sample means."))
+      } else {
+        population <- read.csv("data/wellbeing-population.csv")
+        sigma <- sd(population$stress)
+        expected_se <- sigma / sqrt(10)
+        observed_se <- sd(means)
+        if (abs(observed_se - sigma) < abs(observed_se - expected_se)) {
+          list(pass = FALSE, message = "Your values vary as much as individual students do. Did you take means of samples, or just individual scores?")
+        } else if (abs(observed_se - expected_se) > expected_se * 0.25) {
+          list(pass = FALSE, message = paste0("The spread of your means is ", round(observed_se, 2), ", but for n = 10 it should be near ", round(expected_se, 2), ". Check your sample size."))
+        } else {
+          list(pass = TRUE, message = paste0("The standard deviation of your 1000 sample means is ", round(observed_se, 2), " - close to sigma/sqrt(n) = ", round(expected_se, 2), "."))
+        }
+      }
+    `,
+    hints: [
+      'replicate(1000, expr) runs expr 1000 times and collects the results.',
+      'The expression you want to repeat is one sample mean: mean(sample(population$stress, 10)).',
+      'Put them together: replicate(1000, mean(sample(population$stress, 10))).',
+    ],
+  },
+  {
+    id: 'm6-3-a',
+    prompt:
+      'The population of stress scores is strongly skewed. Show that the sampling distribution is not: compute the standard error for samples of size 40 and store it in `se_40`, using the formula rather than simulation.',
+    starterCode:
+      'population <- read.csv("data/wellbeing-population.csv")\n\n# Standard error = population SD divided by the square root of n.\nse_40 <- ',
+    solution:
+      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress) / sqrt(40)',
+    wrongAnswers: [
+      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress)',
+      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress) / 40',
+    ],
+    check: `
+      if (!exists("se_40", inherits = TRUE)) {
+        list(pass = FALSE, message = "I could not find an object called se_40.")
+      } else if (!is.numeric(se_40) || length(se_40) != 1L) {
+        list(pass = FALSE, message = "se_40 should be a single number.")
+      } else {
+        population <- read.csv("data/wellbeing-population.csv")
+        sigma <- sd(population$stress)
+        expected <- sigma / sqrt(40)
+        if (isTRUE(all.equal(se_40, expected, tolerance = 1e-6))) {
+          list(pass = TRUE, message = paste0("Correct: ", round(expected, 3), ". Individual students vary by about ", round(sigma, 2), ", but sample means of 40 vary by only ", round(expected, 3), "."))
+        } else if (isTRUE(all.equal(se_40, sigma, tolerance = 1e-6))) {
+          list(pass = FALSE, message = "That is the standard deviation of individual scores. Divide it by the square root of n.")
+        } else if (isTRUE(all.equal(se_40, sigma / 40, tolerance = 1e-6))) {
+          list(pass = FALSE, message = "You divided by n. The standard error divides by the square root of n.")
+        } else {
+          list(pass = FALSE, message = paste0("se_40 is ", round(se_40, 3), " but should be ", round(expected, 3), "."))
+        }
+      }
+    `,
+    hints: [
+      'The standard error of the mean is sigma / sqrt(n).',
+      'sd(population$stress) gives sigma; sqrt(40) gives the denominator.',
+    ],
+  },
+];
+```
+
+Each wrong answer is a real student mistake — using the whole population, using the wrong n, confusing the SD with the SE, dividing by n instead of √n — and each fails through the check rather than by erroring.
+
+- [ ] **Step 4: Write `src/content/lessons/06-1-samples-vary.mdx`**
+
+````mdx
+Every study you will ever read is based on a sample. The researchers did not
+measure everyone — they measured some people, and then said something about
+everyone. This module is about why that works at all, and what it costs.
+
+We have an unusual luxury here: a complete population of 5000 students, with
+their stress scores, sleep, and exam results. In real research you never see
+this. Because we can see it, we can watch exactly what happens when you take a
+sample from it.
+
+<CodeBlock id="load" code={`population <- read.csv("data/wellbeing-population.csv")
+
+nrow(population)
+head(population)`} />
+
+## The population parameter
+
+Because we have everyone, we can compute the true mean stress score. In real
+research this number exists but is unknowable. Here it is:
+
+<CodeBlock id="mu" code={`mean(population$stress)`} />
+
+Statisticians call this a **parameter**: a number describing the population. We
+write it μ ("mu"). Keep it in mind — everything that follows is about how close
+we can get to it without measuring all 5000 people.
+
+<Predict
+  id="p-sample"
+  question="If you take 25 students at random and compute their mean stress score, what do you expect?"
+  choices={[
+    { text: 'Exactly the population mean', response: 'Almost never. With only 25 of 5000 students, landing exactly on μ would be a coincidence.' },
+    { text: 'Close to the population mean, but not exactly', correct: true, response: 'Yes. A random sample is representative on average, but any single sample is a little off.' },
+    { text: 'Something unrelated to the population mean', response: 'Not unrelated — a random sample carries real information about the population. It is just imprecise.' },
+  ]}
+/>
+
+## Taking a sample
+
+`sample()` draws at random. `set.seed()` makes that randomness reproducible, so
+you and your neighbour get the same "random" sample — essential when you want to
+check your work.
+
+<CodeBlock id="one-sample" code={`set.seed(1)
+my_sample <- sample(population$stress, 25)
+
+mean(my_sample)`} />
+
+The difference between your sample mean and the population mean is called
+**sampling error**. It is not a mistake. Nobody did anything wrong. It is the
+unavoidable consequence of looking at some people instead of all of them.
+
+> **Change the seed.** Edit `set.seed(1)` to `set.seed(2)`, then `set.seed(3)`,
+> and run it again each time. Watch the mean move.
+
+<Predict
+  id="p-second"
+  question="You just saw the sample mean change when you changed the seed. What does that tell you?"
+  choices={[
+    { text: 'One of the samples is wrong', response: 'Neither is wrong. Both are honest random samples; they simply contain different people.' },
+    { text: 'The sample mean is itself a random quantity', correct: true, response: 'Exactly. This is the key idea of the whole module: the sample mean has a distribution of its own.' },
+    { text: 'The population mean changed', response: 'The population never changed — we did not touch it. Only the 25 people we happened to pick changed.' },
+  ]}
+/>
+
+## Your turn
+
+<Exercise id="m6-1-a" />
+
+<Quiz
+  id="q-6-1"
+  question="A researcher samples 30 people and finds a mean wellbeing score of 4.2. The true population mean is 4.0. What best describes the 0.2 difference?"
+  choices={[
+    { text: 'Bias in the sampling method', response: 'Bias means a systematic tendency to land on one side. A single random sample being off by a little is not evidence of bias.' },
+    { text: 'Sampling error', correct: true, response: 'Right. Random samples differ from the population by chance alone, and that gap has a name: sampling error.' },
+    { text: 'A measurement mistake', response: 'Nothing was measured incorrectly. The 30 people were measured perfectly — they were simply 30 particular people.' },
+    { text: 'Proof the sample is too small', response: 'A gap of 0.2 does not by itself show the sample was too small. Every sample, of any size, shows some gap.' },
+  ]}
+/>
+````
+
+- [ ] **Step 5: Write `src/content/lessons/06-2-sampling-distribution.mdx`**
+
+````mdx
+In the last lesson you saw one sample mean, then another, then another. Each was
+a little different. That raises an obvious question, and it is the question that
+makes inferential statistics possible:
+
+> If the sample mean is random, **what is it random according to**?
+
+The answer is that sample means have their own distribution, called the
+**sampling distribution of the mean**. It is not the distribution of people. It
+is the distribution of a summary of people.
+
+## Building one by brute force
+
+We can build it directly: take a sample, record its mean, and repeat a thousand
+times. `replicate()` does the repeating.
+
+<CodeBlock id="build" code={`population <- read.csv("data/wellbeing-population.csv")
+set.seed(42)
+
+means <- replicate(1000, mean(sample(population$stress, 10)))
+
+length(means)
+head(round(means, 2))`} />
+
+Now compare the two distributions — individual students, and means of ten
+students.
+
+<CodeBlock id="compare" code={`par(mfrow = c(2, 1))
+
+hist(population$stress, breaks = 40,
+     main = "Individual students", xlab = "Stress score")
+
+hist(means, breaks = 40,
+     main = "Means of 10 students", xlab = "Sample mean stress")`} />
+
+<Predict
+  id="p-spread"
+  question="Before you look closely: which histogram is more spread out?"
+  choices={[
+    { text: 'The individual students', correct: true, response: 'Correct. Averaging cancels out extremes: to get an extreme mean, you need a whole sample of extreme people, which is rare.' },
+    { text: 'The sample means', response: 'Look again at the horizontal axes. Means cluster far more tightly than individuals do.' },
+    { text: 'They are equally spread', response: 'Check the axis ranges. The means occupy a much narrower interval.' },
+  ]}
+/>
+
+## Quantifying the shrinkage
+
+The standard deviation of the sampling distribution has its own name: the
+**standard error**. It measures how much sample means bounce around, and it is
+what every confidence interval and every *t*-test is built from.
+
+<CodeBlock id="se" code={`sd(population$stress)   # how much individual students vary
+sd(means)               # how much means of 10 vary
+
+sd(population$stress) / sqrt(10)   # the formula`} />
+
+The third line should land very close to the second. That is not a coincidence:
+
+**Standard error = σ / √n**
+
+<Exercise id="m6-2-a" />
+
+## See it move
+
+Drag the sample size and watch the lower histogram tighten. Switch populations
+to see that the shrinkage happens whatever shape you start from.
+
+<Simulation name="clt" />
+
+<Quiz
+  id="q-6-2"
+  question="You quadruple your sample size from 25 to 100. What happens to the standard error?"
+  choices={[
+    { text: 'It is quartered', response: 'That would be true if we divided by n. We divide by √n, so quadrupling n halves the standard error.' },
+    { text: 'It is halved', correct: true, response: 'Right: √100 / √25 = 2, so the standard error is halved. Precision is expensive — four times the data buys twice the precision.' },
+    { text: 'It is unchanged', response: 'Sample size is in the formula: σ/√n. Changing n must change the standard error.' },
+    { text: 'It doubles', response: 'More data makes estimates more precise, not less. The standard error goes down.' },
+  ]}
+/>
+````
+
+- [ ] **Step 6: Write `src/content/lessons/06-3-central-limit-theorem.mdx`**
+
+````mdx
+Look again at the stress scores. That population is severely skewed — most
+students report low stress, and a long tail report a great deal of it. Nothing
+about it is bell-shaped.
+
+<CodeBlock id="skew" code={`population <- read.csv("data/wellbeing-population.csv")
+
+hist(population$stress, breaks = 40,
+     main = "Stress in the population", xlab = "Stress score")`} />
+
+<Predict
+  id="p-clt"
+  question="If the population is skewed like this, what shape will the sampling distribution of the mean have for n = 40?"
+  choices={[
+    { text: 'Skewed, like the population', response: 'This is the intuition almost everyone has, and it is wrong. Run the next block and see.' },
+    { text: 'Approximately normal', correct: true, response: 'Yes — and this is the single most useful fact in introductory statistics. The next block shows it.' },
+    { text: 'Impossible to say without knowing the population shape', response: 'Remarkably, you can say. That is exactly what the Central Limit Theorem guarantees.' },
+  ]}
+/>
+
+<CodeBlock id="clt" code={`set.seed(7)
+means_40 <- replicate(2000, mean(sample(population$stress, 40)))
+
+hist(means_40, breaks = 40,
+     main = "Means of 40 students", xlab = "Sample mean stress")`} />
+
+## The Central Limit Theorem
+
+> As the sample size grows, the sampling distribution of the mean approaches a
+> normal distribution — **whatever the shape of the population**.
+
+Three things are worth stating precisely, because students routinely mix them up:
+
+1. It is the **sampling distribution** that becomes normal, not the population
+   and not your sample. Your data can stay as skewed as it likes.
+2. It centres on **μ**, the population mean.
+3. Its spread is **σ/√n**, the standard error.
+
+For roughly symmetric populations, n around 15 is plenty. For strongly skewed
+ones like this, n of 40 or so is a common rule of thumb.
+
+Use the simulation to test that claim yourself: choose **Two peaks**, set n to 2,
+and then raise it. The population never becomes normal. The sampling
+distribution does.
+
+<Simulation name="clt" />
+
+<Exercise id="m6-3-a" />
+
+## Why this matters
+
+Everything from here on depends on it. A *t*-test, a confidence interval, a
+regression coefficient's *p*-value — each assumes you know how a sample estimate
+behaves across repeated samples. The Central Limit Theorem is what lets you
+claim that, from a single sample, without ever repeating the study.
+
+<Interpret
+  id="i-6-3"
+  question="A colleague writes: 'Our reaction-time data are heavily skewed, so we cannot use a t-test.' With n = 120 per group, how should you respond?"
+  choices={[
+    { text: 'They are right — skewed data rule out a t-test.', response: 'The t-test assumes the sampling distribution of the mean is approximately normal, not that the raw data are. Those are different claims.' },
+    { text: 'The t-test assumes the sampling distribution of the mean is approximately normal. With n = 120 per group, the Central Limit Theorem makes that reasonable despite the skew.', correct: true, response: 'Exactly right, and precisely stated. Skew in the raw data matters most at small n; at 120 per group it is rarely disqualifying.' },
+    { text: 'They should transform the data first, because normality of the raw scores is required.', response: 'A transformation is sometimes useful for other reasons, but normality of raw scores is not what the test requires.' },
+    { text: 'It does not matter, because t-tests make no assumptions.', response: 'They certainly make assumptions — about the sampling distribution, about independence, and about variances. The point is which assumption applies here.' },
+  ]}
+/>
+
+<Quiz
+  id="q-6-3"
+  question="Which statement about the Central Limit Theorem is correct?"
+  choices={[
+    { text: 'It says large samples are normally distributed.', response: 'It says nothing about your sample. A large sample from a skewed population is still skewed.' },
+    { text: 'It says the sampling distribution of the mean becomes approximately normal as n grows.', correct: true, response: 'Correct — the claim is about the distribution of the mean across repeated samples.' },
+    { text: 'It says the population becomes normal with enough data.', response: 'Collecting data does not change the population. The population is whatever it is.' },
+    { text: 'It only applies when the population is already normal.', response: 'The opposite: its power is precisely that it holds regardless of the population shape.' },
+  ]}
+/>
+````
+
+- [ ] **Step 7: Run the content tests to verify they now pass**
+
+Run: `npx vitest run src/content/exercises/index.test.ts src/r/session.itest.ts`
+Expected: PASS. The `read.csv` test from Task 5 now finds the CSV and reports 5000 rows.
+
+- [ ] **Step 8: Verify the lessons render in the browser**
+
+Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/06-1`.
+Expected: prose renders, R boots, the code blocks run and plot, the CLT simulation responds to the slider.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add scripts/generate-datasets.mjs public/data/ src/content/lessons/ src/content/exercises/module-06.ts
+git commit -m "feat: Module 6 lessons, exercises, and the course population dataset"
+```
+
+---
+
+### Task 16: Playground and the test chooser
+
+**Files:**
+- Create (replacing the Task 13 placeholders): `src/pages/Playground.tsx`, `src/pages/TestChooser.tsx`
+- Test: `src/pages/TestChooser.test.tsx`
+
+**Interfaces:**
+- Consumes: `LessonProvider` (Task 9), `CodeBlock` (Task 9), `getWebR`/`prepareSession` (Tasks 2, 14), manifest (Task 13)
+- Produces: `<Playground />` at `/playground`, `<TestChooser />` at `/which-test`
+
+- [ ] **Step 1: Implement `src/pages/Playground.tsx`**
+
+```tsx
+import { useEffect, useState } from 'react';
+import type { RObject, WebR } from 'webr';
+import CodeBlock from '../components/CodeBlock';
+import { LessonProvider } from '../content/LessonContext';
+import { createLessonEnv, destroyEnv } from '../r/environments';
+import { fetchDataset, prepareSession } from '../r/session';
+import { getWebR, setStatus } from '../r/webrClient';
+
+export default function Playground() {
+  const [webR, setWebR] = useState<WebR | null>(null);
+  const [env, setEnv] = useState<RObject | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    let created: RObject | null = null;
+
+    void (async () => {
+      try {
+        const instance = await getWebR();
+        await prepareSession(instance, fetchDataset);
+        const playgroundEnv = await createLessonEnv(instance);
+        if (!live) {
+          await destroyEnv(playgroundEnv);
+          return;
+        }
+        created = playgroundEnv;
+        setWebR(instance);
+        setEnv(playgroundEnv);
+        setStatus({ phase: 'ready' });
+      } catch (err) {
+        setStatus({ phase: 'error', detail: String(err) });
+      }
+    })();
+
+    return () => {
+      live = false;
+      if (created) void destroyEnv(created);
+    };
+  }, []);
+
+  return (
+    <LessonProvider value={{ lessonId: 'playground', webR, env, ready: Boolean(webR && env) }}>
+      <h1>R playground</h1>
+      <p>
+        A scratch space with the course datasets already loaded. Nothing here is marked or saved
+        beyond this browser.
+      </p>
+      <CodeBlock
+        id="playground"
+        code={`population <- read.csv("data/wellbeing-population.csv")
+
+summary(population)`}
+      />
+    </LessonProvider>
+  );
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+Create `src/pages/TestChooser.test.tsx`.
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test } from 'vitest';
+import TestChooser from './TestChooser';
+
+function renderChooser() {
+  return render(
+    <MemoryRouter>
+      <TestChooser />
+    </MemoryRouter>,
+  );
+}
+
+describe('TestChooser', () => {
+  test('starts by asking about the outcome variable', () => {
+    renderChooser();
+    expect(screen.getByText(/what kind of outcome/i)).toBeDefined();
+  });
+
+  test('walking the numeric branch reaches a named test', async () => {
+    renderChooser();
+    await userEvent.click(screen.getByRole('button', { name: /a number/i }));
+    await userEvent.click(screen.getByRole('button', { name: /two groups/i }));
+    await userEvent.click(screen.getByRole('button', { name: /different people/i }));
+    expect(screen.getByText(/independent-samples t-test/i)).toBeDefined();
+  });
+
+  test('the categorical branch reaches the chi-square test', async () => {
+    renderChooser();
+    await userEvent.click(screen.getByRole('button', { name: /a category/i }));
+    await userEvent.click(screen.getByRole('button', { name: /two variables/i }));
+    expect(screen.getByText(/chi-square test of independence/i)).toBeDefined();
+  });
+
+  test('can be restarted', async () => {
+    renderChooser();
+    await userEvent.click(screen.getByRole('button', { name: /a category/i }));
+    await userEvent.click(screen.getByRole('button', { name: /start over/i }));
+    expect(screen.getByText(/what kind of outcome/i)).toBeDefined();
+  });
+});
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `npx vitest run src/pages/TestChooser.test.tsx`
+Expected: FAIL — the placeholder has none of this.
+
+- [ ] **Step 4: Implement `src/pages/TestChooser.tsx`**
+
+```tsx
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+
+type Node =
+  | { kind: 'question'; text: string; options: { label: string; next: Node }[] }
+  | { kind: 'answer'; test: string; rFunction: string; note: string; lessonId?: string };
+
+const TREE: Node = {
+  kind: 'question',
+  text: 'What kind of outcome are you analysing?',
+  options: [
+    {
+      label: 'A number (score, time, rating)',
+      next: {
+        kind: 'question',
+        text: 'How many groups or measurements are you comparing?',
+        options: [
+          {
+            label: 'One group against a known value',
+            next: {
+              kind: 'answer',
+              test: 'One-sample t-test',
+              rFunction: 't.test(x, mu = 0)',
+              note: 'Compares your sample mean against a value you specify.',
+            },
+          },
+          {
+            label: 'Two groups',
+            next: {
+              kind: 'question',
+              text: 'Are the two sets of scores from the same people or different people?',
+              options: [
+                {
+                  label: 'Different people',
+                  next: {
+                    kind: 'answer',
+                    test: 'Independent-samples t-test',
+                    rFunction: 't.test(outcome ~ group, data = d)',
+                    note: 'Each person contributes one score to one group.',
+                  },
+                },
+                {
+                  label: 'The same people, twice',
+                  next: {
+                    kind: 'answer',
+                    test: 'Paired-samples t-test',
+                    rFunction: 't.test(before, after, paired = TRUE)',
+                    note: 'Each person contributes two scores, so the scores are linked.',
+                  },
+                },
+              ],
+            },
+          },
+          {
+            label: 'Three or more groups',
+            next: {
+              kind: 'answer',
+              test: 'One-way ANOVA',
+              rFunction: 'aov(outcome ~ group, data = d)',
+              note: 'Follow a significant result with a post-hoc test such as TukeyHSD().',
+            },
+          },
+          {
+            label: 'No groups — two numbers per person',
+            next: {
+              kind: 'answer',
+              test: 'Correlation or simple regression',
+              rFunction: 'cor.test(x, y)  /  lm(y ~ x, data = d)',
+              note: 'Use correlation to describe strength, regression to predict one from the other.',
+            },
+          },
+        ],
+      },
+    },
+    {
+      label: 'A category (yes/no, choice, group membership)',
+      next: {
+        kind: 'question',
+        text: 'How many categorical variables are involved?',
+        options: [
+          {
+            label: 'One variable',
+            next: {
+              kind: 'answer',
+              test: 'Chi-square goodness-of-fit test',
+              rFunction: 'chisq.test(table(x))',
+              note: 'Compares observed frequencies against expected proportions.',
+            },
+          },
+          {
+            label: 'Two variables',
+            next: {
+              kind: 'answer',
+              test: 'Chi-square test of independence',
+              rFunction: 'chisq.test(table(x, y))',
+              note: 'Asks whether the two categorical variables are related.',
+            },
+          },
+        ],
+      },
+    },
+  ],
+};
+
+export default function TestChooser() {
+  const [node, setNode] = useState<Node>(TREE);
+  const [trail, setTrail] = useState<string[]>([]);
+
+  function choose(label: string, next: Node) {
+    setTrail((current) => [...current, label]);
+    setNode(next);
+  }
+
+  function restart() {
+    setTrail([]);
+    setNode(TREE);
+  }
+
+  return (
+    <div className="test-chooser">
+      <h1>Which test should I use?</h1>
+      <p>
+        Work down from your research question. This is the same chain every lesson uses: question →
+        assumptions → choice of test → computation → interpretation → report.
+      </p>
+
+      {trail.length > 0 && (
+        <p className="test-chooser-trail">
+          {trail.join(' → ')}{' '}
+          <button type="button" onClick={restart} className="link-button">
+            Start over
+          </button>
+        </p>
+      )}
+
+      {node.kind === 'question' ? (
+        <>
+          <h2>{node.text}</h2>
+          <ul className="test-chooser-options">
+            {node.options.map((option) => (
+              <li key={option.label}>
+                <button type="button" onClick={() => choose(option.label, option.next)}>
+                  {option.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <div className="test-chooser-answer">
+          <h2>{node.test}</h2>
+          <pre>
+            <code>{node.rFunction}</code>
+          </pre>
+          <p>{node.note}</p>
+          {node.lessonId && <Link to={`/lesson/${node.lessonId}`}>Go to the lesson</Link>}
+          <p>
+            <button type="button" onClick={restart} className="link-button">
+              Start over
+            </button>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+As later modules land, set `lessonId` on the answers they teach so each leaf links to its lesson.
+
+- [ ] **Step 5: Add styles to `src/App.css`**
+
+```css
+.test-chooser-options { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; max-width: 34rem; }
+.test-chooser-options button { width: 100%; text-align: left; padding: 0.6rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.98rem; }
+.test-chooser-options button:hover { border-color: #1d4ed8; background: #eff6ff; }
+.test-chooser-trail { color: #475569; font-size: 0.9rem; }
+.test-chooser-answer { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; max-width: 34rem; }
+.test-chooser-answer pre { background: #0f172a; color: #e2e8f0; padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; }
+.link-button { border: none; background: none; color: #1d4ed8; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
+```
+
+- [ ] **Step 6: Run the test to verify it passes**
+
+Run: `npx vitest run src/pages/TestChooser.test.tsx`
+Expected: PASS, 4 tests.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/pages/Playground.tsx src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx src/App.css
+git commit -m "feat: R playground and the which-test decision tree"
+```
+
+---
+
+### Task 17: Content validation
+
+**Files:**
+- Create: `src/content/content.test.ts`, `src/content/exercises/validate.itest.ts`
+- Modify: `package.json` (add the `validate` script)
+
+**Interfaces:**
+- Consumes: `ALL_EXERCISES` (Task 14), `SIMULATION_NAMES` (Task 12), `runExercise` (Task 7), manifest (Task 13)
+- Produces: two test suites that block deployment when content is broken
+
+> **Deviation from the spec, and why.** The spec named a standalone
+> `scripts/validate-content.mjs`. Running it would need a separate TypeScript
+> loader, because the exercise definitions are `.ts`. Writing the validator as
+> two Vitest files instead reuses the existing toolchain, the Vite config, and
+> the test reporter for free — and it is the same checks against the same data.
+> The `npm run validate` script still exists as the single CI entry point.
+
+- [ ] **Step 1: Write the static content test**
+
+Create `src/content/content.test.ts`.
+
+```ts
+import { describe, expect, test } from 'vitest';
+import { ALL_LESSONS } from './manifest';
+import { getExercise } from './exercises';
+import { SIMULATION_NAMES } from '../sims/registry';
+
+const compiled = import.meta.glob('./lessons/*.mdx', { eager: true });
+const sources = import.meta.glob('./lessons/*.mdx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+describe('lesson content', () => {
+  test('every lesson in the manifest has a file', () => {
+    for (const lesson of ALL_LESSONS) {
+      expect(sources[`./lessons/${lesson.file}.mdx`], `missing file for ${lesson.id}`).toBeDefined();
+    }
+  });
+
+  test('every lesson file compiles to a component', () => {
+    for (const [path, module] of Object.entries(compiled)) {
+      expect(typeof (module as { default: unknown }).default, `${path} did not compile`).toBe('function');
+    }
+  });
+
+  test('every referenced simulation is registered', () => {
+    for (const [path, source] of Object.entries(sources)) {
+      for (const match of source.matchAll(/<Simulation\s+name="([^"]+)"/g)) {
+        expect(SIMULATION_NAMES, `${path} references simulation "${match[1]}"`).toContain(match[1]);
+      }
+    }
+  });
+
+  test('every referenced exercise is defined', () => {
+    for (const [path, source] of Object.entries(sources)) {
+      for (const match of source.matchAll(/<Exercise\s+id="([^"]+)"/g)) {
+        expect(getExercise(match[1]), `${path} references exercise "${match[1]}"`).toBeDefined();
+      }
+    }
+  });
+
+  test('no lesson uses a function that hangs on the PostMessage channel', () => {
+    const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
+    for (const [path, source] of Object.entries(sources)) {
+      expect(forbidden.test(source), `${path} uses a blocking function`).toBe(false);
+    }
+  });
+
+  test('every dataset referenced in a lesson exists in the mount list', async () => {
+    const { DATASET_FILES } = await import('../r/session');
+    for (const [path, source] of Object.entries(sources)) {
+      for (const match of source.matchAll(/data\/([\w-]+\.csv)/g)) {
+        expect(DATASET_FILES as readonly string[], `${path} reads ${match[1]}`).toContain(match[1]);
+      }
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run it**
+
+Run: `npx vitest run src/content/content.test.ts`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 3: Write the R validation suite**
+
+Create `src/content/exercises/validate.itest.ts`. This is the check the whole grading system rests on.
+
+```ts
+// @vitest-environment node
+import { readFile } from 'node:fs/promises';
+import { WebR } from 'webr';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { ALL_EXERCISES } from './index';
+import { runExercise } from '../../r/checker';
+import { createLessonEnv, destroyEnv } from '../../r/environments';
+import { mountDatasets } from '../../r/session';
+
+let webR: WebR;
+
+beforeAll(async () => {
+  webR = new WebR();
+  await webR.init();
+  await mountDatasets(webR, async (name) =>
+    new Uint8Array(await readFile(new URL(`../../../public/data/${name}`, import.meta.url))),
+  );
+}, 300_000);
+
+afterAll(async () => {
+  await webR.close();
+});
+
+async function attempt(exerciseId: string, code: string) {
+  const exercise = ALL_EXERCISES.find((candidate) => candidate.id === exerciseId)!;
+  const env = await createLessonEnv(webR);
+  try {
+    // Graphics stay off: webr::canvas() needs OffscreenCanvas, absent in Node.
+    return await runExercise(webR, exercise, code, env, false);
+  } finally {
+    await destroyEnv(env);
+  }
+}
+
+describe.each(ALL_EXERCISES.map((exercise) => [exercise.id, exercise] as const))(
+  'exercise %s',
+  (id, exercise) => {
+    test('the reference solution passes its own check', async () => {
+      const outcome = await attempt(id, exercise.solution);
+      expect(outcome.status, `${id}: ${outcome.message}`).toBe('pass');
+    }, 120_000);
+
+    test.each(exercise.wrongAnswers.map((code, index) => [index, code] as const))(
+      'wrong answer %i is rejected by the check, not by an error',
+      async (_index, code) => {
+        const outcome = await attempt(id, code);
+        // 'student-error' would mean the code merely failed to run, which
+        // proves nothing about whether the check can discriminate.
+        expect(outcome.status, `${id}: expected a check rejection, got ${outcome.status}`).toBe('fail');
+      },
+      120_000,
+    );
+  },
+);
+```
+
+- [ ] **Step 4: Run it**
+
+Run: `npx vitest run src/content/exercises/validate.itest.ts`
+Expected: PASS. Every solution passes and every wrong answer is rejected with status `fail`.
+
+- [ ] **Step 5: Prove the validator actually catches a broken check**
+
+This step verifies the safety net itself. Temporarily edit the `check` of `m6-1-a` to `list(pass = TRUE, message = "ok")` and re-run.
+
+Run: `npx vitest run src/content/exercises/validate.itest.ts`
+Expected: FAIL on both of `m6-1-a`'s wrong answers. **Revert the edit** and confirm the suite passes again. Do not commit the temporary edit.
+
+- [ ] **Step 6: Add the `validate` script to `package.json`**
+
+```json
+"validate": "vitest run src/content/content.test.ts src/content/exercises/validate.itest.ts"
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/content/content.test.ts src/content/exercises/validate.itest.ts package.json
+git commit -m "test: validate lesson content and exercise checks against real R"
+```
+
+---
+
+### Task 18: Continuous integration and deployment
+
+**Files:**
+- Create: `playwright.config.ts`, `e2e/smoke.spec.ts`, `.github/workflows/deploy.yml`
+- Test: the smoke test itself
+
+**Interfaces:**
+- Consumes: the built site
+- Produces: a green pipeline that deploys to GitHub Pages
+
+- [ ] **Step 1: Create `playwright.config.ts`**
+
+```ts
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  // webR downloads R the first time, so allow a generous budget.
+  timeout: 180_000,
+  expect: { timeout: 120_000 },
+  use: { baseURL: 'http://localhost:4173/statlab/' },
+  webServer: {
+    command: 'npm run build && npm run preview -- --port 4173',
+    url: 'http://localhost:4173/statlab/',
+    reuseExistingServer: !process.env.CI,
+    timeout: 300_000,
+  },
+});
+```
+
+- [ ] **Step 2: Write the smoke test**
+
+Create `e2e/smoke.spec.ts`. This is the only test that exercises the real browser path — base path, worker loading, and webR boot — which no unit test can reach.
+
+```ts
+import { expect, test } from '@playwright/test';
+
+test('the app loads, R boots, and code runs', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.getByRole('heading', { name: 'StatLab' })).toBeVisible();
+
+  await page.getByRole('link', { name: 'R playground' }).click();
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+
+  await page.getByRole('button', { name: 'Run' }).click();
+  await expect(page.locator('.output-console')).toContainText('stress', { timeout: 120_000 });
+});
+
+test('a lesson renders its simulation and responds to the slider', async ({ page }) => {
+  await page.goto('./lesson/06-2');
+  await expect(page.getByRole('heading', { name: 'The sampling distribution' })).toBeVisible();
+
+  const slider = page.getByRole('slider');
+  await expect(slider).toBeVisible();
+  await slider.fill('60');
+  await expect(page.getByText('Sample size (n) =')).toContainText('60');
+});
+```
+
+- [ ] **Step 3: Run the smoke test**
+
+Run: `npx playwright install --with-deps chromium && npx playwright test`
+Expected: PASS, 2 tests. The first run is slow because it builds the site and downloads R.
+
+- [ ] **Step 4: Create `.github/workflows/deploy.yml`**
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npx vitest run
+      - name: Validate content against real R
+        run: npm run validate
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Add SPA fallback for client-side routes
+        # GitHub Pages serves 404.html for unknown paths. Making it a copy of
+        # index.html keeps the URL intact so React Router can handle the route.
+        run: cp dist/index.html dist/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+`npx vitest run` in the verify job runs the integration suites too, which is intended: they are the only tests that exercise real R.
+
+- [ ] **Step 5: Enable Pages and push**
+
+In the repository settings, set Pages → Build and deployment → Source to **GitHub Actions**. Note that Pages serves from a private repository only on a paid plan; making the repository public is a separate, deliberate step.
+
+```bash
+git add playwright.config.ts e2e/ .github/workflows/deploy.yml
+git commit -m "ci: verify content and deploy to GitHub Pages"
+git push
+```
+
+- [ ] **Step 6: Verify the deployed site**
+
+Open `https://peterslijkhuis.github.io/statlab/` (once the repository is public and the workflow is green). Confirm a lesson URL such as `/statlab/lesson/06-3` loads directly on refresh — this proves the 404.html fallback works.
+
+---
+
+## Self-Review
+
+Run against the spec after completing the plan.
+
+**Spec coverage**
+
+| Spec section | Covered by |
+|---|---|
+| §2.1 Stack | Task 1 |
+| §2.2 Layers | File Structure; Tasks 2–16 |
+| §2.3 Deployment and base path | Tasks 1, 18 |
+| §3.1 Version pinning | Task 2 |
+| §3.2 Channel limits, forbidden functions | Global Constraints; Tasks 14, 17 |
+| §3.3 Evaluation options | Task 3 |
+| §3.4 Environments | Task 4 |
+| §3.5 Lifecycle, failure, recovery | Tasks 2, 5, 13, 14 |
+| §4.1 Block types | Tasks 9, 10, 11, 12 |
+| §4.2 Pedagogical spine, test chooser | Tasks 15, 16 |
+| §5 Exercise checking | Tasks 7, 11 |
+| §6 Simulations (`clt`) | Task 12 |
+| §7 Curriculum (Module 6) | Tasks 13, 15 |
+| §8.1 Content validation | Task 17 |
+| §8.2 Static content checks | Task 17 |
+| §8.3 Unit and smoke tests | Tasks 6, 7, 8, 9, 10, 11, 12, 16, 18 |
+| §9 Progress and state | Tasks 6, 13 |
+| §10 Scope | Whole plan |
+
+**Deviations from the spec, both deliberate**
+
+1. **Validator implemented as Vitest files rather than `scripts/validate-content.mjs`** (Task 17). Reuses the existing TypeScript toolchain instead of adding a loader; identical checks, and `npm run validate` remains the CI entry point.
+2. **Datasets live in `public/data/` rather than `src/content/datasets/`.** Vite serves `public/` directly, so one location works for the browser, the Node tests, and the validator. The File Structure section reflects this.
+3. **"Restart R" reloads the page** instead of respawning the worker in place (Task 13). Respawning alone would leave a dead lesson environment and a memoised session promise behind, so packages would never reinstall into the new worker. Spec §3.5's offer to re-run the lesson's earlier code blocks is deferred with it; drafts survive in localStorage, so nothing a student wrote is lost.
+
+**Remaining scope note**
+
+The five simulations other than `clt` (§6) and Modules 1–5 and 7–12 (§7) are out of scope here by the spec's own §10, and become content work against the interfaces this plan freezes.
+
