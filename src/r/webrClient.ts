@@ -49,17 +49,3 @@ export function getWebR(): Promise<WebR> {
   return booting;
 }
 
-export async function restartWebR(): Promise<WebR> {
-  const previous = instance;
-  instance = null;
-  booting = null;
-  setStatus({ phase: 'booting', detail: 'Restarting R' });
-  if (previous) {
-    try {
-      await previous.close();
-    } catch {
-      // A wedged worker may refuse to close; respawning is still correct.
-    }
-  }
-  return getWebR();
-}
