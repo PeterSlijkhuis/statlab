@@ -209,7 +209,22 @@ The MDX plugin must run before the React plugin, and React's `include` must cove
 }
 ```
 
-- [ ] **Step 6: Create `vitest.config.ts`**
+- [ ] **Step 6: Create `vitest.config.ts` and the test setup file**
+
+`src/test-setup.ts`:
+
+```ts
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+// React Testing Library registers its own afterEach(cleanup) only when Vitest
+// runs with globals enabled. This project keeps globals off, so unmounting
+// between tests has to be wired up explicitly — without it every render leaks
+// into the next test and queries fail with "found multiple elements".
+afterEach(cleanup);
+```
+
+`vitest.config.ts`:
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -218,13 +233,16 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: false,
+    setupFiles: ['src/test-setup.ts'],
     include: ['src/**/*.{test,itest}.{ts,tsx}'],
     testTimeout: 10_000,
   },
 });
 ```
 
-Integration tests that boot real R use a `// @vitest-environment node` docblock and set their own timeout.
+Integration tests that boot real R use a `// @vitest-environment node` docblock
+and set their own timeout. The setup file is harmless there: `cleanup()` is a
+no-op when nothing has been rendered.
 
 - [ ] **Step 7: Create `index.html`, `src/main.tsx`, `src/App.tsx`**
 
@@ -282,7 +300,16 @@ Expected: PASS, 2 tests.
 Run: `npm run dev`
 Expected: `http://localhost:5173/statlab/` shows the heading. Note the path includes `/statlab/`; the bare root will 404, which is correct.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 10: Verify React component testing actually works under jsdom**
+
+Everything from Task 8 onward depends on this. Create a throwaway
+`src/__probe.test.tsx` that renders a small stateful component twice — in two
+separate `test()` blocks — clicks a button in one, and asserts on
+`screen.getByRole`. Run it. Both tests must pass; a "found multiple elements"
+failure means cleanup is not wired up. Delete the probe once it passes; do not
+commit it.
+
+- [ ] **Step 11: Commit**
 
 ```bash
 git add package.json package-lock.json tsconfig.json vite.config.ts vitest.config.ts index.html src/
