@@ -70,6 +70,8 @@ export async function evaluateR(
       errored: output.some((o) => o.type === 'error'),
     };
   } finally {
-    shelter.purge();
+    // Awaited: purge() returns a promise, and an unawaited rejection here
+    // would surface as an unhandled rejection rather than reaching the caller.
+    await shelter.purge();
   }
 }
