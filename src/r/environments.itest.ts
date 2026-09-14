@@ -23,7 +23,7 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'x <- 42', { env });
     const result = await evaluateR(webR, 'x', { env });
     expect(text(result)).toContain('42');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('lessons cannot see each other objects', async () => {
@@ -32,15 +32,15 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'secret <- 99', { env: a });
     const result = await evaluateR(webR, 'secret', { env: b });
     expect(result.errored).toBe(true);
-    await destroyEnv(a);
-    await destroyEnv(b);
+    await destroyEnv(webR, a);
+    await destroyEnv(webR, b);
   });
 
   test('base R remains reachable from a lesson environment', async () => {
     const env = await createLessonEnv(webR);
     const result = await evaluateR(webR, 'mean(c(1, 2, 3))', { env });
     expect(text(result)).toContain('2');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('a child environment sees its parent objects but not the reverse', async () => {
@@ -55,7 +55,7 @@ describe('lesson environments', () => {
     const leaked = await evaluateR(webR, 'attempt', { env: parent });
     expect(leaked.errored).toBe(true);
 
-    await destroyEnv(child);
-    await destroyEnv(parent);
+    await destroyEnv(webR, child);
+    await destroyEnv(webR, parent);
   });
 });
