@@ -1495,9 +1495,12 @@ export async function runExercise(
       try {
         const result = (await webR.evalR(wrapCheck(exercise.check), { env: checkEnv })) as RCharacter;
         raw = ((await result.toArray()) as (string | null)[]).map((v) => v ?? '');
-        await webR.destroy(result);
+        // Both frees swallow their own failures. The verdict is already
+        // computed by this point, and a failed cleanup must never turn a
+        // student's correct answer into "this exercise is broken".
+        await webR.destroy(result).catch(() => {});
       } finally {
-        await destroyEnv(webR, checkEnv);
+        await destroyEnv(webR, checkEnv).catch(() => {});
       }
     } catch (err) {
       return { status: 'broken-check', message: String(err), run };
