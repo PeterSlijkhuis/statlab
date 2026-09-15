@@ -3,100 +3,145 @@ import { Link } from 'react-router-dom';
 
 export type Node =
   | { kind: 'question'; text: string; options: { label: string; next: Node }[] }
-  | { kind: 'answer'; test: string; rFunction: string; note: string; lessonId?: string };
+  | {
+      kind: 'answer';
+      /** The model's name, as the course teaches it. */
+      model: string;
+      /** Course-style R, one statement per line. */
+      rCode: string;
+      /** What to check before trusting the result; names a rank-based alternative where one exists. */
+      check: string;
+      /** The traditional test this model reproduces, with its R call, when there is one. */
+      traditional?: string;
+      note: string;
+      lessonId?: string;
+    };
 
 export const TREE: Node = {
   kind: 'question',
   text: 'What kind of outcome are you analysing?',
   options: [
     {
-      label: 'A number (score, time, rating)',
+      label: 'A number (a score, time, rating or amount)',
       next: {
         kind: 'question',
-        text: 'How many groups or measurements are you comparing?',
+        text: 'How were the scores collected?',
         options: [
           {
-            label: 'One group against a known value',
-            next: {
-              kind: 'answer',
-              test: 'One-sample t-test',
-              rFunction: 't.test(x, mu = 0)',
-              note: 'Compares your sample mean against a value you specify.',
-            },
-          },
-          {
-            label: 'Two groups',
+            label: 'One score per person, from different people',
             next: {
               kind: 'question',
-              text: 'Are the two sets of scores from the same people or different people?',
+              text: 'What are you using to predict the outcome?',
               options: [
                 {
-                  label: 'Different people',
+                  label: 'One continuous predictor',
                   next: {
                     kind: 'answer',
-                    test: 'Independent-samples t-test',
-                    rFunction: 't.test(outcome ~ group, data = d)',
-                    note: 'Each person contributes one score to one group.',
+                    model: 'Simple linear regression',
+                    rCode:
+                      'library(broom)\nmodel <- lm(outcome ~ predictor, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
+                    check:
+                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; residuals roughly normal with similar spread; no extreme outliers. If not, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
+                    traditional:
+                      "Pearson correlation: cor.test(d$outcome, d$predictor). Its t and p match the slope's.",
+                    note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
                   },
                 },
                 {
-                  label: 'The same people, twice',
+                  label: 'Several predictors',
                   next: {
                     kind: 'answer',
-                    test: 'Paired-samples t-test',
-                    rFunction: 't.test(before, after, paired = TRUE)',
-                    note: 'Each person contributes two scores, so the scores are linked.',
+                    model: 'Multiple linear regression',
+                    rCode:
+                      'library(broom)\nmodel <- lm(outcome ~ predictor1 + predictor2, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
+                    check:
+                      'Roughly linear relationships; residuals roughly normal with similar spread; no extreme outliers; predictors not almost perfectly correlated with each other.',
+                    note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
+                  },
+                },
+                {
+                  label: 'One grouping variable with two groups',
+                  next: {
+                    kind: 'answer',
+                    model: 'Linear model with a two-group predictor',
+                    rCode:
+                      'library(broom)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% tidy()\nd %>% group_by(group) %>% summarise(mean = mean(outcome), sd = sd(outcome))',
+                    check:
+                      'Scores in each group roughly normal with similar spread. If not, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
+                    traditional:
+                      'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t, same p.',
+                    note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
+                  },
+                },
+                {
+                  label: 'One grouping variable with three or more groups',
+                  next: {
+                    kind: 'answer',
+                    model: 'Linear model with a categorical predictor',
+                    rCode:
+                      'library(broom)\nlibrary(emmeans)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% glance()\nemmeans(model, pairwise ~ group, adjust = "tukey")',
+                    check:
+                      'Scores in each group roughly normal with similar spread. If not, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
+                    traditional: 'One-way ANOVA: summary(aov(outcome ~ group, data = d)). Same F, same p.',
+                    note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
+                  },
+                },
+                {
+                  label: 'Two grouping variables that may interact',
+                  next: {
+                    kind: 'answer',
+                    model: 'Linear model with an interaction (factorial design)',
+                    rCode:
+                      'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d)\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
+                    check:
+                      'Scores in each cell roughly normal with similar spread. Plot the cell means before interpreting main effects.',
+                    traditional:
+                      'Two-way (factorial) ANOVA. Anova(model, type = "III") gives its F tests for each main effect and the interaction.',
+                    note: 'An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
                   },
                 },
               ],
             },
           },
           {
-            label: 'Three or more groups',
+            label: 'The same people measured more than once',
             next: {
               kind: 'answer',
-              test: 'One-way ANOVA',
-              rFunction: 'aov(outcome ~ group, data = d)',
-              note: 'Follow a significant result with a post-hoc test such as TukeyHSD().',
+              model: 'Linear mixed-effects model',
+              rCode:
+                'library(tidyr)\nlibrary(lmerTest)\nlong_d <- d %>% pivot_longer(cols = c(before, after), names_to = "time", values_to = "score")\nmodel <- lmer(score ~ time + (1 | id), data = long_d)\nsummary(model)',
+              check:
+                'Data in long format: one row per person per measurement. Residuals roughly normal. With only two time points and skewed differences, the Wilcoxon signed-rank test: wilcox.test(d$before, d$after, paired = TRUE).',
+              traditional:
+                'With two time points, the paired-samples t-test: t.test(d$before, d$after, paired = TRUE). With more, repeated-measures ANOVA.',
+              note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
             },
           },
           {
-            label: 'No groups — two numbers per person',
+            label: 'People grouped in teams, classes or sites',
             next: {
               kind: 'answer',
-              test: 'Correlation or simple regression',
-              rFunction: 'cor.test(x, y)  /  lm(y ~ x, data = d)',
-              note: 'Use correlation to describe strength, regression to predict one from the other.',
+              model: 'Linear mixed-effects model with a grouping factor',
+              rCode: 'library(lmerTest)\nmodel <- lmer(outcome ~ predictor + (1 | site), data = d)\nsummary(model)',
+              check: 'Enough groups to estimate how they vary (a handful at the very least). Residuals roughly normal.',
+              note: 'People in the same site are more alike than people in different sites; (1 | site) accounts for that. If people are also measured repeatedly, nest them: (1 | site/id).',
             },
           },
         ],
       },
     },
     {
-      label: 'A category (yes/no, choice, group membership)',
+      label: 'Yes or no (two possible outcomes)',
       next: {
-        kind: 'question',
-        text: 'How many categorical variables are involved?',
-        options: [
-          {
-            label: 'One variable',
-            next: {
-              kind: 'answer',
-              test: 'Chi-square goodness-of-fit test',
-              rFunction: 'chisq.test(table(x))',
-              note: 'Compares observed frequencies against expected proportions.',
-            },
-          },
-          {
-            label: 'Two variables',
-            next: {
-              kind: 'answer',
-              test: 'Chi-square test of independence',
-              rFunction: 'chisq.test(table(x, y))',
-              note: 'Asks whether the two categorical variables are related.',
-            },
-          },
-        ],
+        kind: 'answer',
+        model: 'Logistic regression',
+        rCode:
+          'model <- glm(outcome ~ predictor, data = d, family = binomial)\nsummary(model)\nexp(cbind(OR = coef(model), confint(model)))',
+        check:
+          'Independent observations, and enough cases of the rarer outcome — a common rule of thumb is at least 10 per predictor.',
+        traditional:
+          'With one categorical predictor, the chi-square test of independence: chisq.test(table(d$outcome, d$predictor)).',
+        note: 'The coefficients are in log odds. exp() turns them into odds ratios: above 1, the outcome becomes more likely; below 1, less likely.',
       },
     },
   ],
@@ -130,10 +175,11 @@ export default function TestChooser() {
 
   return (
     <div className="test-chooser">
-      <h1>Which test should I use?</h1>
+      <h1>Which model should I use?</h1>
       <p>
-        Work down from your research question. This is the same chain every lesson uses: question →
-        assumptions → choice of test → computation → interpretation → report.
+        Work down from your research question. Almost every analysis in this course is one of three
+        models — lm(), lmer() or glm() — and the chain is always the same: question → assumptions →
+        choice of model → computation → interpretation → report.
       </p>
 
       {trail.length > 0 && (
@@ -163,11 +209,19 @@ export default function TestChooser() {
       ) : (
         <div className="test-chooser-answer">
           <h2 ref={headingRef} tabIndex={-1}>
-            {node.test}
+            {node.model}
           </h2>
           <pre>
-            <code>{node.rFunction}</code>
+            <code>{node.rCode}</code>
           </pre>
+          <p>
+            <strong>Check first:</strong> {node.check}
+          </p>
+          {node.traditional && (
+            <p>
+              <strong>Traditional name:</strong> {node.traditional}
+            </p>
+          )}
           <p>{node.note}</p>
           {node.lessonId && <Link to={`/lesson/${node.lessonId}`}>Go to the lesson</Link>}
         </div>
