@@ -14,7 +14,8 @@ permissions:
 # Scoped per ref so a pull request run never cancels a deploy from main.
 concurrency:
   group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs are cancelled; deploys on main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -34,6 +35,8 @@ jobs:
         run: npm run validate
 
   e2e:
+    # A hung download from the webR CDN must not hold a runner for six hours.
+    timeout-minutes: 20
     needs: verify
     runs-on: ubuntu-latest
     env:

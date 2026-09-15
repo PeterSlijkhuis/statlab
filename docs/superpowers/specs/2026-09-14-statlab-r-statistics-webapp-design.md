@@ -396,9 +396,11 @@ exercise to fail closes that hole.
 
 - **Vitest** for the checker contract (tolerance comparison, student-error path,
   broken-check path) and the progress store (including unavailable localStorage).
-- **One Playwright smoke test**: the app loads, webR boots, `1 + 1` runs, and the
-  output pane shows `2`. This catches base-path and worker-loading breakage,
-  which unit tests cannot.
+- **Playwright smoke tests**: the app loads, webR boots and installs packages,
+  the playground reads a course dataset and prints it, a lesson opened by direct
+  URL renders and its simulation responds, and a ggplot2 plot actually draws.
+  These catch base-path, worker-loading and plotting breakage, which unit tests
+  cannot.
 
 ## 9. Progress and state
 
