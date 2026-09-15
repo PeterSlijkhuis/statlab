@@ -2,10 +2,16 @@ Look again at the stress scores. That population is severely skewed — most
 students report low stress, and a long tail report a great deal of it. Nothing
 about it is bell-shaped.
 
-<CodeBlock id="skew" code={`population <- read.csv("data/wellbeing-population.csv")
+<CodeBlock id="skew" code={`library(dplyr)
+library(ggplot2)
 
-hist(population$stress, breaks = 40,
-     main = "Stress in the population", xlab = "Stress score")`} />
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+population %>%
+  ggplot(aes(x = stress)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Stress in the population", x = "Stress score", y = "Frequency") +
+  theme_classic()`} />
 
 <Predict
   id="p-clt"
@@ -20,8 +26,11 @@ hist(population$stress, breaks = 40,
 <CodeBlock id="clt" code={`set.seed(7)
 means_40 <- replicate(2000, mean(sample(population$stress, 40)))
 
-hist(means_40, breaks = 40,
-     main = "Means of 40 students", xlab = "Sample mean stress")`} />
+tibble(mean_stress = means_40) %>%
+  ggplot(aes(x = mean_stress)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Means of 40 students", x = "Sample mean stress", y = "Frequency") +
+  theme_classic()`} />
 
 ## The Central Limit Theorem
 
@@ -58,7 +67,7 @@ claim that, from a single sample, without ever repeating the study.
   question="A colleague writes: 'Our reaction-time data are heavily skewed, so we cannot use a t-test.' With n = 120 per group, how should you respond?"
   choices={[
     { text: 'They are right — skewed data rule out a t-test.', response: 'The t-test assumes the sampling distribution of the mean is approximately normal, not that the raw data are. Those are different claims.' },
-    { text: 'The t-test assumes the sampling distribution of the mean is approximately normal. With n = 120 per group, the Central Limit Theorem makes that reasonable despite the skew.', correct: true, response: 'Exactly right, and precisely stated. Skew in the raw data matters most at small n; at 120 per group it is rarely disqualifying.' },
+    { text: 'The t-test (or the equivalent linear model) assumes the sampling distribution of the mean is approximately normal. With n = 120 per group, the Central Limit Theorem makes that reasonable despite the skew.', correct: true, response: 'Exactly right, and precisely stated. Skew in the raw data matters most at small n; at 120 per group it is rarely disqualifying.' },
     { text: 'They should transform the data first, because normality of the raw scores is required.', response: 'A transformation is sometimes useful for other reasons, but normality of raw scores is not what the test requires.' },
     { text: 'It does not matter, because t-tests make no assumptions.', response: 'They certainly make assumptions — about the sampling distribution, about independence, and about variances. The point is which assumption applies here.' },
   ]}

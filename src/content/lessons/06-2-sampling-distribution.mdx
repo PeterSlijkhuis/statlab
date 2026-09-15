@@ -11,9 +11,13 @@ is the distribution of a summary of people.
 ## Building one by brute force
 
 We can build it directly: take a sample, record its mean, and repeat a thousand
-times. `replicate()` does the repeating.
+times. `replicate()` does the repeating. A simulation loop is one of the few
+places we use base R, because repeating something 1000 times is faster than
+running 1000 pipelines.
 
-<CodeBlock id="build" code={`population <- read.csv("data/wellbeing-population.csv")
+<CodeBlock id="build" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
 set.seed(42)
 
 means <- replicate(1000, mean(sample(population$stress, 10)))
@@ -24,13 +28,17 @@ head(round(means, 2))`} />
 Now compare the two distributions — individual students, and means of ten
 students.
 
-<CodeBlock id="compare" code={`par(mfrow = c(2, 1))
+<CodeBlock id="compare" code={`library(ggplot2)
 
-hist(population$stress, breaks = 40,
-     main = "Individual students", xlab = "Stress score")
-
-hist(means, breaks = 40,
-     main = "Means of 10 students", xlab = "Sample mean stress")`} />
+bind_rows(
+  tibble(value = population$stress, what = "Individual students"),
+  tibble(value = means, what = "Means of 10 students")
+) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 40) +
+  facet_wrap(~ what, ncol = 1) +
+  labs(x = "Stress score", y = "Frequency") +
+  theme_classic()`} />
 
 <Predict
   id="p-spread"
@@ -48,12 +56,13 @@ The standard deviation of the sampling distribution has its own name: the
 **standard error**. It measures how much sample means bounce around, and it is
 what every confidence interval and every *t*-test is built from.
 
-<CodeBlock id="se" code={`sd(population$stress)   # how much individual students vary
-sd(means)               # how much means of 10 vary
+<CodeBlock id="se" code={`# sigma: how much individual students vary
+# se_formula: the formula
+population %>% summarise(sigma = sd(stress), se_formula = sd(stress) / sqrt(10))
 
-sd(population$stress) / sqrt(10)   # the formula`} />
+sd(means)   # how much means of 10 vary`} />
 
-The third line should land very close to the second. That is not a coincidence:
+`se_formula` should land very close to `sd(means)`. That is not a coincidence:
 
 **Standard error = σ / √n**
 
