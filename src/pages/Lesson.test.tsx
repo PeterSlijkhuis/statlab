@@ -152,6 +152,24 @@ describe('Lesson lifecycle across a param-only navigation', () => {
     expect(screen.queryByText(/lesson-06-1-body/)).toBeNull();
   });
 
+  test('the next lesson never reads the previous lesson\'s destroyed env as ready', async () => {
+    // 06-2's body is allowed to load at once while its env stays held back, so
+    // the body mounts inside the window where only the effect cleanup's
+    // setEnv(null)/setWebR(null) stops it seeing 06-1's freed env as ready.
+    // (Navigating back to a cached lesson hits the same window in the app.)
+    lessonTwoGate.release();
+    render(<Harness initialPath="/lesson/06-1" withNav />);
+    await waitFor(() => expect(screen.getByText('lesson-06-1-body ready=true')).toBeDefined());
+
+    await userEvent.click(screen.getByRole('button', { name: /next lesson/i }));
+
+    await waitFor(() => expect(screen.getByText(/lesson-06-2-body/)).toBeDefined());
+    expect(screen.getByText('lesson-06-2-body ready=false')).toBeDefined();
+
+    envBGateResolve(envB);
+    await waitFor(() => expect(screen.getByText('lesson-06-2-body ready=true')).toBeDefined());
+  });
+
   test('a lesson whose MDX file is missing still records a visit', async () => {
     render(<Harness initialPath="/lesson/06-missing" />);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Missing Lesson' })).toBeDefined());

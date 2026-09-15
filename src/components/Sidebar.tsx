@@ -1,17 +1,26 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { MODULES } from '../content/manifest';
-import { getProgress } from '../state/progress';
+import { MODULES, type LessonMeta } from '../content/manifest';
+import { getProgress, subscribeProgress } from '../state/progress';
 
 export default function Sidebar() {
+  const [, setTick] = useState(0);
+  // getProgress() returns a fresh object on every call, so it cannot serve as a
+  // useSyncExternalStore snapshot; a counter re-renders on each store write.
+  useEffect(() => subscribeProgress(() => setTick((tick) => tick + 1)), []);
   const progress = getProgress();
 
-  function statusClass(lessonId: string): string {
-    const lesson = progress.lessons[lessonId];
-    if (!lesson) return '';
-    const results = Object.values(lesson.exercises);
-    if (results.length > 0 && results.every((status) => status === 'passed')) return 'complete';
-    if (results.length > 0 || lesson.visitedAt) return 'started';
-    return '';
+  function statusClass(lesson: LessonMeta): string {
+    const record = progress.lessons[lesson.id];
+    if (!record) return '';
+    // Complete means every exercise the lesson contains is passed — not merely
+    // every exercise the student happens to have touched. A lesson with no
+    // exercises is complete once visited.
+    const complete =
+      lesson.exercises.length === 0
+        ? Boolean(record.visitedAt)
+        : lesson.exercises.every((id) => record.exercises[id] === 'passed');
+    return complete ? 'complete' : 'started';
   }
 
   return (
@@ -25,7 +34,7 @@ export default function Sidebar() {
               <li key={lesson.id}>
                 <NavLink
                   to={`/lesson/${lesson.id}`}
-                  className={({ isActive }) => ['sidebar-lesson', statusClass(lesson.id), isActive ? 'active' : ''].filter(Boolean).join(' ')}
+                  className={({ isActive }) => ['sidebar-lesson', statusClass(lesson), isActive ? 'active' : ''].filter(Boolean).join(' ')}
                 >
                   {lesson.title}
                 </NavLink>
