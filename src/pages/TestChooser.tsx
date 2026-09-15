@@ -41,7 +41,7 @@ export const TREE: Node = {
                     rCode:
                       'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
                     check:
-                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; no extreme outliers; residuals roughly normal with similar spread, which matters mainly in small samples. For a curved-but-consistent pattern, ranks or outliers, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
+                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; no extreme outliers; residuals with similar spread along the whole line; residuals roughly normal, which matters mainly in small samples. For a curved-but-consistent pattern, ranks or outliers, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
                     traditional:
                       "Pearson correlation: cor.test(d$outcome, d$predictor). Its t and p match the slope's.",
                     note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
@@ -55,7 +55,7 @@ export const TREE: Node = {
                     rCode:
                       'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor1 + predictor2, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
                     check:
-                      'Roughly linear relationships; no extreme outliers; residuals roughly normal with similar spread (mainly a concern in small samples); predictors not almost perfectly correlated with each other.',
+                      'Roughly linear relationships; no extreme outliers; residuals with similar spread across the fitted values; residuals roughly normal (mainly a concern in small samples); predictors not almost perfectly correlated with each other.',
                     note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
                   },
                 },
@@ -67,7 +67,7 @@ export const TREE: Node = {
                     rCode:
                       'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% tidy()\nd %>% group_by(group) %>% summarise(mean = mean(outcome), sd = sd(outcome))',
                     check:
-                      'Residuals roughly normal with similar spread in each group — this matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
+                      'Similar spread in each group, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
                     traditional:
                       'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t with the sign reversed — t.test subtracts the groups the other way round — and the same p.',
                     note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
@@ -81,7 +81,7 @@ export const TREE: Node = {
                     rCode:
                       'library(dplyr)\nlibrary(broom)\nlibrary(emmeans)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% glance()\nmodel %>% tidy()\nemmeans(model, pairwise ~ group, adjust = "tukey")',
                     check:
-                      'Residuals roughly normal with similar spread in each group — this matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
+                      'Similar spread in each group, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
                     traditional: 'One-way ANOVA: summary(aov(outcome ~ group, data = d)). Same F, same p.',
                     note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
                   },
@@ -94,7 +94,7 @@ export const TREE: Node = {
                     rCode:
                       'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d,\n            contrasts = list(factor1 = contr.sum, factor2 = contr.sum))\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
                     check:
-                      'Residuals roughly normal with similar spread in each cell — mainly a concern in small cells. Plot the cell means before interpreting main effects.',
+                      'Similar spread in each cell, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples. Plot the cell means before interpreting main effects.',
                     traditional:
                       'Two-way (factorial) ANOVA. Anova(model, type = "III") gives its F tests for each main effect and the interaction.',
                     // Type III main-effect tests are only meaningful with sum-to-zero contrasts. Under R's
@@ -113,7 +113,7 @@ export const TREE: Node = {
               rCode:
                 'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nlong_d <- d %>% pivot_longer(cols = c(before, after), names_to = "time", values_to = "score") %>%\n  mutate(time = factor(time, levels = c("before", "after")))\nmodel <- lmer(score ~ time + (1 | id), data = long_d)\nsummary(model)',
               check:
-                'Data in long format: one row per person per measurement. Residuals roughly normal. With only two time points and skewed differences, the Wilcoxon signed-rank test: wilcox.test(d$before, d$after, paired = TRUE).',
+                'Data in long format: one row per person per measurement. Residuals roughly normal, which matters mainly in small samples. With only two time points and skewed differences, the Wilcoxon signed-rank test: wilcox.test(d$before, d$after, paired = TRUE).',
               traditional:
                 'With two time points, the paired-samples t-test: t.test(d$before, d$after, paired = TRUE). With more, repeated-measures ANOVA.',
               note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Setting the factor levels makes "before" the reference, so the time coefficient is the change from before to after. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
@@ -125,7 +125,7 @@ export const TREE: Node = {
               kind: 'answer',
               model: 'Linear mixed-effects model with a grouping factor',
               rCode: 'library(lmerTest)\nmodel <- lmer(outcome ~ predictor + (1 | site), data = d)\nsummary(model)',
-              check: 'Enough groups to estimate how they vary (a handful at the very least). Residuals roughly normal.',
+              check: 'Enough groups to estimate how they vary (a handful at the very least). Residuals roughly normal, which matters mainly in small samples.',
               note: 'People in the same site are more alike than people in different sites; (1 | site) accounts for that. If people are also measured repeatedly, nest them: (1 | site/id).',
             },
           },

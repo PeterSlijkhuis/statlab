@@ -21,18 +21,20 @@ export const module06: ExerciseDef[] = [
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25) %>% select(sleep_hours)\nsample_mean <- my_sample %>% summarise(m = mean(sleep_hours)) %>% pull(m)',
       // A summary table with more than the mean in it.
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress), n = n())',
+      // Not random: the first 25 students in the file.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nmy_sample <- population %>% slice_head(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
     ],
     alternateSolutions: [
       // Base R: a vector of scores.
       'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- sample(population$stress, 25)\nsample_mean <- mean(my_sample)',
-      // Not random, but still 25 students from the population.
-      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nmy_sample <- population %>% slice_head(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
       // No pull(): a one-cell data frame.
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress))',
       // unlist() leaves a named number.
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% unlist()',
       // colMeans() also leaves a named number.
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- colMeans(my_sample["stress"])',
+      // as.matrix() leaves a 1x1 matrix.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% as.matrix()',
     ],
     check: `
       if (!exists("my_sample", inherits = TRUE) || !exists("sample_mean", inherits = TRUE)) {
@@ -46,13 +48,17 @@ export const module06: ExerciseDef[] = [
         scores <- if (is.data.frame(my_sample)) my_sample$stress else my_sample
         # A student who forgot pull() has a 1x1 data frame; accept its value.
         one_cell <- is.data.frame(sample_mean) && nrow(sample_mean) == 1L && ncol(sample_mean) == 1L
-        # unname(): unlist() and colMeans() give a correct but named number.
-        mean_value <- unname(if (one_cell) sample_mean[[1]] else sample_mean)
+        # as.vector(): unlist() and colMeans() give a correct but named number, and
+        # as.matrix() a 1x1 matrix. It drops names and dim from atomic values but
+        # leaves a data frame a list, so the table branch below still catches it.
+        mean_value <- as.vector(if (one_cell) sample_mean[[1]] else sample_mean)
         population <- read.csv("data/wellbeing-population.csv")
         if (length(scores) == nrow(population)) {
           list(pass = FALSE, message = "my_sample holds all 5000 students - that is the whole population, not a sample of 25.")
         } else if (length(scores) != 25L) {
           list(pass = FALSE, message = paste0("my_sample has ", length(scores), " scores, but a sample of 25 needs exactly 25."))
+        } else if (identical(scores, head(population$stress, 25))) {
+          list(pass = FALSE, message = "Those are the first 25 students in the file, not a random sample. Use slice_sample(n = 25) so every student has the same chance of being picked.")
         } else if (!all(scores %in% population$stress)) {
           list(pass = FALSE, message = "Some values in my_sample are not stress scores from the population.")
         } else if (is.data.frame(sample_mean) && nrow(sample_mean) * ncol(sample_mean) > 1L) {
@@ -134,12 +140,16 @@ export const module06: ExerciseDef[] = [
       'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sapply(population["stress"], sd) / sqrt(40)',
       // The population SD with denominator N rather than n - 1.
       'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sqrt(mean((population$stress - mean(population$stress))^2)) / sqrt(40)',
+      // var() on a one-column data frame leaves a 1x1 matrix.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sqrt(var(population["stress"])) / sqrt(40)',
     ],
     check: `
       # A student who forgot pull() has a 1x1 data frame; accept its value.
-      # unname(): unlist() and sapply() give a correct but named number.
+      # as.vector(): unlist() and sapply() give a correct but named number, and
+      # var() on a data frame a 1x1 matrix. It drops names and dim from atomic
+      # values but leaves a data frame a list, so the shape branch still catches it.
       value <- if (!exists("se_40", inherits = TRUE)) NULL else
-        unname(if (is.data.frame(se_40) && nrow(se_40) == 1L && ncol(se_40) == 1L) se_40[[1]] else se_40)
+        as.vector(if (is.data.frame(se_40) && nrow(se_40) == 1L && ncol(se_40) == 1L) se_40[[1]] else se_40)
       if (!exists("se_40", inherits = TRUE)) {
         list(pass = FALSE, message = "I could not find an object called se_40.")
       } else if (!is.numeric(value) || length(value) != 1L) {

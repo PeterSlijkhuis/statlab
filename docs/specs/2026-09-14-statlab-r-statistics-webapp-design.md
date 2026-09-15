@@ -263,7 +263,11 @@ These exist because auto-graders lose student trust in exactly these ways:
 - **Check values, never code text.** Any correct route to the right answer
   passes. Checks never match on strings of source code.
 - **Compare numerically with tolerance**, via
-  `isTRUE(all.equal(actual, expected, tolerance = 1e-6))`. Never `==` on doubles.
+  `isTRUE(all.equal(actual, expected, tolerance = 1e-6, check.attributes = FALSE))`
+  on values extracted with `as.vector()`, which drops the names and dimensions a
+  correct route can leave behind (`unlist()`, `as.matrix()`). Never `==` on
+  doubles. A looser tolerance is allowed where a legitimate route differs
+  slightly; the check says why in a comment.
 - **A student error is not a wrong answer.** If the student's code throws, show
   the R error message and do not run the check.
 - **A broken check is not a wrong answer.** If the check snippet errors or
@@ -368,7 +372,7 @@ exercise before deployment:
   Rejecting a correct route loses student trust as surely as accepting a wrong
   one, and several grading defects found in review were exactly that.
 
-The second half is not optional. A check that returns `pass = TRUE`
+The wrong-answers rule is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks
 every student correct forever. Requiring at least one plausible wrong answer per
 exercise to fail closes that hole.
