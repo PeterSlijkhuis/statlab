@@ -39,6 +39,7 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 .test-chooser-options { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; max-width: 34rem; }
 .test-chooser-options button { width: 100%; text-align: left; padding: 0.6rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.98rem; }
 .test-chooser-options button:hover { border-color: #1d4ed8; background: #eff6ff; }
+.test-chooser h2:focus { outline: none; }
 .test-chooser-trail { color: #475569; font-size: 0.9rem; }
 .test-chooser-answer { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; max-width: 34rem; }
 .test-chooser-answer pre { background: #0f172a; color: #e2e8f0; padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; }
