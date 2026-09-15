@@ -1,12 +1,9 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { RObject, WebR } from 'webr';
 import { LessonProvider } from '../content/LessonContext';
 import { findLesson, lessonNeighbours } from '../content/manifest';
 import { mdxComponents } from '../content/mdxComponents';
-import { createLessonEnv, destroyEnv } from '../r/environments';
-import { fetchDataset, prepareSession } from '../r/session';
-import { getWebR, setStatus } from '../r/webrClient';
+import { useLessonSession } from '../r/useLessonSession';
 import { touchLesson } from '../state/progress';
 
 const lessonModules = import.meta.glob<{ default: ComponentType<{ components?: unknown }> }>(
@@ -18,8 +15,7 @@ export default function Lesson() {
   const meta = findLesson(lessonId);
 
   const [Content, setContent] = useState<ComponentType<{ components?: unknown }> | null>(null);
-  const [webR, setWebR] = useState<WebR | null>(null);
-  const [env, setEnv] = useState<RObject | null>(null);
+  const { webR, env } = useLessonSession(meta ? meta.id : null);
 
   useEffect(() => {
     if (!meta) return;
@@ -38,41 +34,6 @@ export default function Lesson() {
       // This route reuses the component when only :lessonId changes, so the
       // previous lesson's content must not stay on screen under a new title.
       setContent(null);
-    };
-  }, [meta]);
-
-  useEffect(() => {
-    if (!meta) return;
-    let live = true;
-    let created: RObject | null = null;
-    let createdBy: WebR | null = null;
-
-    void (async () => {
-      try {
-        const instance = await getWebR();
-        await prepareSession(instance, fetchDataset);
-        const lessonEnv = await createLessonEnv(instance);
-        if (!live) {
-          await destroyEnv(instance, lessonEnv);
-          return;
-        }
-        created = lessonEnv;
-        createdBy = instance;
-        setWebR(instance);
-        setEnv(lessonEnv);
-        setStatus({ phase: 'ready' });
-      } catch (err) {
-        setStatus({ phase: 'error', detail: String(err) });
-      }
-    })();
-
-    return () => {
-      live = false;
-      // Cleared before destroying: code blocks gate Run on the context's `ready`,
-      // which derives from these, so an env being freed must never read as ready.
-      setEnv(null);
-      setWebR(null);
-      if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, [meta]);
 

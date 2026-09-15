@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-type Node =
+export type Node =
   | { kind: 'question'; text: string; options: { label: string; next: Node }[] }
   | { kind: 'answer'; test: string; rFunction: string; note: string; lessonId?: string };
 
-const TREE: Node = {
+export const TREE: Node = {
   kind: 'question',
   text: 'What kind of outcome are you analysing?',
   options: [
@@ -105,13 +105,25 @@ const TREE: Node = {
 export default function TestChooser() {
   const [node, setNode] = useState<Node>(TREE);
   const [trail, setTrail] = useState<string[]>([]);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Set by choose() and restart(): both unmount the button that was clicked, so
+  // focus would otherwise fall to <body>. Never set on mount, so landing on the
+  // page does not steal focus (also under StrictMode's double effect run).
+  const moveFocus = useRef(false);
+  useEffect(() => {
+    if (!moveFocus.current) return;
+    moveFocus.current = false;
+    headingRef.current?.focus();
+  }, [node]);
 
   function choose(label: string, next: Node) {
+    moveFocus.current = true;
     setTrail((current) => [...current, label]);
     setNode(next);
   }
 
   function restart() {
+    moveFocus.current = true;
     setTrail([]);
     setNode(TREE);
   }
@@ -135,7 +147,9 @@ export default function TestChooser() {
 
       {node.kind === 'question' ? (
         <>
-          <h2>{node.text}</h2>
+          <h2 ref={headingRef} tabIndex={-1}>
+            {node.text}
+          </h2>
           <ul className="test-chooser-options">
             {node.options.map((option) => (
               <li key={option.label}>
@@ -148,17 +162,14 @@ export default function TestChooser() {
         </>
       ) : (
         <div className="test-chooser-answer">
-          <h2>{node.test}</h2>
+          <h2 ref={headingRef} tabIndex={-1}>
+            {node.test}
+          </h2>
           <pre>
             <code>{node.rFunction}</code>
           </pre>
           <p>{node.note}</p>
           {node.lessonId && <Link to={`/lesson/${node.lessonId}`}>Go to the lesson</Link>}
-          <p>
-            <button type="button" onClick={restart} className="link-button">
-              Start over
-            </button>
-          </p>
         </div>
       )}
     </div>
