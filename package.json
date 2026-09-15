@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "vitest run src/content/content.test.ts src/content/exercises/validate.itest.ts",
+    "validate": "vitest run src/content/content.test.ts src/content/exercises/index.test.ts src/content/exercises/validate.itest.ts",
     "e2e": "playwright test",
     "postinstall": "patch-package"
   },
