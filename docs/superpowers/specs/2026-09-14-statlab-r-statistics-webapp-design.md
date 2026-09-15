@@ -310,7 +310,7 @@ psychology- and business-flavoured (§7.2).
 | 9 | Correlation and simple regression | `lm(y ~ x)`, `tidy()` and `glance()`, reading b, SE, t, p and R², correlation as a standardised slope | `correlation`, `leastsquares` |
 | 10 | Multiple regression | Several predictors, each b holding the others constant, APA report of R² and F | |
 | 11 | Categorical predictors | Two groups: `lm` reproduces the independent t-test; three or more: dummy coding and the reference category, overall F, `emmeans` pairwise comparisons with Tukey adjustment | |
-| 12 | Interactions and factorial designs | `a * b` and `a:b`, `car::Anova(model, type = "III")`, cell means with `group_by(a, b)`, interaction plots | |
+| 12 | Interactions and factorial designs | `a * b` and `a:b`, `car::Anova(model, type = "III")` with sum-to-zero contrasts (`contrasts = list(a = contr.sum, b = contr.sum)` — without them the main-effect tests are wrong), cell means with `group_by(a, b)`, interaction plots | |
 | 13 | Repeated measures and nested data | `pivot_longer`, `lmer` with `(1 | id)` via `lmerTest`, fixed vs random effects, nesting, the paired t-test as the two-time-point special case | |
 | 14 | Binary outcomes | `glm(..., family = binomial)`, log odds, odds ratios with `exp(cbind(OR = coef(m), confint(m)))`, reporting logistic regression | |
 

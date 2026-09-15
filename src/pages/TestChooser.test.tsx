@@ -46,7 +46,7 @@ const PATHS: { clicks: RegExp[]; model: string; code: string }[] = [
   {
     clicks: [/^a number/i, /different people/i, /two grouping variables/i],
     model: 'Linear model with an interaction (factorial design)',
-    code: 'Anova(model, type = "III")',
+    code: 'contrasts = list(factor1 = contr.sum, factor2 = contr.sum)',
   },
   {
     clicks: [/^a number/i, /measured more than once/i],
