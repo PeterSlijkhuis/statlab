@@ -1,0 +1,77 @@
+Every study you will ever read is based on a sample. The researchers did not
+measure everyone — they measured some people, and then said something about
+everyone. This module is about why that works at all, and what it costs.
+
+We have an unusual luxury here: a complete population of 5000 students, with
+their stress scores, sleep, and exam results. In real research you never see
+this. Because we can see it, we can watch exactly what happens when you take a
+sample from it.
+
+<CodeBlock id="load" code={`population <- read.csv("data/wellbeing-population.csv")
+
+nrow(population)
+head(population)`} />
+
+## The population parameter
+
+Because we have everyone, we can compute the true mean stress score. In real
+research this number exists but is unknowable. Here it is:
+
+<CodeBlock id="mu" code={`mean(population$stress)`} />
+
+Statisticians call this a **parameter**: a number describing the population. We
+write it μ ("mu"). Keep it in mind — everything that follows is about how close
+we can get to it without measuring all 5000 people.
+
+<Predict
+  id="p-sample"
+  question="If you take 25 students at random and compute their mean stress score, what do you expect?"
+  choices={[
+    { text: 'Exactly the population mean', response: 'Almost never. With only 25 of 5000 students, landing exactly on μ would be a coincidence.' },
+    { text: 'Close to the population mean, but not exactly', correct: true, response: 'Yes. A random sample is representative on average, but any single sample is a little off.' },
+    { text: 'Something unrelated to the population mean', response: 'Not unrelated — a random sample carries real information about the population. It is just imprecise.' },
+  ]}
+/>
+
+## Taking a sample
+
+`sample()` draws at random. `set.seed()` makes that randomness reproducible, so
+you and your neighbour get the same "random" sample — essential when you want to
+check your work.
+
+<CodeBlock id="one-sample" code={`set.seed(1)
+my_sample <- sample(population$stress, 25)
+
+mean(my_sample)`} />
+
+The difference between your sample mean and the population mean is called
+**sampling error**. It is not a mistake. Nobody did anything wrong. It is the
+unavoidable consequence of looking at some people instead of all of them.
+
+> **Change the seed.** Edit `set.seed(1)` to `set.seed(2)`, then `set.seed(3)`,
+> and run it again each time. Watch the mean move.
+
+<Predict
+  id="p-second"
+  question="You just saw the sample mean change when you changed the seed. What does that tell you?"
+  choices={[
+    { text: 'One of the samples is wrong', response: 'Neither is wrong. Both are honest random samples; they simply contain different people.' },
+    { text: 'The sample mean is itself a random quantity', correct: true, response: 'Exactly. This is the key idea of the whole module: the sample mean has a distribution of its own.' },
+    { text: 'The population mean changed', response: 'The population never changed — we did not touch it. Only the 25 people we happened to pick changed.' },
+  ]}
+/>
+
+## Your turn
+
+<Exercise id="m6-1-a" />
+
+<Quiz
+  id="q-6-1"
+  question="A researcher samples 30 people and finds a mean wellbeing score of 4.2. The true population mean is 4.0. What best describes the 0.2 difference?"
+  choices={[
+    { text: 'Bias in the sampling method', response: 'Bias means a systematic tendency to land on one side. A single random sample being off by a little is not evidence of bias.' },
+    { text: 'Sampling error', correct: true, response: 'Right. Random samples differ from the population by chance alone, and that gap has a name: sampling error.' },
+    { text: 'A measurement mistake', response: 'Nothing was measured incorrectly. The 30 people were measured perfectly — they were simply 30 particular people.' },
+    { text: 'Proof the sample is too small', response: 'A gap of 0.2 does not by itself show the sample was too small. Every sample, of any size, shows some gap.' },
+  ]}
+/>

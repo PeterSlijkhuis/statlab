@@ -36,4 +36,8 @@ describe('exercise definitions', () => {
     }
     expect(getExercise('no-such-exercise')).toBeUndefined();
   });
+
+  test('Module 6 defines its exercises', () => {
+    expect(ALL_EXERCISES.length).toBeGreaterThanOrEqual(3);
+  });
 });

@@ -64,3 +64,21 @@ describe('course packages', () => {
     expect(text(plotted)).toContain('gg');
   }, 600_000);
 });
+
+describe('the real course dataset', () => {
+  test('mounts and reads back the full population', async () => {
+    const real = new WebR();
+    await real.init();
+    try {
+      const { readFile } = await import('node:fs/promises');
+      await mountDatasets(real, async (name) =>
+        new Uint8Array(await readFile(new URL(`../../public/data/${name}`, import.meta.url))),
+      );
+      const result = await evaluateR(real, 'nrow(read.csv("data/wellbeing-population.csv"))');
+      expect(result.errored).toBe(false);
+      expect(text(result)).toContain('5000');
+    } finally {
+      await real.close();
+    }
+  }, 300_000);
+});
