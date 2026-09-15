@@ -130,8 +130,12 @@ describe('TestChooser', () => {
     })(TREE);
 
     for (const { model, rCode } of snippets) {
-      if (/%>%|group_by\(|summarise\(|mutate\(/.test(rCode)) {
+      // tidyr re-exports %>% but not the dplyr verbs.
+      if (/%>%/.test(rCode)) {
         expect(/library\((dplyr|tidyr)\)/.test(rCode), model).toBe(true);
+      }
+      if (/group_by\(|summarise\(|mutate\(/.test(rCode)) {
+        expect(/library\(dplyr\)/.test(rCode), model).toBe(true);
       }
     }
   });
