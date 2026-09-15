@@ -4555,6 +4555,17 @@ describe('lesson content', () => {
     }
   });
 
+  test('each lesson lists exactly the exercises its MDX contains', () => {
+    // The sidebar marks a lesson complete only when every exercise listed in the
+    // manifest is passed. If the list and the lesson's <Exercise> blocks drift
+    // apart, a lesson either can never be completed or is marked complete early.
+    for (const lesson of ALL_LESSONS) {
+      const source = sources[`./lessons/${lesson.file}.mdx`] ?? '';
+      const inMdx = [...source.matchAll(/<Exercise\s+id="([^"]+)"/g)].map((match) => match[1]).sort();
+      expect(inMdx, `${lesson.id}: manifest exercises disagree with its MDX`).toEqual([...lesson.exercises].sort());
+    }
+  });
+
   test('no lesson uses a function that hangs on the PostMessage channel', () => {
     const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
     for (const [path, source] of Object.entries(sources)) {
