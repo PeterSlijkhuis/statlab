@@ -371,6 +371,7 @@ exercise before deployment:
 - Each exercise's **`alternateSolutions` must every one pass** its check.
   Rejecting a correct route loses student trust as surely as accepting a wrong
   one, and several grading defects found in review were exactly that.
+- Every lesson's code blocks run in order, in one fresh lesson environment, without an R error.
 
 The wrong-answers rule is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks
