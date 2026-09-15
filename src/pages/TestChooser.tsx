@@ -92,12 +92,14 @@ export const TREE: Node = {
                     kind: 'answer',
                     model: 'Linear model with an interaction (factorial design)',
                     rCode:
-                      'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d)\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
+                      'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d,\n            contrasts = list(factor1 = contr.sum, factor2 = contr.sum))\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
                     check:
                       'Scores in each cell roughly normal with similar spread. Plot the cell means before interpreting main effects.',
                     traditional:
                       'Two-way (factorial) ANOVA. Anova(model, type = "III") gives its F tests for each main effect and the interaction.',
-                    note: 'An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
+                    // Type III main-effect tests are only meaningful with sum-to-zero contrasts. Under R's
+                    // default treatment contrasts they test each factor at the other's reference level.
+                    note: 'The contrasts = list(...) line matters: type III tests of the main effects are only correct with sum-to-zero contrasts, and R does not use those by default. An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
                   },
                 },
               ],
