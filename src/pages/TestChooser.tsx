@@ -39,9 +39,9 @@ export const TREE: Node = {
                     kind: 'answer',
                     model: 'Simple linear regression',
                     rCode:
-                      'library(broom)\nmodel <- lm(outcome ~ predictor, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
+                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
                     check:
-                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; residuals roughly normal with similar spread; no extreme outliers. If not, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
+                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; no extreme outliers; residuals roughly normal with similar spread, which matters mainly in small samples. For a curved-but-consistent pattern, ranks or outliers, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
                     traditional:
                       "Pearson correlation: cor.test(d$outcome, d$predictor). Its t and p match the slope's.",
                     note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
@@ -53,9 +53,9 @@ export const TREE: Node = {
                     kind: 'answer',
                     model: 'Multiple linear regression',
                     rCode:
-                      'library(broom)\nmodel <- lm(outcome ~ predictor1 + predictor2, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
+                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor1 + predictor2, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
                     check:
-                      'Roughly linear relationships; residuals roughly normal with similar spread; no extreme outliers; predictors not almost perfectly correlated with each other.',
+                      'Roughly linear relationships; no extreme outliers; residuals roughly normal with similar spread (mainly a concern in small samples); predictors not almost perfectly correlated with each other.',
                     note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
                   },
                 },
@@ -65,11 +65,11 @@ export const TREE: Node = {
                     kind: 'answer',
                     model: 'Linear model with a two-group predictor',
                     rCode:
-                      'library(broom)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% tidy()\nd %>% group_by(group) %>% summarise(mean = mean(outcome), sd = sd(outcome))',
+                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% tidy()\nd %>% group_by(group) %>% summarise(mean = mean(outcome), sd = sd(outcome))',
                     check:
-                      'Scores in each group roughly normal with similar spread. If not, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
+                      'Residuals roughly normal with similar spread in each group — this matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
                     traditional:
-                      'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t, same p.',
+                      'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t with the sign reversed — t.test subtracts the groups the other way round — and the same p.',
                     note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
                   },
                 },
@@ -79,9 +79,9 @@ export const TREE: Node = {
                     kind: 'answer',
                     model: 'Linear model with a categorical predictor',
                     rCode:
-                      'library(broom)\nlibrary(emmeans)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% glance()\nemmeans(model, pairwise ~ group, adjust = "tukey")',
+                      'library(dplyr)\nlibrary(broom)\nlibrary(emmeans)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% glance()\nmodel %>% tidy()\nemmeans(model, pairwise ~ group, adjust = "tukey")',
                     check:
-                      'Scores in each group roughly normal with similar spread. If not, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
+                      'Residuals roughly normal with similar spread in each group — this matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
                     traditional: 'One-way ANOVA: summary(aov(outcome ~ group, data = d)). Same F, same p.',
                     note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
                   },
@@ -94,7 +94,7 @@ export const TREE: Node = {
                     rCode:
                       'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d,\n            contrasts = list(factor1 = contr.sum, factor2 = contr.sum))\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
                     check:
-                      'Scores in each cell roughly normal with similar spread. Plot the cell means before interpreting main effects.',
+                      'Residuals roughly normal with similar spread in each cell — mainly a concern in small cells. Plot the cell means before interpreting main effects.',
                     traditional:
                       'Two-way (factorial) ANOVA. Anova(model, type = "III") gives its F tests for each main effect and the interaction.',
                     // Type III main-effect tests are only meaningful with sum-to-zero contrasts. Under R's
@@ -111,12 +111,12 @@ export const TREE: Node = {
               kind: 'answer',
               model: 'Linear mixed-effects model',
               rCode:
-                'library(tidyr)\nlibrary(lmerTest)\nlong_d <- d %>% pivot_longer(cols = c(before, after), names_to = "time", values_to = "score")\nmodel <- lmer(score ~ time + (1 | id), data = long_d)\nsummary(model)',
+                'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nlong_d <- d %>% pivot_longer(cols = c(before, after), names_to = "time", values_to = "score") %>%\n  mutate(time = factor(time, levels = c("before", "after")))\nmodel <- lmer(score ~ time + (1 | id), data = long_d)\nsummary(model)',
               check:
                 'Data in long format: one row per person per measurement. Residuals roughly normal. With only two time points and skewed differences, the Wilcoxon signed-rank test: wilcox.test(d$before, d$after, paired = TRUE).',
               traditional:
                 'With two time points, the paired-samples t-test: t.test(d$before, d$after, paired = TRUE). With more, repeated-measures ANOVA.',
-              note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
+              note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Setting the factor levels makes "before" the reference, so the time coefficient is the change from before to after. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
             },
           },
           {
@@ -140,9 +140,9 @@ export const TREE: Node = {
         rCode:
           'model <- glm(outcome ~ predictor, data = d, family = binomial)\nsummary(model)\nexp(cbind(OR = coef(model), confint(model)))',
         check:
-          'Independent observations, and enough cases of the rarer outcome — a common rule of thumb is at least 10 per predictor.',
+          'Independent observations, and enough cases of the rarer outcome — a common rule of thumb is at least 10 per estimated coefficient (a factor with k levels uses k − 1).',
         traditional:
-          'With one categorical predictor, the chi-square test of independence: chisq.test(table(d$outcome, d$predictor)).',
+          'With one categorical predictor, the chi-square test of independence: chisq.test(table(d$outcome, d$predictor), correct = FALSE), which matches anova(model, test = "Rao").',
         note: 'The coefficients are in log odds. exp() turns them into odds ratios: above 1, the outcome becomes more likely; below 1, less likely.',
       },
     },

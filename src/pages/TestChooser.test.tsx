@@ -121,6 +121,21 @@ describe('TestChooser', () => {
     }
   });
 
+  test('every snippet attaches the package its pipes and verbs come from', () => {
+    // broom does not export %>%, so a snippet pasted into a fresh session must attach it.
+    const snippets: { model: string; rCode: string }[] = [];
+    (function walk(node: Node) {
+      if (node.kind === 'answer') snippets.push(node);
+      else node.options.forEach((option) => walk(option.next));
+    })(TREE);
+
+    for (const { model, rCode } of snippets) {
+      if (/%>%|group_by\(|summarise\(|mutate\(/.test(rCode)) {
+        expect(/library\((dplyr|tidyr)\)/.test(rCode), model).toBe(true);
+      }
+    }
+  });
+
   test('choosing an option moves focus to the next heading, but landing does not', async () => {
     renderChooser();
     expect(document.activeElement).not.toBe(heading());
