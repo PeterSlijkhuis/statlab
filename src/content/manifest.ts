@@ -3,6 +3,8 @@ export type LessonMeta = {
   title: string;
   /** Matches the filename in src/content/lessons, without the extension. */
   file: string;
+  /** Ids of the checked exercises in this lesson; completion requires all of them. */
+  exercises: string[];
 };
 
 export type ModuleMeta = {
@@ -18,9 +20,9 @@ export const MODULES: ModuleMeta[] = [
     number: 6,
     title: 'Sampling',
     lessons: [
-      { id: '06-1', title: 'Why two samples never agree', file: '06-1-samples-vary' },
-      { id: '06-2', title: 'The sampling distribution', file: '06-2-sampling-distribution' },
-      { id: '06-3', title: 'The Central Limit Theorem', file: '06-3-central-limit-theorem' },
+      { id: '06-1', title: 'Why two samples never agree', file: '06-1-samples-vary', exercises: ['m6-1-a'] },
+      { id: '06-2', title: 'The sampling distribution', file: '06-2-sampling-distribution', exercises: ['m6-2-a'] },
+      { id: '06-3', title: 'The Central Limit Theorem', file: '06-3-central-limit-theorem', exercises: ['m6-3-a'] },
     ],
   },
 ];

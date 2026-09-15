@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { onStatus, type RStatus as Status } from '../r/webrClient';
 
+/**
+ * Restarting reloads the page rather than respawning the worker in place.
+ * webR's PostMessage channel cannot interrupt running R code, so a student's
+ * infinite loop has no other escape. A reload clears the dead lesson
+ * environment, the memoised session promise and stale component state in one
+ * move, and nothing is lost because code drafts live in localStorage.
+ */
 function restart() {
   window.location.reload();
 }

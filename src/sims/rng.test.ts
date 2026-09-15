@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { histogram, makeRng, mean, POPULATIONS, sampleMeans, sd } from './rng';
+import { describeShape, histogram, makeRng, mean, POPULATIONS, sampleMeans, sd, skewness } from './rng';
 
 describe('seeded rng', () => {
   test('is deterministic for a given seed', () => {
@@ -50,7 +50,10 @@ describe('sampleMeans', () => {
   test('spread shrinks roughly as the square root of n — the point of the lesson', () => {
     const small = sd(sampleMeans(POPULATIONS.skewed, 4, 4000, makeRng(5)));
     const large = sd(sampleMeans(POPULATIONS.skewed, 64, 4000, makeRng(5)));
-    expect(large).toBeLessThan(small / 2);
+    // 16 times the sample size should shrink the spread by sqrt(16) = 4
+    // (measured 3.99). Requiring more than 3 catches a wrong exponent that a
+    // looser bound of 2 would let through.
+    expect(large).toBeLessThan(small / 3);
   });
 
   test('centres on the population mean regardless of n', () => {
@@ -74,5 +77,28 @@ describe('histogram', () => {
     const { counts } = histogram([5, 5, 5], 4);
     expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
     expect(counts.every((c) => Number.isFinite(c))).toBe(true);
+  });
+});
+
+describe('skewness', () => {
+  test('is about 0 for a normal population', () => {
+    const rng = makeRng(17);
+    const draws = Array.from({ length: 20_000 }, () => POPULATIONS.normal.draw(rng));
+    expect(Math.abs(skewness(draws))).toBeLessThan(0.15);
+  });
+
+  test('is about 2 for the exponential (skewed) population', () => {
+    const rng = makeRng(17);
+    const draws = Array.from({ length: 20_000 }, () => POPULATIONS.skewed.draw(rng));
+    expect(Math.abs(skewness(draws) - 2)).toBeLessThan(0.3);
+  });
+});
+
+describe('describeShape', () => {
+  test('words a skewness value by rule of thumb', () => {
+    expect(describeShape(0.2)).toBe('roughly symmetric');
+    expect(describeShape(0.7)).toBe('moderately skewed right');
+    expect(describeShape(-1.5)).toBe('strongly skewed left');
+    expect(describeShape(Number.NaN)).toBe('shape unclear');
   });
 });

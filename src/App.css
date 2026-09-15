@@ -1,4 +1,7 @@
 :root { color-scheme: light; }
+/* Author `display` declarations outrank the user-agent [hidden] rule, so a
+   component style can silently un-hide an element. This makes `hidden` win.
+   It exists because a plot canvas once stayed visible when it should not. */
 [hidden] { display: none !important; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
 .app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }

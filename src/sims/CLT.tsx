@@ -1,5 +1,15 @@
-import { useMemo, useState } from 'react';
-import { histogram, makeRng, mean, POPULATIONS, sampleMeans, sd, type PopulationName } from './rng';
+import { useDeferredValue, useMemo, useState } from 'react';
+import {
+  describeShape,
+  histogram,
+  makeRng,
+  mean,
+  POPULATIONS,
+  sampleMeans,
+  sd,
+  skewness,
+  type PopulationName,
+} from './rng';
 import './CLT.css';
 
 const REPLICATIONS = 2000;
@@ -9,6 +19,7 @@ const HEIGHT = 180;
 
 function Histogram({ values, colour, label }: { values: number[]; colour: string; label: string }) {
   const { edges, counts } = useMemo(() => histogram(values, BINS), [values]);
+  const skew = useMemo(() => skewness(values), [values]);
   const peak = Math.max(...counts, 1);
   const lo = edges[0];
   const hi = edges[edges.length - 1];
@@ -18,7 +29,7 @@ function Histogram({ values, colour, label }: { values: number[]; colour: string
   return (
     <figure className="clt-figure">
       <figcaption>{label}</figcaption>
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} className="clt-svg">
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${label}. ${describeShape(skew)} (skewness ${skew.toFixed(2)}).`} className="clt-svg">
         {counts.map((count, index) => {
           const height = (count / peak) * (HEIGHT - 24);
           return (
@@ -47,20 +58,25 @@ export default function CLT() {
   const [populationName, setPopulationName] = useState<PopulationName>('skewed');
   const [n, setN] = useState(2);
   const [seed, setSeed] = useState(1);
-  const population = POPULATIONS[populationName];
+  // At n = 100 a tick costs ~40 ms of simulation, over two frames. The slider
+  // and its label use the live values; the simulation and everything read off
+  // it use the deferred ones, so the readout never mixes two different n's.
+  const deferredN = useDeferredValue(n);
+  const deferredPopulationName = useDeferredValue(populationName);
+  const deferredPopulation = POPULATIONS[deferredPopulationName];
 
   const populationDraws = useMemo(() => {
     const rng = makeRng(seed * 7919);
-    return Array.from({ length: 4000 }, () => population.draw(rng));
-  }, [population, seed]);
+    return Array.from({ length: 4000 }, () => deferredPopulation.draw(rng));
+  }, [deferredPopulation, seed]);
 
   const means = useMemo(
-    () => sampleMeans(population, n, REPLICATIONS, makeRng(seed * 104729)),
-    [population, n, seed],
+    () => sampleMeans(deferredPopulation, deferredN, REPLICATIONS, makeRng(seed * 104729)),
+    [deferredPopulation, deferredN, seed],
   );
 
   const observedSe = sd(means);
-  const predictedSe = population.sd / Math.sqrt(n);
+  const predictedSe = deferredPopulation.sd / Math.sqrt(deferredN);
 
   return (
     <div className="clt">
@@ -82,14 +98,14 @@ export default function CLT() {
         <button type="button" onClick={() => setSeed((value) => value + 1)}>Draw again</button>
       </div>
 
-      <p className="clt-description">{population.description}</p>
+      <p className="clt-description">{deferredPopulation.description}</p>
       <Histogram values={populationDraws} colour="#94a3b8" label="The population (individual people)" />
-      <Histogram values={means} colour="#1d4ed8" label={`Sampling distribution: ${REPLICATIONS} sample means, each from n = ${n}`} />
+      <Histogram values={means} colour="#1d4ed8" label={`Sampling distribution: ${REPLICATIONS} sample means, each from n = ${deferredN}`} />
 
       <table className="clt-readout">
         <tbody>
-          <tr><th scope="row">Population mean (μ)</th><td>{population.mean.toFixed(2)}</td><th scope="row">Mean of the sample means</th><td>{mean(means).toFixed(2)}</td></tr>
-          <tr><th scope="row">Population SD (σ)</th><td>{population.sd.toFixed(2)}</td><th scope="row">SD of the sample means</th><td>{observedSe.toFixed(2)}</td></tr>
+          <tr><th scope="row">Population mean (μ)</th><td>{deferredPopulation.mean.toFixed(2)}</td><th scope="row">Mean of the sample means</th><td>{mean(means).toFixed(2)}</td></tr>
+          <tr><th scope="row">Population SD (σ)</th><td>{deferredPopulation.sd.toFixed(2)}</td><th scope="row">SD of the sample means</th><td>{observedSe.toFixed(2)}</td></tr>
           <tr><th scope="row">σ / √n predicts</th><td>{predictedSe.toFixed(2)}</td><th scope="row">Observed matches prediction</th><td>{Math.abs(observedSe - predictedSe) < predictedSe * 0.1 ? 'yes' : 'close'}</td></tr>
         </tbody>
       </table>

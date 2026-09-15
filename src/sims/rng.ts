@@ -69,6 +69,29 @@ export function sd(values: number[]): number {
   return Math.sqrt(variance);
 }
 
+/**
+ * Sample skewness (adjusted Fisher-Pearson, as R's e1071 type 2 and Excel's
+ * SKEW): about 0 for a symmetric distribution, 2 for an exponential.
+ */
+export function skewness(values: number[]): number {
+  const n = values.length;
+  if (n < 3) return Number.NaN;
+  const average = mean(values);
+  const spread = sd(values);
+  if (!(spread > 0)) return 0;
+  const sum = values.reduce((total, value) => total + ((value - average) / spread) ** 3, 0);
+  return (n / ((n - 1) * (n - 2))) * sum;
+}
+
+/** Rule-of-thumb wording for a skewness value, for screen-reader users. */
+export function describeShape(skew: number): string {
+  if (!Number.isFinite(skew)) return 'shape unclear';
+  const size = Math.abs(skew);
+  if (size < 0.5) return 'roughly symmetric';
+  const side = skew > 0 ? 'right' : 'left';
+  return size < 1 ? `moderately skewed ${side}` : `strongly skewed ${side}`;
+}
+
 export function drawSample(population: Population, n: number, rng: () => number): number[] {
   return Array.from({ length: n }, () => population.draw(rng));
 }
