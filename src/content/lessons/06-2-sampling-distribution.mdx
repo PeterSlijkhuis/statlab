@@ -1,0 +1,78 @@
+In the last lesson you saw one sample mean, then another, then another. Each was
+a little different. That raises an obvious question, and it is the question that
+makes inferential statistics possible:
+
+> If the sample mean is random, **what is it random according to**?
+
+The answer is that sample means have their own distribution, called the
+**sampling distribution of the mean**. It is not the distribution of people. It
+is the distribution of a summary of people.
+
+## Building one by brute force
+
+We can build it directly: take a sample, record its mean, and repeat a thousand
+times. `replicate()` does the repeating.
+
+<CodeBlock id="build" code={`population <- read.csv("data/wellbeing-population.csv")
+set.seed(42)
+
+means <- replicate(1000, mean(sample(population$stress, 10)))
+
+length(means)
+head(round(means, 2))`} />
+
+Now compare the two distributions — individual students, and means of ten
+students.
+
+<CodeBlock id="compare" code={`par(mfrow = c(2, 1))
+
+hist(population$stress, breaks = 40,
+     main = "Individual students", xlab = "Stress score")
+
+hist(means, breaks = 40,
+     main = "Means of 10 students", xlab = "Sample mean stress")`} />
+
+<Predict
+  id="p-spread"
+  question="Before you look closely: which histogram is more spread out?"
+  choices={[
+    { text: 'The individual students', correct: true, response: 'Correct. Averaging cancels out extremes: to get an extreme mean, you need a whole sample of extreme people, which is rare.' },
+    { text: 'The sample means', response: 'Look again at the horizontal axes. Means cluster far more tightly than individuals do.' },
+    { text: 'They are equally spread', response: 'Check the axis ranges. The means occupy a much narrower interval.' },
+  ]}
+/>
+
+## Quantifying the shrinkage
+
+The standard deviation of the sampling distribution has its own name: the
+**standard error**. It measures how much sample means bounce around, and it is
+what every confidence interval and every *t*-test is built from.
+
+<CodeBlock id="se" code={`sd(population$stress)   # how much individual students vary
+sd(means)               # how much means of 10 vary
+
+sd(population$stress) / sqrt(10)   # the formula`} />
+
+The third line should land very close to the second. That is not a coincidence:
+
+**Standard error = σ / √n**
+
+<Exercise id="m6-2-a" />
+
+## See it move
+
+Drag the sample size and watch the lower histogram tighten. Switch populations
+to see that the shrinkage happens whatever shape you start from.
+
+<Simulation name="clt" />
+
+<Quiz
+  id="q-6-2"
+  question="You quadruple your sample size from 25 to 100. What happens to the standard error?"
+  choices={[
+    { text: 'It is quartered', response: 'That would be true if we divided by n. We divide by √n, so quadrupling n halves the standard error.' },
+    { text: 'It is halved', correct: true, response: 'Right: √100 / √25 = 2, so the standard error is halved. Precision is expensive — four times the data buys twice the precision.' },
+    { text: 'It is unchanged', response: 'Sample size is in the formula: σ/√n. Changing n must change the standard error.' },
+    { text: 'It doubles', response: 'More data makes estimates more precise, not less. The standard error goes down.' },
+  ]}
+/>
