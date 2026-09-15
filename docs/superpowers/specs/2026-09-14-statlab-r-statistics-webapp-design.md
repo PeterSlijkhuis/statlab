@@ -375,6 +375,9 @@ exercise before deployment:
   Rejecting a correct route loses student trust as surely as accepting a wrong
   one, and several grading defects found in review were exactly that.
 - Every lesson's code blocks run in order, in one fresh lesson environment, without an R error.
+- Exercises are also validated in the environment a lesson leaves behind after its code
+  blocks have run: there the solution must pass, every wrong answer must fail, and neither an empty
+  submission nor the unchanged starter code may pass.
 
 The wrong-answers rule is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { ALL_EXERCISES, getExercise } from './index';
+import { ALL_LESSONS } from '../manifest';
 
 describe('exercise definitions', () => {
   test('ids are unique', () => {
@@ -35,6 +36,22 @@ describe('exercise definitions', () => {
       expect(getExercise(exercise.id)).toBe(exercise);
     }
     expect(getExercise('no-such-exercise')).toBeUndefined();
+  });
+
+  test('every exercise belongs to a lesson, and every lesson exercise is defined', () => {
+    // An orphan is never shown to a student, so nothing else would notice it.
+    const inLessons = new Set(ALL_LESSONS.flatMap((lesson) => lesson.exercises));
+    expect([...inLessons].sort(), 'manifest lesson exercises and ALL_EXERCISES disagree').toEqual(ALL_EXERCISES.map((exercise) => exercise.id).sort());
+  });
+
+  test('checks read student objects only through has_answer() and answer()', () => {
+    // exists()/get() inherit from the lesson environment, where lesson code has
+    // already created the objects an exercise asks for (spec §5.1).
+    for (const exercise of ALL_EXERCISES) {
+      expect(exercise.check, `${exercise.id} calls exists(), get() or get0() directly`).not.toMatch(
+        /\b(exists|get|get0)\s*\(/,
+      );
+    }
   });
 
   test('Module 6 defines its exercises', () => {
