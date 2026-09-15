@@ -23,15 +23,21 @@ export default function Lesson() {
 
   useEffect(() => {
     if (!meta) return;
-    const loader = lessonModules[`../content/lessons/${meta.file}.mdx`];
-    if (!loader) return;
-    let live = true;
-    void loader().then((module) => {
-      if (live) setContent(() => module.default);
-    });
+    // Recorded before the loader lookup: a visit counts even when the lesson's
+    // file is missing, or "continue where you left off" silently skips it.
     touchLesson(meta.id);
+    let live = true;
+    const loader = lessonModules[`../content/lessons/${meta.file}.mdx`];
+    if (loader) {
+      void loader().then((module) => {
+        if (live) setContent(() => module.default);
+      });
+    }
     return () => {
       live = false;
+      // This route reuses the component when only :lessonId changes, so the
+      // previous lesson's content must not stay on screen under a new title.
+      setContent(null);
     };
   }, [meta]);
 
@@ -62,6 +68,10 @@ export default function Lesson() {
 
     return () => {
       live = false;
+      // Cleared before destroying: code blocks gate Run on the context's `ready`,
+      // which derives from these, so an env being freed must never read as ready.
+      setEnv(null);
+      setWebR(null);
       if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, [meta]);

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import Exercise from './Exercise';
+import { R_STOPPED_MESSAGE } from './CodeBlock';
 import { LessonProvider } from '../content/LessonContext';
 import { getProgress } from '../state/progress';
 import type { ExerciseDef } from '../r/checker';
@@ -108,5 +109,24 @@ describe('Exercise', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /solution/i })).toHaveProperty('disabled', false),
     );
+  });
+
+  test('a broken check still unlocks the solution — the student genuinely attempted', async () => {
+    runExercise.mockResolvedValue({ status: 'broken-check', message: 'check exploded', run: emptyRun });
+    renderExercise();
+    expect(screen.getByRole('button', { name: /solution/i })).toHaveProperty('disabled', true);
+    await userEvent.click(screen.getByRole('button', { name: /check/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /solution/i })).toHaveProperty('disabled', false),
+    );
+  });
+
+  test('a rejected check (worker crash) explains itself, counts as no attempt, and does not unlock the solution', async () => {
+    runExercise.mockRejectedValue(new Error('worker died'));
+    renderExercise();
+    await userEvent.click(screen.getByRole('button', { name: /check/i }));
+    await waitFor(() => expect(screen.getByText(R_STOPPED_MESSAGE)).toBeDefined());
+    expect(getProgress().lessons['06-1']?.exercises['m6-e1']).toBeUndefined();
+    expect(screen.getByRole('button', { name: /solution/i })).toHaveProperty('disabled', true);
   });
 });

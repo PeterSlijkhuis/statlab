@@ -13,6 +13,9 @@ type Props = {
 
 export const PLOT_SIZE = { width: 640, height: 400 };
 
+export const R_STOPPED_MESSAGE =
+  'R stopped responding. Use "Restart R" at the top of the page and try again — your code is saved.';
+
 export default function CodeBlock({ id, code }: Props) {
   const { lessonId, webR, env, ready } = useLesson();
   const [source, setSource] = useState(() => getDraft(lessonId, id) ?? code);
@@ -34,6 +37,11 @@ export default function CodeBlock({ id, code }: Props) {
     setRunning(true);
     try {
       setResult(await evaluateR(webR, source, { env: env ?? undefined, graphics: PLOT_SIZE }));
+    } catch {
+      // R-level errors arrive inside the result and never reach here. A rejection
+      // means R itself stopped (worker crash, out of memory); without this the
+      // button just resets and nothing explains why.
+      setResult({ output: [{ type: 'error', data: R_STOPPED_MESSAGE }], images: [], errored: true });
     } finally {
       setRunning(false);
     }

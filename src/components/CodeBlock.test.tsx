@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import CodeBlock from './CodeBlock';
+import CodeBlock, { R_STOPPED_MESSAGE } from './CodeBlock';
 import { LessonProvider } from '../content/LessonContext';
 import { getDraft } from '../state/progress';
 
@@ -73,5 +73,18 @@ describe('CodeBlock', () => {
     await userEvent.type(screen.getByLabelText('R code'), 'nonsense');
     await userEvent.click(screen.getByRole('button', { name: /reset/i }));
     expect(screen.getByLabelText('R code')).toHaveProperty('value', '1 + 1');
+  });
+
+  test('a rejected evaluation (worker crash) shows an explanation and resets the button', async () => {
+    evaluateR.mockReset();
+    evaluateR.mockRejectedValue(new Error('worker died'));
+    renderBlock();
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
+    // OutputPane prefixes error lines with "Error: ", so match the message as
+    // a substring rather than the exact node text.
+    await waitFor(() =>
+      expect(screen.getByText(R_STOPPED_MESSAGE, { exact: false })).toBeDefined(),
+    );
+    expect(screen.getByRole('button', { name: /run/i })).toHaveProperty('disabled', false);
   });
 });

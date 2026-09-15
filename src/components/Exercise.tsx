@@ -3,7 +3,7 @@ import { getExercise } from '../content/exercises';
 import { useLesson } from '../content/LessonContext';
 import { runExercise, type CheckOutcome } from '../r/checker';
 import { getDraft, markExercise, saveDraft } from '../state/progress';
-import { PLOT_SIZE } from './CodeBlock';
+import { PLOT_SIZE, R_STOPPED_MESSAGE } from './CodeBlock';
 import OutputPane from './OutputPane';
 import REditor from './REditor';
 import './Exercise.css';
@@ -17,6 +17,7 @@ export default function Exercise({ id }: { id: string }) {
   const [hintsShown, setHintsShown] = useState(0);
   const [attempted, setAttempted] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  const [crashed, setCrashed] = useState(false);
 
   if (!definition) {
     return <p className="exercise-missing">Exercise “{id}” is not defined.</p>;
@@ -30,15 +31,25 @@ export default function Exercise({ id }: { id: string }) {
   async function check() {
     if (!webR || !env || !ready) return;
     setChecking(true);
+    setCrashed(false);
     try {
       const result = await runExercise(webR, definition!, source, env, PLOT_SIZE);
       setOutcome(result);
+      // Every evaluated submission counts as an attempt — including a broken
+      // check. The student genuinely tried; keeping the solution locked would
+      // punish them for a faulty exercise.
       setAttempted(true);
       // A broken check is an infrastructure fault: it records nothing.
       if (result.status === 'pass') markExercise(lessonId, id, 'passed');
       else if (result.status === 'fail' || result.status === 'student-error') {
         markExercise(lessonId, id, 'attempted');
       }
+    } catch {
+      // Neither the student's fault nor the exercise's: R itself stopped
+      // responding. Record nothing, and do not count it as an attempt — their
+      // answer was never evaluated.
+      setOutcome(null);
+      setCrashed(true);
     } finally {
       setChecking(false);
     }
@@ -80,6 +91,12 @@ export default function Exercise({ id }: { id: string }) {
             <li key={hint}>{hint}</li>
           ))}
         </ul>
+      )}
+
+      {crashed && (
+        <div className="exercise-outcome outcome-broken-check">
+          <p>{R_STOPPED_MESSAGE}</p>
+        </div>
       )}
 
       {outcome && (
