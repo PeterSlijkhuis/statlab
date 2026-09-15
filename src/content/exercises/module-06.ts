@@ -19,6 +19,20 @@ export const module06: ExerciseDef[] = [
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- population %>% summarise(m = mean(stress)) %>% pull(m)',
       // The stress column was dropped.
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25) %>% select(sleep_hours)\nsample_mean <- my_sample %>% summarise(m = mean(sleep_hours)) %>% pull(m)',
+      // A summary table with more than the mean in it.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress), n = n())',
+    ],
+    alternateSolutions: [
+      // Base R: a vector of scores.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- sample(population$stress, 25)\nsample_mean <- mean(my_sample)',
+      // Not random, but still 25 students from the population.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nmy_sample <- population %>% slice_head(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
+      // No pull(): a one-cell data frame.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress))',
+      // unlist() leaves a named number.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% unlist()',
+      // colMeans() also leaves a named number.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- colMeans(my_sample["stress"])',
     ],
     check: `
       if (!exists("my_sample", inherits = TRUE) || !exists("sample_mean", inherits = TRUE)) {
@@ -32,7 +46,8 @@ export const module06: ExerciseDef[] = [
         scores <- if (is.data.frame(my_sample)) my_sample$stress else my_sample
         # A student who forgot pull() has a 1x1 data frame; accept its value.
         one_cell <- is.data.frame(sample_mean) && nrow(sample_mean) == 1L && ncol(sample_mean) == 1L
-        mean_value <- if (one_cell) sample_mean[[1]] else sample_mean
+        # unname(): unlist() and colMeans() give a correct but named number.
+        mean_value <- unname(if (one_cell) sample_mean[[1]] else sample_mean)
         population <- read.csv("data/wellbeing-population.csv")
         if (length(scores) == nrow(population)) {
           list(pass = FALSE, message = "my_sample holds all 5000 students - that is the whole population, not a sample of 25.")
@@ -40,8 +55,11 @@ export const module06: ExerciseDef[] = [
           list(pass = FALSE, message = paste0("my_sample has ", length(scores), " scores, but a sample of 25 needs exactly 25."))
         } else if (!all(scores %in% population$stress)) {
           list(pass = FALSE, message = "Some values in my_sample are not stress scores from the population.")
+        } else if (is.data.frame(sample_mean) && nrow(sample_mean) * ncol(sample_mean) > 1L) {
+          list(pass = FALSE, message = "sample_mean should be a single number, but it is a table with several columns or rows. Keep only the mean, then use pull() to turn it into a number.")
         } else if (!is.numeric(mean_value) || length(mean_value) != 1L ||
-                   !isTRUE(all.equal(mean_value, mean(scores), tolerance = 1e-6))) {
+                   # check.attributes = FALSE: a second guard, so names never fail a correct value.
+                   !isTRUE(all.equal(mean_value, mean(scores), tolerance = 1e-6, check.attributes = FALSE))) {
           list(pass = FALSE, message = "sample_mean should be the mean of the 25 stress scores in my_sample.")
         } else {
           mu <- mean(population$stress)
@@ -97,7 +115,7 @@ export const module06: ExerciseDef[] = [
   {
     id: 'm6-3-a',
     prompt:
-      'The population of stress scores is strongly skewed. Show that the sampling distribution is not: compute the standard error for samples of size 40 and store it in `se_40`, using the formula rather than simulation.',
+      'The population of stress scores is strongly skewed. How much do sample means of 40 students vary? Compute the standard error for samples of size 40 using the formula, not simulation, and store it in se_40.',
     starterCode:
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\n\n# Standard error = population SD divided by the square root of n.\nse_40 <- ',
     solution:
@@ -106,10 +124,22 @@ export const module06: ExerciseDef[] = [
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress)) %>% pull(se)',
       'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress) / 40) %>% pull(se)',
     ],
+    alternateSolutions: [
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sd(population$stress) / sqrt(40)',
+      // No pull(): a one-cell data frame.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress) / sqrt(40))',
+      // unlist() leaves a named number.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress) / sqrt(40)) %>% unlist()',
+      // sapply() over a one-column data frame leaves a named number.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sapply(population["stress"], sd) / sqrt(40)',
+      // The population SD with denominator N rather than n - 1.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- sqrt(mean((population$stress - mean(population$stress))^2)) / sqrt(40)',
+    ],
     check: `
       # A student who forgot pull() has a 1x1 data frame; accept its value.
+      # unname(): unlist() and sapply() give a correct but named number.
       value <- if (!exists("se_40", inherits = TRUE)) NULL else
-        if (is.data.frame(se_40) && nrow(se_40) == 1L && ncol(se_40) == 1L) se_40[[1]] else se_40
+        unname(if (is.data.frame(se_40) && nrow(se_40) == 1L && ncol(se_40) == 1L) se_40[[1]] else se_40)
       if (!exists("se_40", inherits = TRUE)) {
         list(pass = FALSE, message = "I could not find an object called se_40.")
       } else if (!is.numeric(value) || length(value) != 1L) {
@@ -121,11 +151,12 @@ export const module06: ExerciseDef[] = [
         # 1e-3 rather than 1e-6: admits a population SD computed with denominator N
         # instead of sd()'s n - 1, which differs by ~1e-4 here. Both wrong answers
         # below (sigma ~10.6, sigma/40 ~0.27) are far outside this band.
-        if (isTRUE(all.equal(value, expected, tolerance = 1e-3))) {
+        # check.attributes = FALSE on each comparison: a second guard, so names never pick the wrong branch.
+        if (isTRUE(all.equal(value, expected, tolerance = 1e-3, check.attributes = FALSE))) {
           list(pass = TRUE, message = paste0("Correct: ", round(expected, 3), ". Individual students vary by about ", round(sigma, 2), ", but sample means of 40 vary by only ", round(expected, 3), "."))
-        } else if (isTRUE(all.equal(value, sigma, tolerance = 1e-6))) {
+        } else if (isTRUE(all.equal(value, sigma, tolerance = 1e-6, check.attributes = FALSE))) {
           list(pass = FALSE, message = "That is the standard deviation of individual scores. Divide it by the square root of n.")
-        } else if (isTRUE(all.equal(value, sigma / 40, tolerance = 1e-6))) {
+        } else if (isTRUE(all.equal(value, sigma / 40, tolerance = 1e-6, check.attributes = FALSE))) {
           list(pass = FALSE, message = "You divided by n. The standard error divides by the square root of n.")
         } else {
           list(pass = FALSE, message = paste0("se_40 is ", round(value, 3), " but should be ", round(expected, 3), "."))
@@ -135,6 +166,7 @@ export const module06: ExerciseDef[] = [
     hints: [
       'The standard error of the mean is sigma / sqrt(n).',
       'sd(population$stress) gives sigma; sqrt(40) gives the denominator.',
+      'In a pipeline: se_40 <- population %>% summarise(se = sd(stress) / sqrt(40)) %>% pull(se).',
     ],
   },
 ];

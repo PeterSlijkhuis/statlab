@@ -11,6 +11,8 @@ export type ExerciseDef = {
   solution: string;
   /** Plausible wrong answers. Each MUST fail via pass = FALSE, not by erroring. */
   wrongAnswers: string[];
+  /** Other correct routes a student might take. The validator requires every one to pass. */
+  alternateSolutions?: string[];
   /** R snippet returning list(pass = <logical>, message = <character>). */
   check: string;
   hints: string[];

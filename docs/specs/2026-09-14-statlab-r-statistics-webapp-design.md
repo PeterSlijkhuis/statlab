@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-14
 **Status:** Approved design, ready for implementation planning
-**Amended:** 2026-09-15 — tidyverse and a linear-model-centred curriculum (§3.5, §4.2, §7, §10),
+**Amended:** 2026-09-15 — tidyverse and a linear-model-centred curriculum (§3.5, §4.2, §5.1, §7, §8.1, §10, §11),
 following the course team's R workshops; decisions recorded in §7.1
 
 ## 1. Purpose
@@ -244,6 +244,7 @@ An exercise is defined in a TypeScript file beside the lesson, not inside MDX:
   setupCode?: string,      // runs before student code (seeds, data)
   solution: string,        // a correct answer
   wrongAnswers: string[],  // plausible incorrect answers that MUST fail
+  alternateSolutions?: string[],  // other correct routes that MUST pass
   check: string,           // R snippet returning list(pass=, message=)
   hints: string[],
 }
@@ -363,6 +364,9 @@ exercise before deployment:
   does (§5.2), and only the latter counts as a satisfied negative fixture. A
   wrong answer that merely fails to run proves nothing about whether the check
   can tell a correct answer from an incorrect one.
+- Each exercise's **`alternateSolutions` must every one pass** its check.
+  Rejecting a correct route loses student trust as surely as accepting a wrong
+  one, and several grading defects found in review were exactly that.
 
 The second half is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks
@@ -424,8 +428,8 @@ low-risk, and requiring no further architectural decisions.
 
 - No instructor dashboard, accounts, or server-side data (§9).
 - No free-text answer grading.
-- No intermediate statistics (multiple regression, mediation, factorial or
-  repeated-measures ANOVA). A natural second phase.
+- No statistics beyond the fourteen modules (for example mediation, moderation
+  beyond two-way interactions, structural equation models, or Bayesian methods).
 - No mobile-first design. The layout is responsive and readable on a tablet, but
   writing code needs a keyboard and the design assumes a laptop.
 - No offline/PWA support.

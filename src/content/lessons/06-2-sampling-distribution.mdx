@@ -11,9 +11,10 @@ is the distribution of a summary of people.
 ## Building one by brute force
 
 We can build it directly: take a sample, record its mean, and repeat a thousand
-times. `replicate()` does the repeating. A simulation loop is one of the few
-places we use base R, because repeating something 1000 times is faster than
-running 1000 pipelines.
+times. `replicate()` does the repeating. This is one of the few places we use
+base R: `mean(sample(population$stress, 10))` works on a single column and is
+cheap to repeat, while a dplyr pipeline over the whole data frame would do far
+more work each of the 1000 times.
 
 <CodeBlock id="build" code={`library(dplyr)
 
@@ -45,8 +46,8 @@ bind_rows(
   question="Before you look closely: which histogram is more spread out?"
   choices={[
     { text: 'The individual students', correct: true, response: 'Correct. Averaging cancels out extremes: to get an extreme mean, you need a whole sample of extreme people, which is rare.' },
-    { text: 'The sample means', response: 'Look again at the horizontal axes. Means cluster far more tightly than individuals do.' },
-    { text: 'They are equally spread', response: 'Check the axis ranges. The means occupy a much narrower interval.' },
+    { text: 'The sample means', response: 'Look again at how wide each histogram is along the shared stress axis. Means cluster far more tightly than individuals do.' },
+    { text: 'They are equally spread', response: 'Compare how much of the shared stress axis each histogram covers. The means occupy a much narrower interval.' },
   ]}
 />
 
