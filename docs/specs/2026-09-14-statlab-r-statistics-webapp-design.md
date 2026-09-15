@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-14
 **Status:** Approved design, ready for implementation planning
+**Amended:** 2026-09-15 — tidyverse and a linear-model-centred curriculum (§3.5, §4.2, §7, §10),
+following the course team's R workshops; decisions recorded in §7.1
 
 ## 1. Purpose
 
@@ -150,9 +152,18 @@ in their setup code.
 - **Boot.** webR initialises on first app load, in the background, with a
   progress indicator. Theory prose, predictions, and quizzes are readable and
   usable before R is ready; only code blocks and exercises wait.
-- **Packages.** `dplyr` and `ggplot2` are installed from the webR binary
-  repository immediately after boot, in the background. Code blocks needing them
-  wait on that promise. The browser caches the downloads.
+- **Packages.** The course uses tidyverse packages (§7.1). A core set — `dplyr`,
+  `ggplot2`, `tidyr`, `readr`, `broom` (41 packages with dependencies, about 40 MB
+  from the webR binary repository, measured 2026-09-15) — installs in the
+  background after boot; code blocks needing it wait on that promise. Modelling
+  packages (`emmeans`, `car`, `lme4`, `lmerTest`; about 49 MB beyond the core)
+  install on demand, only when a lesson that declares them opens. The browser
+  caches every download.
+- **No `library(tidyverse)` in lessons.** The `tidyverse` meta-package adds about
+  34 MB of packages the course never uses (googledrive, rvest, rmarkdown, …).
+  Lessons attach the specific packages (`library(dplyr)`, `library(ggplot2)`);
+  Module 1 explains that `library(tidyverse)` attaches the same packages in one
+  line in RStudio, which is what students will see in their own projects.
 - **Datasets.** Course CSVs are fetched and written into webR's virtual file
   system at boot, so `read.csv("data/stress.csv")` works as in any R session.
 - **Boot failure** (unsupported browser, offline, CDN unreachable) shows a clear
@@ -195,12 +206,29 @@ misinterpretations. Free-text grading is out of scope.
 Every inferential lesson follows the same six-step chain, named explicitly so
 students internalise the sequence rather than memorising commands:
 
-**Question → Assumptions → Choice of test → Computation → Interpretation → Report**
+**Question → Assumptions → Choice of model → Computation → Interpretation → Report**
 
-A standalone **"Which test should I use?"** page presents this as a navigable
-decision tree (outcome type, number of groups, independence, distribution) and
-links each leaf to the lesson that teaches it. It is reachable from anywhere and
-is the reference students will actually use during their own thesis work.
+A standalone **"Which model should I use?"** page (route `/which-test`) presents
+this as a navigable decision tree and links each leaf to the lesson that teaches
+it. It is reachable from anywhere and is the reference students will actually use
+during their own thesis work. The tree asks, in order:
+
+1. **Outcome type** — a number (→ linear model) or a yes/no outcome (→ logistic
+   regression, `glm(..., family = binomial)`).
+2. **Independence** — one observation per person, or repeated / nested
+   observations (→ mixed-effects model, `lmer(... + (1 | id))`).
+3. **Predictors** — one continuous; several; a categorical predictor with two or
+   more groups; two factors that may interact.
+4. **Assumptions** — each leaf states what to check before trusting the result
+   (for linear models: a roughly linear relationship, residuals roughly normal
+   with similar spread, no extreme outliers) and names the rank-based
+   alternative in one line where one exists.
+
+Each leaf shows the model code in the course's style (for example
+`model <- lm(score ~ group, data = d)`, then `model %>% tidy()` and
+`model %>% glance()`), and names the traditional test it is equivalent to with its
+R call (for example the independent-samples t-test,
+`t.test(score ~ group, data = d, var.equal = TRUE)`).
 
 ## 5. Exercise checking
 
@@ -263,24 +291,63 @@ references a name that is not registered.
 
 ## 7. Curriculum
 
-Twelve modules. Datasets are psychology- and business-flavoured throughout:
-stress and exam performance, a personality survey, customer satisfaction, and an
-A/B marketing test.
+Fourteen modules in three parts. Datasets are original and fictional,
+psychology- and business-flavoured (§7.2).
 
 | # | Module | Content | Simulation |
 |---|---|---|---|
-| 1 | First steps in R | Console, variables, vectors, functions, help | |
-| 2 | Working with data | Data frames, measurement levels, loading data | |
-| 3 | Describing data | Central tendency, spread, mean vs median | |
-| 4 | Visualising data | ggplot2: histograms, boxplots, scatter, bar | |
+| | **Foundations** | | |
+| 1 | First steps in R | Scripts and comments, objects, functions, help, packages and `library()` | |
+| 2 | Working with data | `read.csv(..., stringsAsFactors = TRUE)`, factors, the pipe `%>%`, `select`/`filter`/`mutate`, wide vs long with `pivot_longer` | |
+| 3 | Describing data | `group_by` + `summarise` (mean, SD, n), mean vs median, spotting surprises in summaries | |
+| 4 | Visualising data | ggplot2 as layers: histogram, density, boxplot, scatter with `geom_smooth(method = lm)`, `facet_wrap`, `labs` and `theme_classic` for an APA-ready figure | |
+| | **Inference** | | |
 | 5 | The normal distribution | Density, z-scores, probabilities | `distribution` |
 | 6 | Sampling | Sampling error, sampling distributions, CLT | `clt` |
-| 7 | Estimation | Standard error, confidence intervals | `ci` |
+| 7 | Estimation | Standard error, confidence intervals; SD vs SE vs CI error bars computed with `summarise` + `mutate` | `ci` |
 | 8 | Hypothesis testing | NHST logic, p-values, Type I/II errors, power | `pvalue` |
-| 9 | Comparing two means | One-sample, independent, paired *t*-tests; Cohen's *d* | |
-| 10 | Categorical data | Frequencies, chi-square goodness of fit and independence | |
-| 11 | Relationships | Correlation, simple linear regression | `correlation`, `leastsquares` |
-| 12 | Comparing several means | One-way ANOVA, post-hoc tests | |
+| | **The linear model** | | |
+| 9 | Correlation and simple regression | `lm(y ~ x)`, `tidy()` and `glance()`, reading b, SE, t, p and R², correlation as a standardised slope | `correlation`, `leastsquares` |
+| 10 | Multiple regression | Several predictors, each b holding the others constant, APA report of R² and F | |
+| 11 | Categorical predictors | Two groups: `lm` reproduces the independent t-test; three or more: dummy coding and the reference category, overall F, `emmeans` pairwise comparisons with Tukey adjustment | |
+| 12 | Interactions and factorial designs | `a * b` and `a:b`, `car::Anova(model, type = "III")`, cell means with `group_by(a, b)`, interaction plots | |
+| 13 | Repeated measures and nested data | `pivot_longer`, `lmer` with `(1 | id)` via `lmerTest`, fixed vs random effects, nesting, the paired t-test as the two-time-point special case | |
+| 14 | Binary outcomes | `glm(..., family = binomial)`, log odds, odds ratios with `exp(cbind(OR = coef(m), confint(m)))`, reporting logistic regression | |
+
+### 7.1 Teaching approach
+
+These follow the course team's own R workshops and were confirmed on 2026-09-15:
+
+- **Tidyverse style throughout.** Pipes, `group_by`/`summarise`, ggplot2, and
+  `broom::tidy`/`glance` to read model output. Base R appears only where the
+  tidyverse has no equivalent (`t.test`, `exp`, `confint`).
+- **One model, many names.** Regression, t-tests and ANOVA are taught as the
+  general linear model (`lm`), repeated measures as mixed-effects models
+  (`lmer`), and binary outcomes as the generalised linear model (`glm`). Where a
+  supervisor or journal expects a traditional test, the lesson shows the
+  traditional call and demonstrates that its statistics match the model's. There
+  are no separate lessons for t-tests, ANOVA or chi-square; rank-based tests get a
+  one-line mention in the chooser's assumptions step.
+- **Always look at the descriptives.** Every model lesson pairs model output with
+  `group_by` + `summarise` means and SDs, and at least one exercise per part
+  hinges on a sign or direction that only the descriptives reveal.
+- **Report in APA 7 style.** Every `<Interpret>` block's correct option is an APA
+  sentence with the statistics the model output actually supports.
+- **Original material.** Lessons follow the workshops' approach, code patterns
+  and reporting style, but their text, examples and datasets are written fresh
+  for StatLab rather than copied from the workshop documents.
+
+### 7.2 Datasets
+
+- **`wellbeing-population.csv`** (exists) — a complete population of 5000
+  students, used by Modules 5–8 to make sampling tangible.
+- **A workplace study** (new; Modules 2–4 and 9–14) — fictional employees in
+  several departments and sites, designed so every model in Part 3 has a genuine
+  effect to find: a continuous outcome with continuous predictors; a two-level and
+  a four-level group; two crossed yes/no interventions that interact; a measure
+  taken at two time points in wide format; employees nested in sites; and a
+  binary outcome. Generated by a seeded script like the existing one, with the
+  built-in effect sizes documented in the script.
 
 ## 8. Testing
 
@@ -339,8 +406,9 @@ progress simply is not saved.
 
 ## 10. Scope for the first implementation plan
 
-This specification describes all twelve modules. The **implementation plan
-builds the application shell plus Module 6 (Sampling) complete**, including the
+This specification describes all fourteen modules. The **implementation plan
+builds the application shell plus Module 6 (Sampling) complete**, written in the
+tidyverse style of §7.1, including the
 `clt` simulation, its code blocks, exercises with negative fixtures, quiz, and
 `<Interpret>` block.
 
@@ -349,7 +417,7 @@ the course's flagship simulation, so finishing it proves the whole architecture
 end to end.
 
 Once that vertical slice runs and the content schema is frozen, the remaining
-eleven modules are content work against a stable interface — parallelisable,
+thirteen modules are content work against a stable interface — parallelisable,
 low-risk, and requiring no further architectural decisions.
 
 ## 11. Non-goals
