@@ -254,7 +254,10 @@ Keeping these in TypeScript rather than MDX props means the CI validator simply
 imports them, with no MDX parsing.
 
 The `check` snippet runs in a child of the environment the student's code ran in,
-so it can inspect their objects. It returns `list(pass = <logical>, message = <character>)`.
+so it can inspect their objects. Checks read those objects only through
+`has_answer(name)` and `answer(name)`, which look in the attempt environment and never in the lesson
+environment above it. Lesson code blocks routinely create the very objects an exercise asks for;
+inheriting them would pass an empty submission. The check returns `list(pass = <logical>, message = <character>)`.
 
 ### 5.2 Rules
 
