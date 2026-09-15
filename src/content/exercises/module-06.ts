@@ -4,46 +4,56 @@ export const module06: ExerciseDef[] = [
   {
     id: 'm6-1-a',
     prompt:
-      'Draw a random sample of 25 students\' stress scores from the population. Store the 25 scores in `my_sample`, and their mean in `sample_mean`.',
+      'Draw a random sample of 25 students from the population with slice_sample(). Store the sample in my_sample, and the mean of its stress scores in sample_mean.',
     starterCode:
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\n\n# Draw 25 stress scores at random, then take their mean.\nmy_sample <- \nsample_mean <- ',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\n\n# Draw 25 students at random, then compute the mean of their stress scores.\nmy_sample <- \nsample_mean <- ',
     setupCode: 'set.seed(1)',
     solution:
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\nmy_sample <- sample(population$stress, 25)\nsample_mean <- mean(my_sample)',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
     wrongAnswers: [
       // The whole population, not a sample.
-      'population <- read.csv("data/wellbeing-population.csv")\nmy_sample <- population$stress\nsample_mean <- mean(my_sample)',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nmy_sample <- population\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
       // The wrong sample size.
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\nmy_sample <- sample(population$stress, 250)\nsample_mean <- mean(my_sample)',
-      // A real sample, but the mean of the wrong thing.
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(1)\nmy_sample <- sample(population$stress, 25)\nsample_mean <- mean(population$stress)',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 250)\nsample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m)',
+      // A real sample, but the mean of the whole population.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25)\nsample_mean <- population %>% summarise(m = mean(stress)) %>% pull(m)',
+      // The stress column was dropped.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(1)\nmy_sample <- population %>% slice_sample(n = 25) %>% select(sleep_hours)\nsample_mean <- my_sample %>% summarise(m = mean(sleep_hours)) %>% pull(m)',
     ],
     check: `
       if (!exists("my_sample", inherits = TRUE) || !exists("sample_mean", inherits = TRUE)) {
-        list(pass = FALSE, message = "I need both my_sample (your 25 scores) and sample_mean (their mean).")
-      } else if (!is.numeric(my_sample)) {
-        list(pass = FALSE, message = "my_sample should be a set of stress scores, which are numbers.")
+        list(pass = FALSE, message = "I need both my_sample (your 25 students) and sample_mean (the mean of their stress scores).")
+      } else if (is.data.frame(my_sample) && !("stress" %in% names(my_sample))) {
+        list(pass = FALSE, message = "my_sample has no stress column, so I cannot find the stress scores. Keep the stress column in your sample.")
+      } else if (!is.data.frame(my_sample) && !is.numeric(my_sample)) {
+        list(pass = FALSE, message = "my_sample should be the 25 sampled students (a data frame) or their stress scores (numbers).")
       } else {
+        # Tidyverse route: a data frame of students. Base route: a vector of scores.
+        scores <- if (is.data.frame(my_sample)) my_sample$stress else my_sample
+        # A student who forgot pull() has a 1x1 data frame; accept its value.
+        one_cell <- is.data.frame(sample_mean) && nrow(sample_mean) == 1L && ncol(sample_mean) == 1L
+        mean_value <- if (one_cell) sample_mean[[1]] else sample_mean
         population <- read.csv("data/wellbeing-population.csv")
-        if (length(my_sample) == nrow(population)) {
+        if (length(scores) == nrow(population)) {
           list(pass = FALSE, message = "my_sample holds all 5000 students - that is the whole population, not a sample of 25.")
-        } else if (length(my_sample) != 25L) {
-          list(pass = FALSE, message = paste0("my_sample has ", length(my_sample), " scores, but a sample of 25 needs exactly 25."))
-        } else if (!all(my_sample %in% population$stress)) {
+        } else if (length(scores) != 25L) {
+          list(pass = FALSE, message = paste0("my_sample has ", length(scores), " scores, but a sample of 25 needs exactly 25."))
+        } else if (!all(scores %in% population$stress)) {
           list(pass = FALSE, message = "Some values in my_sample are not stress scores from the population.")
-        } else if (!is.numeric(sample_mean) || length(sample_mean) != 1L ||
-                   !isTRUE(all.equal(sample_mean, mean(my_sample), tolerance = 1e-6))) {
-          list(pass = FALSE, message = "sample_mean should be the mean of the 25 scores in my_sample.")
+        } else if (!is.numeric(mean_value) || length(mean_value) != 1L ||
+                   !isTRUE(all.equal(mean_value, mean(scores), tolerance = 1e-6))) {
+          list(pass = FALSE, message = "sample_mean should be the mean of the 25 stress scores in my_sample.")
         } else {
           mu <- mean(population$stress)
-          list(pass = TRUE, message = paste0("Your sample mean is ", round(sample_mean, 2), ". The population mean is ", round(mu, 2), " - close, but not identical. That gap is sampling error."))
+          tip <- if (one_cell) " Your sample_mean is a one-cell table; pull() turns a one-cell table into a number." else ""
+          list(pass = TRUE, message = paste0("Your sample mean is ", round(mean_value, 2), ". The population mean is ", round(mu, 2), " - close, but not identical. That gap is sampling error.", tip))
         }
       }
     `,
     hints: [
-      'sample(x, 25) draws 25 values at random from the vector x.',
-      'The stress column is population$stress, so: my_sample <- sample(population$stress, 25).',
-      'Then take the mean of that sample: sample_mean <- mean(my_sample).',
+      'slice_sample(n = 25) draws 25 rows at random: my_sample <- population %>% slice_sample(n = 25).',
+      'summarise(m = mean(stress)) computes the mean of the stress column.',
+      'pull(m) turns the one-cell result into a number: sample_mean <- my_sample %>% summarise(m = mean(stress)) %>% pull(m).',
     ],
   },
   {
@@ -51,10 +61,10 @@ export const module06: ExerciseDef[] = [
     prompt:
       'Build a sampling distribution: take 1000 samples of size 10 from `population$stress`, and store the 1000 sample means in `means`.',
     starterCode:
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\n\nmeans <- replicate(1000, )\n',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(42)\n\nmeans <- replicate(1000, )\n',
     setupCode: 'set.seed(42)',
     solution:
-      'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 10)))',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 10)))',
     wrongAnswers: [
       'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 100)))',
       'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- sample(population$stress, 1000)',
@@ -89,17 +99,20 @@ export const module06: ExerciseDef[] = [
     prompt:
       'The population of stress scores is strongly skewed. Show that the sampling distribution is not: compute the standard error for samples of size 40 and store it in `se_40`, using the formula rather than simulation.',
     starterCode:
-      'population <- read.csv("data/wellbeing-population.csv")\n\n# Standard error = population SD divided by the square root of n.\nse_40 <- ',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\n\n# Standard error = population SD divided by the square root of n.\nse_40 <- ',
     solution:
-      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress) / sqrt(40)',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress) / sqrt(40)) %>% pull(se)',
     wrongAnswers: [
-      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress)',
-      'population <- read.csv("data/wellbeing-population.csv")\nse_40 <- sd(population$stress) / 40',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress)) %>% pull(se)',
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nse_40 <- population %>% summarise(se = sd(stress) / 40) %>% pull(se)',
     ],
     check: `
+      # A student who forgot pull() has a 1x1 data frame; accept its value.
+      value <- if (!exists("se_40", inherits = TRUE)) NULL else
+        if (is.data.frame(se_40) && nrow(se_40) == 1L && ncol(se_40) == 1L) se_40[[1]] else se_40
       if (!exists("se_40", inherits = TRUE)) {
         list(pass = FALSE, message = "I could not find an object called se_40.")
-      } else if (!is.numeric(se_40) || length(se_40) != 1L) {
+      } else if (!is.numeric(value) || length(value) != 1L) {
         list(pass = FALSE, message = "se_40 should be a single number.")
       } else {
         population <- read.csv("data/wellbeing-population.csv")
@@ -108,14 +121,14 @@ export const module06: ExerciseDef[] = [
         # 1e-3 rather than 1e-6: admits a population SD computed with denominator N
         # instead of sd()'s n - 1, which differs by ~1e-4 here. Both wrong answers
         # below (sigma ~10.6, sigma/40 ~0.27) are far outside this band.
-        if (isTRUE(all.equal(se_40, expected, tolerance = 1e-3))) {
+        if (isTRUE(all.equal(value, expected, tolerance = 1e-3))) {
           list(pass = TRUE, message = paste0("Correct: ", round(expected, 3), ". Individual students vary by about ", round(sigma, 2), ", but sample means of 40 vary by only ", round(expected, 3), "."))
-        } else if (isTRUE(all.equal(se_40, sigma, tolerance = 1e-6))) {
+        } else if (isTRUE(all.equal(value, sigma, tolerance = 1e-6))) {
           list(pass = FALSE, message = "That is the standard deviation of individual scores. Divide it by the square root of n.")
-        } else if (isTRUE(all.equal(se_40, sigma / 40, tolerance = 1e-6))) {
+        } else if (isTRUE(all.equal(value, sigma / 40, tolerance = 1e-6))) {
           list(pass = FALSE, message = "You divided by n. The standard error divides by the square root of n.")
         } else {
-          list(pass = FALSE, message = paste0("se_40 is ", round(se_40, 3), " but should be ", round(expected, 3), "."))
+          list(pass = FALSE, message = paste0("se_40 is ", round(value, 3), " but should be ", round(expected, 3), "."))
         }
       }
     `,

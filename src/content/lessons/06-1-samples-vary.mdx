@@ -7,7 +7,9 @@ their stress scores, sleep, and exam results. In real research you never see
 this. Because we can see it, we can watch exactly what happens when you take a
 sample from it.
 
-<CodeBlock id="load" code={`population <- read.csv("data/wellbeing-population.csv")
+<CodeBlock id="load" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
 
 nrow(population)
 head(population)`} />
@@ -17,7 +19,7 @@ head(population)`} />
 Because we have everyone, we can compute the true mean stress score. In real
 research this number exists but is unknowable. Here it is:
 
-<CodeBlock id="mu" code={`mean(population$stress)`} />
+<CodeBlock id="mu" code={`population %>% summarise(mu = mean(stress))`} />
 
 Statisticians call this a **parameter**: a number describing the population. We
 write it μ ("mu"). Keep it in mind — everything that follows is about how close
@@ -35,14 +37,14 @@ we can get to it without measuring all 5000 people.
 
 ## Taking a sample
 
-`sample()` draws at random. `set.seed()` makes that randomness reproducible, so
-you and your neighbour get the same "random" sample — essential when you want to
-check your work.
+`slice_sample()` draws rows at random. `set.seed()` makes that randomness
+reproducible, so you and your neighbour get the same "random" sample — essential
+when you want to check your work.
 
 <CodeBlock id="one-sample" code={`set.seed(1)
-my_sample <- sample(population$stress, 25)
+my_sample <- population %>% slice_sample(n = 25)
 
-mean(my_sample)`} />
+my_sample %>% summarise(sample_mean = mean(stress))`} />
 
 The difference between your sample mean and the population mean is called
 **sampling error**. It is not a mistake. Nobody did anything wrong. It is the
