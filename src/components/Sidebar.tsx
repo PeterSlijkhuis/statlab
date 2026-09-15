@@ -46,7 +46,7 @@ export default function Sidebar() {
       <section>
         <h2>Reference</h2>
         <ul>
-          <li><NavLink to="/which-test" className="sidebar-lesson">Which test should I use?</NavLink></li>
+          <li><NavLink to="/which-test" className="sidebar-lesson">Which model should I use?</NavLink></li>
           <li><NavLink to="/playground" className="sidebar-lesson">R playground</NavLink></li>
         </ul>
       </section>
