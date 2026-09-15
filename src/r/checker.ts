@@ -32,7 +32,16 @@ export type CheckOutcome = {
  * misread as a partial result.
  */
 function wrapCheck(check: string): string {
-  return `local({
+  // One braced expression: `{` opens no frame, so environment() is the check
+  // environment and its parent the attempt environment the student's code ran in.
+  return `{
+  # Checks read the student's objects only through these. Lesson code blocks
+  # create the very objects exercises ask for; inheriting them from the lesson
+  # environment would pass an empty submission.
+  .statlab_student_env <- parent.env(environment())
+  has_answer <- function(name) exists(name, envir = .statlab_student_env, inherits = FALSE)
+  answer <- function(name) get(name, envir = .statlab_student_env, inherits = FALSE)
+  local({
   .statlab_result <- local({
 ${check}
   })
@@ -46,7 +55,8 @@ ${check}
   .statlab_message <- .statlab_result$message
   if (is.null(.statlab_message)) .statlab_message <- ""
   c(if (isTRUE(.statlab_result$pass)) "TRUE" else "FALSE", as.character(.statlab_message)[1])
-})`;
+  })
+}`;
 }
 
 export async function runExercise(

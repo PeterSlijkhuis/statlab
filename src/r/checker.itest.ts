@@ -23,12 +23,15 @@ const exercise: ExerciseDef = {
   solution: 'm <- mean(x)',
   wrongAnswers: ['m <- median(x) + 1', 'm <- sum(x)'],
   check: `
-    if (!exists("m", inherits = TRUE)) {
+    if (!has_answer("m")) {
       list(pass = FALSE, message = "I could not find an object called m.")
-    } else if (isTRUE(all.equal(m, 5, tolerance = 1e-6))) {
-      list(pass = TRUE, message = "Correct.")
     } else {
-      list(pass = FALSE, message = paste("m is", m, "but should be 5."))
+      m <- answer("m")
+      if (isTRUE(all.equal(m, 5, tolerance = 1e-6))) {
+        list(pass = TRUE, message = "Correct.")
+      } else {
+        list(pass = FALSE, message = paste("m is", m, "but should be 5."))
+      }
     }
   `,
   hints: ['Use mean().'],
@@ -90,5 +93,47 @@ describe('runExercise', () => {
     const outcome = await runExercise(webR, exercise, 'y <- 1', env);
     await destroyEnv(webR, env);
     expect(outcome.status).toBe('fail');
+  });
+
+  test('an object only in the lesson environment does not answer the exercise', async () => {
+    // Lesson code blocks create the very objects exercises ask for (06-2's
+    // `build` block creates `means`). An empty submission must not inherit them.
+    const lessonOnly: ExerciseDef = {
+      ...exercise,
+      setupCode: undefined,
+      check: `
+        if (!has_answer("means")) {
+          list(pass = FALSE, message = "I could not find an object called means.")
+        } else {
+          list(pass = TRUE, message = "Found means.")
+        }
+      `,
+    };
+    const env = await createLessonEnv(webR);
+    await webR.evalR('means <- c(1, 2, 3)', { env });
+    const outcome = await runExercise(webR, lessonOnly, '', env);
+    await destroyEnv(webR, env);
+    expect(outcome.status, outcome.message).toBe('fail');
+  });
+
+  test('the helpers see what the student assigned and nothing from the lesson above it', async () => {
+    const probe: ExerciseDef = {
+      ...exercise,
+      setupCode: undefined,
+      check: `
+        if (has_answer("means")) {
+          list(pass = FALSE, message = "has_answer() saw an object that exists only in the lesson environment.")
+        } else if (!has_answer("marker")) {
+          list(pass = FALSE, message = "has_answer() did not see an object the student assigned.")
+        } else {
+          list(pass = identical(answer("marker"), 42), message = "answer() read the student's object.")
+        }
+      `,
+    };
+    const env = await createLessonEnv(webR);
+    await webR.evalR('means <- c(1, 2, 3)', { env });
+    const outcome = await runExercise(webR, probe, 'marker <- 42', env);
+    await destroyEnv(webR, env);
+    expect(outcome.status, outcome.message).toBe('pass');
   });
 });
