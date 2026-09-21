@@ -58,6 +58,9 @@ export default function Home() {
           <input type="file" accept="application/json" onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void onImport(file);
+            // Cleared so picking the same file again fires another change event:
+            // a student who declines the overwrite can change their mind.
+            event.target.value = '';
           }} />
         </label>
       </section>
