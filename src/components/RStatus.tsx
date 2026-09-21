@@ -16,6 +16,10 @@ export default function RStatus() {
   const [status, setStatus] = useState<Status>({ phase: 'idle' });
   useEffect(() => onStatus(setStatus), []);
 
+  // Nothing has started yet, so claim nothing: an amber "Starting R…" pill for
+  // idle would be a lie on any page reached before the boot effect runs.
+  if (status.phase === 'idle') return null;
+
   if (status.phase === 'ready') {
     return <div className="r-status ready"><span>R is ready</span><button type="button" onClick={restart} title="Use this if R stops responding">Restart R</button></div>;
   }

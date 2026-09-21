@@ -16,6 +16,16 @@ const HOME = '/home/web_user';
 export async function installCoursePackages(webR: WebR): Promise<void> {
   setStatus({ phase: 'installing', detail: 'Installing dplyr and ggplot2' });
   await webR.installPackages([...COURSE_PACKAGES]);
+
+  // installPackages only warns when a download fails (verified against webR 0.6.0),
+  // so a half-finished install would otherwise be announced as "R is ready".
+  const missing: string[] = [];
+  for (const pkg of COURSE_PACKAGES) {
+    if (!(await webR.evalRBoolean(`nzchar(system.file(package = "${pkg}"))`))) missing.push(pkg);
+  }
+  if (missing.length) {
+    throw new Error(`Could not install ${missing.join(', ')}. Check your connection and try again.`);
+  }
 }
 
 export async function mountDatasets(
@@ -52,6 +62,10 @@ export function prepareSession(
       setStatus({ phase: 'ready' });
     })().catch((err) => {
       prepared = null; // Allow a retry after a transient network failure.
+      // Owned here because callers differ: the lesson hook sets its own error
+      // status, but the app-start call cannot, and without this a failed setup
+      // would leave the pill stuck on "Installing packages…" with no retry.
+      setStatus({ phase: 'error', detail: String(err) });
       throw err;
     });
   }

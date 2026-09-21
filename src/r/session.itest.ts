@@ -2,7 +2,7 @@
 import { WebR } from 'webr';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { evaluateR } from './evaluate';
-import { DATASET_FILES, installCoursePackages, mountDatasets } from './session';
+import { COURSE_PACKAGES, DATASET_FILES, installCoursePackages, mountDatasets } from './session';
 
 let webR: WebR;
 
@@ -47,6 +47,13 @@ describe('course packages', () => {
   // a rewrite of every visualisation lesson.
   test('dplyr and ggplot2 install and load', async () => {
     await installCoursePackages(webR);
+
+    // The exact predicate installCoursePackages verifies with. A real
+    // installation must read as present, or the new guard would turn every
+    // healthy session into "Could not install dplyr, ggplot2".
+    for (const pkg of COURSE_PACKAGES) {
+      expect(await webR.evalRBoolean(`nzchar(system.file(package = "${pkg}"))`)).toBe(true);
+    }
 
     const loaded = await evaluateR(webR, 'suppressMessages({ library(dplyr); library(ggplot2) }); "ok"');
     expect(loaded.errored, loaded.output.map((o) => o.data).join('\n')).toBe(false);
