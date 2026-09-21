@@ -96,6 +96,23 @@ describe('progress store', () => {
     off();
   });
 
+  test('reports refused storage before anything has been written', () => {
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('private browsing');
+    });
+
+    expect(hasStorageFailed()).toBe(true);
+
+    spy.mockRestore();
+    expect(hasStorageFailed()).toBe(false);
+  });
+
+  test('leaves nothing behind when it probes', () => {
+    const before = { ...localStorage };
+    expect(hasStorageFailed()).toBe(false);
+    expect({ ...localStorage }).toEqual(before);
+  });
+
   test('rejects an import whose version is right but whose lessons are malformed', () => {
     // The one untrusted input in the app: a file the student supplies.
     expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': {} } }))).toBe(false);

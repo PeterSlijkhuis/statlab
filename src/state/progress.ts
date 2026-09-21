@@ -1,4 +1,6 @@
 export const STORAGE_KEY = 'statlab.progress.v1';
+/** Written and removed by hasStorageFailed() to test whether writes work at all. */
+const PROBE_KEY = 'statlab.probe';
 
 export type ExerciseStatus = 'attempted' | 'passed';
 
@@ -67,7 +69,20 @@ let storageFailed = false;
  * the UI needs to be able to ask.
  */
 export function hasStorageFailed(): boolean {
-  return storageFailed;
+  // A refused write stands until a later one succeeds: a full quota would let
+  // a probe this small through and wrongly look healthy.
+  if (storageFailed) return true;
+  // Nothing written yet, so probe. A student reads the home page before doing
+  // anything that saves, and that is exactly where "your progress is saved in
+  // this browser" would otherwise go unchallenged. Not recorded in the flag:
+  // this asks about now, and storage can be refused now and work later.
+  try {
+    localStorage.setItem(PROBE_KEY, '1');
+    localStorage.removeItem(PROBE_KEY);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 function write(next: Progress): void {

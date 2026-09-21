@@ -94,6 +94,23 @@ describe('a browser that cannot save', () => {
     expect(screen.queryByText(/Progress is saved only in this browser/)).toBeNull();
   });
 
+  test('warns on the very first render, before anything has been written', () => {
+    // The landing page is read before any lesson is opened, so nothing has
+    // tried to save yet. Without a probe the student is told their progress
+    // is saved, works through a module, and loses it on closing the tab.
+    // The successful write first clears any failure an earlier test recorded,
+    // so this can only pass by probing.
+    markExercise('06-1', 'm6-e1', 'passed');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('private browsing');
+    });
+
+    renderHome();
+
+    expect(screen.getByRole('alert').textContent).toContain('not saving your progress');
+    expect(screen.queryByText(/Progress is saved only in this browser/)).toBeNull();
+  });
+
   test('keeps the normal reassurance while writes succeed', () => {
     markExercise('06-1', 'm6-e1', 'passed');
 
