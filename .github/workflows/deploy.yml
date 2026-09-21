@@ -18,8 +18,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Runners pinned to ubuntu-24.04: ubuntu-latest moves to Ubuntu 26 from 2026-10-19, and
+  # `playwright install --with-deps` supports specific Ubuntu releases. Move deliberately.
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -38,7 +40,7 @@ jobs:
     # A hung download from the webR CDN must not hold a runner for six hours.
     timeout-minutes: 20
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CI: true
     steps:
@@ -60,7 +62,7 @@ jobs:
   build:
     needs: [verify, e2e]
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       # configure-pages reads the Pages site configuration.
@@ -85,7 +87,7 @@ jobs:
   deploy:
     needs: build
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       pages: write
       id-token: write
