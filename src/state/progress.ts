@@ -58,11 +58,25 @@ export function getProgress(): Progress {
   }
 }
 
+let storageFailed = false;
+
+/**
+ * True once a write has been refused (Safari private browsing refuses every
+ * one, and a full quota refuses later ones). Not saving is acceptable; telling
+ * the student their work is saved when it is not is the part that is not, so
+ * the UI needs to be able to ask.
+ */
+export function hasStorageFailed(): boolean {
+  return storageFailed;
+}
+
 function write(next: Progress): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    storageFailed = false;
   } catch {
     // Progress simply is not saved; never break the lesson over it.
+    storageFailed = true;
   }
   for (const fn of listeners) {
     try {

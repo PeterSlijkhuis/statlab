@@ -3,6 +3,7 @@ import {
   exportProgress,
   getDraft,
   getProgress,
+  hasStorageFailed,
   importProgress,
   lastVisitedLesson,
   markExercise,
@@ -14,6 +15,7 @@ import {
 
 beforeEach(() => {
   localStorage.clear();
+  vi.restoreAllMocks(); // A storage spy left behind by a failing test would cascade.
 });
 
 describe('progress store', () => {
@@ -74,6 +76,24 @@ describe('progress store', () => {
     });
     expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
     spy.mockRestore();
+  });
+
+  test('a refused write is recorded, still notifies, and clears on the next good one', () => {
+    const seen: string[] = [];
+    const off = subscribeProgress(() => seen.push('notified'));
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('private browsing');
+    });
+
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(hasStorageFailed()).toBe(true);
+    expect(seen).toHaveLength(1); // The sidebar must still repaint, just unsaved.
+
+    spy.mockRestore();
+    markExercise('06-1', 'm6-e1', 'passed');
+    expect(hasStorageFailed()).toBe(false);
+
+    off();
   });
 
   test('rejects an import whose version is right but whose lessons are malformed', () => {
