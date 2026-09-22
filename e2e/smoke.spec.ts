@@ -26,6 +26,24 @@ test('a lesson renders its simulation and responds to the slider', async ({ page
   await expect(page.getByText('Sample size (n) =')).toContainText('60');
 });
 
+test('an exercise shows its verdict and a readable solution', async ({ page }) => {
+  await page.goto('./lesson/08-1');
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+
+  // The unedited starter code is an honest wrong answer: it never finishes the replicate body.
+  const exercise = page.locator('section.exercise').first();
+  await exercise.getByRole('button', { name: 'Check my answer' }).click();
+  await expect(exercise.locator('.exercise-outcome')).toBeVisible({ timeout: 120_000 });
+
+  await exercise.getByRole('button', { name: 'Show solution' }).click();
+  const code = exercise.locator('.exercise-solution code');
+  await expect(code).toContainText('null_diffs <- replicate(2000');
+  // Real CSS applies here, unlike jsdom: the lesson's inline-code chip once
+  // painted every solution line as a pale box on the dark panel.
+  await expect(code).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(code).toHaveCSS('padding-left', '0px');
+});
+
 test('a ggplot2 plot renders to the canvas', async ({ page }) => {
   await page.goto('./lesson/06-3');
   await expect(page.getByRole('heading', { level: 1, name: 'The Central Limit Theorem' })).toBeVisible();
