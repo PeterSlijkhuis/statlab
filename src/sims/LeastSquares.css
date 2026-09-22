@@ -1,4 +1,4 @@
-.leastsquares { border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
+.leastsquares { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.1rem; margin: 2rem 0; background: var(--surface); box-shadow: var(--shadow); }
 .leastsquares-svg { width: 100%; max-width: 420px; height: auto; display: block; margin: 0 auto; border-radius: 4px; touch-action: none; }
 .leastsquares-svg circle { cursor: grab; }
 .leastsquares-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 0.75rem; }
@@ -10,5 +10,6 @@
 .leastsquares-readout td { padding: 0.2rem 1.25rem 0.2rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }
 .leastsquares-equation { margin: 0.5rem 0 0; font-size: 0.9rem; }
 .leastsquares-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
-.leastsquares-actions button { padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; }
+.leastsquares-actions button { padding: 0.4rem 0.95rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--brand-ink); cursor: pointer; font-weight: 600; transition: background var(--fast), border-color var(--fast); }
 .leastsquares-note { margin: 0.75rem 0 0; color: #475569; font-size: 0.85rem; }
+

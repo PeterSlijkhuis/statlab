@@ -14,7 +14,16 @@ export type LessonProgress = {
 export type Progress = {
   version: 1;
   lessons: Record<string, LessonProgress>;
+  /**
+   * Local calendar days (YYYY-MM-DD) on which the student did anything, oldest
+   * first, for the streak. Optional so that files exported before it existed
+   * still import, and an empty store still reads as `{ version, lessons }`.
+   */
+  activity?: string[];
 };
+
+/** Enough for any streak worth showing, and small enough never to matter. */
+const ACTIVITY_DAYS_KEPT = 120;
 
 const empty = (): Progress => ({ version: 1, lessons: {} });
 
@@ -45,6 +54,9 @@ function isProgress(value: unknown): value is Progress {
   if (!isRecord(value)) return false;
   if (value.version !== 1) return false;
   if (!isRecord(value.lessons)) return false;
+  if (value.activity !== undefined) {
+    if (!Array.isArray(value.activity) || !value.activity.every((day) => typeof day === 'string')) return false;
+  }
   return Object.values(value.lessons).every(isLessonProgress);
 }
 
@@ -103,12 +115,42 @@ function write(next: Progress): void {
   }
 }
 
+/** The student's own calendar day, not UTC: a streak is about their evenings. */
+export function localDay(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function recordActivity(progress: Progress): void {
+  const today = localDay();
+  const days = progress.activity ?? [];
+  if (days[days.length - 1] === today) return;
+  progress.activity = [...days.filter((day) => day !== today), today].slice(-ACTIVITY_DAYS_KEPT);
+}
+
 function update(lessonId: string, fn: (lesson: LessonProgress) => void): void {
   const progress = getProgress();
   const lesson = progress.lessons[lessonId] ?? emptyLesson();
   fn(lesson);
   progress.lessons[lessonId] = lesson;
+  recordActivity(progress);
   write(progress);
+}
+
+/**
+ * Consecutive active days ending today, or ending yesterday so that a streak
+ * does not read as broken in the morning before the student has started.
+ */
+export function currentStreak(progress: Progress = getProgress(), today = new Date()): number {
+  const days = new Set(progress.activity ?? []);
+  const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (!days.has(localDay(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (days.has(localDay(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 export function markExercise(lessonId: string, exerciseId: string, status: ExerciseStatus): void {

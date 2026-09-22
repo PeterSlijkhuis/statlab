@@ -1,10 +1,12 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { LessonProvider } from '../content/LessonContext';
 import { findLesson, lessonNeighbours } from '../content/manifest';
 import { mdxComponents } from '../content/mdxComponents';
 import { useLessonSession } from '../r/useLessonSession';
-import { touchLesson } from '../state/progress';
+import { LessonFinish, ReadingProgress, SectionGuide, useReveal } from '../components/LessonChrome';
+import { getProgress, subscribeProgress, touchLesson } from '../state/progress';
+import { exercisesPassed, lessonStatus, moduleOf } from '../state/stats';
 
 const lessonModules = import.meta.glob<{ default: ComponentType<{ components?: unknown }> }>(
   '../content/lessons/*.mdx',
@@ -16,6 +18,10 @@ export default function Lesson() {
 
   const [Content, setContent] = useState<ComponentType<{ components?: unknown }> | null>(null);
   const { webR, env } = useLessonSession(meta ?? null);
+  const article = useRef<HTMLElement | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(() => subscribeProgress(() => setTick((tick) => tick + 1)), []);
+  useReveal(article, Content);
 
   useEffect(() => {
     if (!meta) return;
@@ -49,22 +55,47 @@ export default function Lesson() {
   }
 
   const { previous, next } = lessonNeighbours(meta.id);
+  const module = moduleOf(meta.id);
+  const position = module ? module.lessons.findIndex((lesson) => lesson.id === meta.id) + 1 : 0;
+  const progress = getProgress();
+  // Defensive: a lesson entry without an exercise list reads as having none.
+  const lesson = { ...meta, exercises: meta.exercises ?? [] };
+  const passed = exercisesPassed(lesson, progress);
+  const total = lesson.exercises.length;
 
   return (
     <LessonProvider value={{ lessonId: meta.id, webR, env, ready: Boolean(webR && env) }}>
-      <article className="lesson">
-        <h1>{meta.title}</h1>
-        {Content ? <Content components={mdxComponents} /> : <p>Loading lesson…</p>}
-      </article>
+      <ReadingProgress />
+      <div className="lesson-layout">
+        <article className="lesson" ref={article}>
+          <header className="lesson-header">
+            {module && (
+              <p className="lesson-crumb">
+                <span className="lesson-crumb-module">Module {module.number} · {module.title}</span>
+                <span className="lesson-crumb-step">Lesson {position} of {module.lessons.length}</span>
+              </p>
+            )}
+            <h1>{meta.title}</h1>
+            {total > 0 && (
+              <p className="lesson-chips">
+                <span className={`chip${passed === total ? ' chip-done' : ''}`}>
+                  {passed === total ? '✓ ' : ''}{passed}/{total} exercise{total === 1 ? '' : 's'} solved
+                </span>
+              </p>
+            )}
+          </header>
+          {Content ? <Content components={mdxComponents} /> : <p>Loading lesson…</p>}
+        </article>
+        <SectionGuide article={article} contentKey={Content} />
+      </div>
 
-      <nav className="lesson-nav">
-        {previous && <Link to={`/lesson/${previous.id}`}>← {previous.title}</Link>}
-        {next && (
-          <Link to={`/lesson/${next.id}`} className="lesson-next">
-            {next.title} →
-          </Link>
-        )}
-      </nav>
+      <LessonFinish
+        complete={lessonStatus(lesson, progress) === 'complete'}
+        passed={passed}
+        total={total}
+        next={next}
+        previous={previous}
+      />
     </LessonProvider>
   );
 }
