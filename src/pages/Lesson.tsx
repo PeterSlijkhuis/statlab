@@ -15,7 +15,7 @@ export default function Lesson() {
   const meta = findLesson(lessonId);
 
   const [Content, setContent] = useState<ComponentType<{ components?: unknown }> | null>(null);
-  const { webR, env } = useLessonSession(meta ? meta.id : null);
+  const { webR, env } = useLessonSession(meta ?? null);
 
   useEffect(() => {
     if (!meta) return;
