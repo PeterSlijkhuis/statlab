@@ -1,0 +1,77 @@
+Module 3 described the wellbeing column with four numbers. This module draws it,
+and you will see things in the picture that no summary reported.
+
+ggplot2 builds a figure out of three parts, and every plot in this course is
+some combination of them:
+
+1. the **data** — one data frame;
+2. the **mapping** — which column goes on which part of the picture, written
+   inside `aes()`;
+3. one or more **layers** — what is actually drawn, written as `geom_` something.
+
+<CodeBlock id="setup" code={`library(ggplot2)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## Data and mapping alone draw nothing
+
+<CodeBlock id="empty" code={`ggplot(employees, aes(x = wellbeing))`} />
+
+Axes, a range, a grey panel — and no data. That is correct behaviour, not a
+bug. You have said what to draw with; you have not said what to draw.
+
+<Predict
+  id="p-layer"
+  question="What has to be added to put something in that panel?"
+  choices={[
+    { text: 'The data, which has not been supplied yet', response: 'The data was the first argument to ggplot(), and it is what gave the x axis its range.' },
+    { text: 'A geom layer, added with a plus sign', correct: true, response: 'Yes. ggplot() prepares the canvas; a geom_ layer draws on it. One plot can carry several layers, drawn in the order you add them.' },
+    { text: 'A call to plot() or print()', response: 'A ggplot object prints itself. What is missing is a layer, not a print.' },
+  ]}
+/>
+
+## Adding a layer
+
+<CodeBlock id="histogram" code={`ggplot(employees, aes(x = wellbeing)) +
+  geom_histogram(bins = 20)`} />
+
+A **histogram** cuts the range into bins and counts how many employees fall in
+each. Notice what ggplot2 did without being asked: it computed the counts, and
+put them on the y axis. You mapped one column; the second axis came from the
+geom.
+
+## Bins are a decision
+
+<CodeBlock id="bins" code={`ggplot(employees, aes(x = wellbeing)) +
+  geom_histogram(bins = 5)`} />
+
+> **Try it.** Change `bins = 5` to `bins = 80` and run it again. Then try 20.
+> The data is identical in all three. With five bins the distribution looks
+> smooth and symmetric; with eighty it looks ragged and full of structure that
+> is really just noise.
+
+There is no correct number of bins, which is precisely why you should look at
+more than one before describing a shape in words.
+
+## A different view of the same column
+
+<CodeBlock id="density" code={`ggplot(employees, aes(x = wellbeing)) +
+  geom_density()`} />
+
+A **density** curve smooths the histogram. It is easier to read and it hides how
+many observations there are, so it is a poor choice when n is small — and it
+makes exactly the same kind of arbitrary choice as the number of bins, only
+where you cannot see it.
+
+<Exercise id="m4-1-a" />
+
+<Quiz
+  id="q-4-1"
+  question="A figure is built with ggplot(employees, aes(x = tenure_years)) + geom_histogram(bins = 30). What is on the y axis?"
+  choices={[
+    { text: 'tenure_years, the same as x', response: 'Nothing was mapped to y at all. y comes from the layer.' },
+    { text: 'The number of employees in each bin, computed by the histogram', correct: true, response: 'Right. Some geoms compute a variable of their own - a histogram computes counts - and that is what fills the axis you never mapped.' },
+    { text: 'Nothing, because only x was mapped', response: 'The axis exists and is labelled count. geom_histogram() supplied it.' },
+    { text: 'wellbeing, because it is the outcome of the study', response: 'ggplot2 draws only what it is told to draw. A column that is not in the mapping is not in the figure.' },
+  ]}
+/>

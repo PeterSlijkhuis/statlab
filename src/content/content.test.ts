@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { ALL_LESSONS, MODULES, PLANNED_MODULES } from './manifest';
 import { ALL_EXERCISES, getExercise } from './exercises';
+import { module01 } from './exercises/module-01';
+import { module02 } from './exercises/module-02';
+import { module03 } from './exercises/module-03';
+import { module04 } from './exercises/module-04';
 import { mdxComponents } from './mdxComponents';
 import { SIMULATION_NAMES } from '../sims/registry';
 
@@ -235,6 +239,108 @@ describe('lesson content', () => {
     for (const exercise of ALL_EXERCISES) {
       expect(exercise.check, `${exercise.id} uses exists() instead of has_answer()`)
         .not.toMatch(/\bexists\s*\(/);
+    }
+  });
+
+  test('Module 1 defines exactly its five exercises, in order', () => {
+    expect(module01.map((exercise) => exercise.id)).toEqual([
+      'm1-1-a', 'm1-1-b', 'm1-2-a', 'm1-2-b', 'm1-3-a',
+    ]);
+  });
+
+  test('Module 1 teaches without a dataset', () => {
+    // Module 1 is about objects, functions and packages. A student meets read.csv
+    // for the first time in lesson 02-1, where factors are explained alongside it;
+    // showing a file here would teach the incantation without the idea.
+    const module = PLANNED_MODULES.find((m) => m.id === 'module-01')!;
+    for (const lesson of module.lessons) {
+      const source = sources[`./lessons/${lesson.file}.mdx`] ?? '';
+      expect(source, `${lesson.id} reads a dataset`).not.toMatch(/read\.csv/);
+    }
+    for (const exercise of module01) {
+      const code = [exercise.starterCode, exercise.solution, exercise.check].join('\n');
+      expect(code, `${exercise.id} reads a dataset`).not.toMatch(/read\.csv/);
+    }
+  });
+
+  test('Module 2 defines exactly its five exercises, in order', () => {
+    expect(module02.map((exercise) => exercise.id)).toEqual([
+      'm2-1-a', 'm2-1-b', 'm2-2-a', 'm2-2-b', 'm2-3-a',
+    ]);
+  });
+
+  test('Module 2 reads only the workplace dataset', () => {
+    // Part 1 and Part 3 share one codebook (overview, decision 2). A second CSV
+    // here would mean a student learning two of them before Module 3.
+    const module = PLANNED_MODULES.find((m) => m.id === 'module-02')!;
+    for (const lesson of module.lessons) {
+      const source = sources[`./lessons/${lesson.file}.mdx`] ?? '';
+      for (const match of source.matchAll(/data\/([\w-]+\.csv)/g)) {
+        expect(match[1], `${lesson.id} reads ${match[1]}`).toBe('workplace.csv');
+      }
+    }
+  });
+
+  test('lesson 02-1 is written in base R', () => {
+    // Its manifest entry declares no packages, so a library() call here would work
+    // only for a student who had already opened a lesson that installed it.
+    const source = sources['./lessons/02-1-reading-data.mdx'] ?? '';
+    expect(source, '02-1 attaches a package it did not declare').not.toMatch(/library\(/);
+    expect(source, '02-1 uses the pipe before it has been taught').not.toMatch(/%>%/);
+  });
+
+  test('Module 3 defines exactly its five exercises, in order', () => {
+    expect(module03.map((exercise) => exercise.id)).toEqual([
+      'm3-1-a', 'm3-1-b', 'm3-2-a', 'm3-2-b', 'm3-3-a',
+    ]);
+  });
+
+  test('Module 3 checks recompute from the dataset instead of naming a department', () => {
+    // P2 step 4 allows re-seeding workplace.csv if a designed effect fails to land.
+    // The Engineering surprise survives that, because it comes from the department
+    // profiles rather than the seed - but which department has the highest mean can
+    // move. A check that spelled a department name would then fail a correct answer.
+    for (const exercise of module03) {
+      expect(exercise.check, `${exercise.id} names a department`).not.toMatch(
+        /\b(Sales|Engineering|Support|Marketing)\b/,
+      );
+      expect(exercise.check, `${exercise.id} never reads the dataset`).toMatch(
+        /read\.csv\("data\/workplace\.csv"/,
+      );
+    }
+  });
+
+  test('Module 4 defines exactly its four exercises, in order', () => {
+    expect(module04.map((exercise) => exercise.id)).toEqual([
+      'm4-1-a', 'm4-2-a', 'm4-2-b', 'm4-3-a',
+    ]);
+  });
+
+  test('Module 4 checks inspect the plot object rather than an image', () => {
+    // Graphics capture is off under Node, so a check that tried to render would
+    // report every answer as a broken exercise.
+    for (const exercise of module04) {
+      expect(exercise.check, `${exercise.id} does not inspect the plot`).toMatch(
+        /ggplot2::layer_data|\$layers/,
+      );
+      expect(exercise.check, `${exercise.id} tries to render`).not.toMatch(/ggsave|png\(|print\(/);
+    }
+  });
+
+  test('the APA figure exercise asks for all three of labels, a linear fit and theme_classic', () => {
+    const apa = module04.find((exercise) => exercise.id === 'm4-3-a')!;
+    expect(apa.solution).toMatch(/labs\(/);
+    expect(apa.solution).toMatch(/geom_smooth\(method = lm\)/);
+    expect(apa.solution).toMatch(/theme_classic\(\)/);
+    // Each of the three has its own negative fixture, so a check that silently
+    // stopped testing one of them would be caught by the R validator.
+    expect(apa.wrongAnswers.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('lessons 04-1 and 04-3 avoid the pipe, which ggplot2 does not export', () => {
+    for (const file of ['04-1-ggplot-layers', '04-3-scatter-and-apa']) {
+      const source = sources[`./lessons/${file}.mdx`] ?? '';
+      expect(source, `${file} uses %>% without attaching dplyr`).not.toMatch(/%>%/);
     }
   });
 });

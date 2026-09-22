@@ -1,0 +1,100 @@
+You have already used half a dozen functions: `c()`, `mean()`, `sqrt()`,
+`length()`, `sum()`. A function takes inputs, does something with them, and
+returns a result. The inputs are called **arguments**, and they go inside the
+brackets.
+
+Almost every difficulty a beginner has with R is really a difficulty with
+arguments: which ones exist, what order they come in, and what happens to the
+ones you leave out.
+
+<CodeBlock id="basics" code={`round(3.14159, 2)
+
+rep("Sales", 3)
+
+seq(from = 1, to = 9, by = 2)`} />
+
+## Arguments have names, and most have defaults
+
+`args()` shows a function's arguments and the values it uses when you do not
+supply them.
+
+<CodeBlock id="args" code={`args(round)
+args(seq)
+args(mean)`} />
+
+`round(x, digits = 0)` tells you two things at once: the second argument is
+called `digits`, and if you leave it out R rounds to a whole number. So these
+three calls are the same, and the third is the one to write in a script you will
+re-read:
+
+<CodeBlock id="named" code={`round(3.14159)
+round(3.14159, 2)
+round(3.14159, digits = 2)`} />
+
+Naming an argument also frees you from its position. `seq(to = 9, from = 1, by = 2)`
+works, and `seq(9, 1, 2)` does something quite different — it counts downwards
+and fails, because R matched 9 to `from`.
+
+> **In RStudio,** `?round` opens the full help page: every argument, the value
+> returned, and worked examples at the bottom. Here, `args()` gives you the
+> argument list, which is what you need nine times out of ten.
+
+## Missing values
+
+Real data has holes in it. Someone skipped a question; a sensor failed. R writes
+a hole as `NA`, and it is deliberately infectious.
+
+<CodeBlock id="na" code={`scores <- c(62, 58, NA, 71, 66)
+
+scores
+mean(scores)`} />
+
+<Predict
+  id="p-na"
+  question="mean(scores) returned NA. Why would R refuse to average the four numbers it does have?"
+  choices={[
+    { text: 'Because NA counts as zero and drags the mean down', response: 'NA is not zero. Zero is a score someone gave; NA is a score nobody gave, and R keeps the difference.' },
+    { text: 'Because the true mean depends on the missing value, and R will not guess it', correct: true, response: 'Exactly. The honest answer to "what is the average of these five" is "unknown", and R says so rather than quietly averaging four.' },
+    { text: 'Because there is a typo in the vector', response: 'There is no typo. NA is a legitimate value meaning "not available".' },
+  ]}
+/>
+
+Once you have decided that averaging the people who answered is what you want,
+you say so:
+
+<CodeBlock id="narm" code={`mean(scores, na.rm = TRUE)
+
+sum(is.na(scores))`} />
+
+`na.rm = TRUE` is an argument you will type for the rest of your working life.
+`is.na()` tells you where the holes are, and `sum(is.na(x))` counts them — the
+compare-then-sum idiom again.
+
+<Exercise id="m1-2-a" />
+
+## Functions inside functions
+
+The result of one function can be the argument of the next. R works from the
+inside out.
+
+<CodeBlock id="nested" code={`round(mean(scores, na.rm = TRUE), 1)
+
+length(seq(from = 0, to = 100, by = 10))`} />
+
+Read the first line inside out: average the scores, ignoring the missing one,
+then round to one decimal. It is compact, and once there are four or five
+functions stacked up it becomes unreadable. Module 2 introduces the pipe, which
+is R's answer to exactly that problem.
+
+<Exercise id="m1-2-b" />
+
+<Quiz
+  id="q-1-2"
+  question="args(round) reports round(x, digits = 0). What does that tell you about round(2.567)?"
+  choices={[
+    { text: 'It will fail, because digits is missing', response: 'An argument with a default is optional. Only x has no default, so only x is required.' },
+    { text: 'It will round to a whole number, giving 3', correct: true, response: 'Right. digits = 0 in the argument list is the value R uses when you do not supply one.' },
+    { text: 'It will keep all the decimals, giving 2.567', response: 'The default is 0 digits, not "leave it alone". Rounding to zero digits gives 3.' },
+    { text: 'It will round to two digits, because there are two decimals in the input', response: 'R does not inspect the input to decide. It uses the default written in the argument list.' },
+  ]}
+/>
