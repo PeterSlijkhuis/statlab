@@ -139,6 +139,10 @@ export default function LeastSquares() {
             cy={toY(point.y)}
             r={5}
             fill="#0f172a"
+            // An invisible ring widens the target to about a fingertip. The
+            // drawn dot is 5 units in a 420-unit square, roughly 4px on a phone.
+            stroke="transparent"
+            strokeWidth={24}
             onPointerDown={(event) => {
               (event.target as Element).releasePointerCapture?.(event.pointerId);
               setDragging(index);
