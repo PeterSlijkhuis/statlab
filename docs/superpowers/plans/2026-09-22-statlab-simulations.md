@@ -12,6 +12,36 @@
 
 **Consumed by:** Module 5 (`distribution`), Module 7 (`ci`), Module 8 (`pvalue`), Module 9 (`correlation`, `leastsquares`). Building these first means those module tasks never block.
 
+**Status (2026-09-22):** Implemented and merged in PR #4. All six simulations are registered and live. Two steps stay open: the browser check, and S6 step 2, which extends the Playwright smoke test to drive `leastsquares` on a Module 9 lesson. `e2e/smoke.spec.ts` still only opens Module 6 lessons, so the one simulation with pointer interaction and an aspect-ratio-dependent geometry has no end-to-end cover.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## Global Constraints
 
 The shell plan's Global Constraints apply. In addition, these come from `clt`,
@@ -71,7 +101,7 @@ src/sims/
 Every one of the five simulations needs one or more of these, and each is the
 kind of function that is silently 2 % wrong. Build and test them once, first.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/sims/rng.test.ts`. Expected values are R's, quoted in comments so
 a reader can re-derive them.
@@ -158,12 +188,12 @@ describe('bivariate helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/sims/rng.test.ts`
 Expected: FAIL — none of the new functions exist.
 
-- [ ] **Step 3: Implement the helpers in `src/sims/rng.ts`**
+- [x] **Step 3: Implement the helpers in `src/sims/rng.ts`**
 
 ```ts
 export function normalPdf(x: number, mu = 0, sigma = 1): number {
@@ -230,12 +260,12 @@ export function residualSumOfSquares(points: Point[], intercept: number, slope: 
 by zero, and callers must check — `LeastSquares` lets a student create exactly
 that state.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/sims/rng.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/sims/rng.ts src/sims/rng.test.ts
@@ -262,7 +292,7 @@ probability. It is not; the *area* is. The simulation makes the shaded area and
 its number move together, and shows the same shaded region collapsing onto one
 curve when the axis is switched to z.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -317,12 +347,12 @@ describe('Distribution', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/sims/Distribution.test.tsx`
 Expected: FAIL — the module does not exist.
 
-- [ ] **Step 3: Implement `src/sims/Distribution.tsx`**
+- [x] **Step 3: Implement `src/sims/Distribution.tsx`**
 
 State: `mean` (range 50–90, default 70), `sd` (range 3–20, default 10), `cut`
 (range mean ± 4 SD, default = mean), `axis` (`'raw' | 'z'`).
@@ -347,25 +377,25 @@ Derive all three from the same state values used to draw, in one `useMemo`.
 The `axis` toggle relabels the x axis in z units and keeps the shaded fraction
 fixed — the visual proof that the z-score is the same statement as the raw cut.
 
-- [ ] **Step 4: Create `src/sims/Distribution.css`**
+- [x] **Step 4: Create `src/sims/Distribution.css`**
 
 Follow `CLT.css`: `.distribution` card, `.distribution-controls` flex row,
 `.distribution-svg { width: 100%; height: auto; }`, `.distribution-readout`
 table with `font-variant-numeric: tabular-nums`.
 
-- [ ] **Step 5: Register it**
+- [x] **Step 5: Register it**
 
 ```ts
 import Distribution from './Distribution';
 export const SIMULATIONS: Record<string, ComponentType> = { clt: CLT, distribution: Distribution };
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `npx vitest run src/sims/Distribution.test.tsx src/content/content.test.ts`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/sims/Distribution.tsx src/sims/Distribution.css src/sims/Distribution.test.tsx src/sims/registry.ts
@@ -388,7 +418,7 @@ git commit -m "feat: the normal distribution simulation"
 intervals; about 95 capture the true mean. **Kills:** "there is a 95 % chance the
 mean is in *this* interval".
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 describe('CI', () => {
@@ -430,11 +460,11 @@ describe('CI', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `src/sims/CI.tsx`**
+- [x] **Step 3: Implement `src/sims/CI.tsx`**
 
 State: `populationName` (the four from `POPULATIONS`, default `normal`), `n`
 (5–100, default 25), `level` (50, 80, 90, 95, 99 — a `<select>`, default 95),
@@ -455,12 +485,12 @@ per cent is how often the **procedure** works, not a probability about this
 line."* That is the misconception in the spec's own words; put it on screen at
 the moment the student is looking at a single interval.
 
-- [ ] **Step 4: Create `src/sims/CI.css`**
+- [x] **Step 4: Create `src/sims/CI.css`**
 
 As `CLT.css`. Intervals are 2 px lines with 1 px gaps at 100 rows in a 640×320
 `viewBox`.
 
-- [ ] **Step 5: Register it, run the tests, and commit**
+- [x] **Step 5: Register it, run the tests, and commit**
 
 ```bash
 git add src/sims/CI.tsx src/sims/CI.css src/sims/CI.test.tsx src/sims/registry.ts
@@ -487,7 +517,7 @@ is true. The simulation builds the null distribution *by assuming the null* —
 visibly, by simulation — so the only thing *p* can be is "how often chance alone
 produces a result this extreme".
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 describe('PValue', () => {
@@ -528,7 +558,7 @@ describe('PValue', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails, then implement `src/sims/PValue.tsx`**
+- [x] **Step 2: Run it, confirm it fails, then implement `src/sims/PValue.tsx`**
 
 The scenario is fixed and concrete: two groups of `n` people each, drawn from
 *one* population — so the true difference is zero by construction. Simulating
@@ -551,7 +581,7 @@ sees the decision rule and the evidence in the same picture. Below it: `p-value`
 going on. It is not the probability that the null hypothesis is true, and it is
 not the size of the effect."*
 
-- [ ] **Step 3: CSS, register, test, commit**
+- [x] **Step 3: CSS, register, test, commit**
 
 ```bash
 git add src/sims/PValue.tsx src/sims/PValue.css src/sims/PValue.test.tsx src/sims/registry.ts
@@ -578,7 +608,7 @@ scatterplot before it is revealed.
 correlations and underestimate strong ones; a guess-then-reveal loop with a
 running error is the only thing that fixes it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 describe('Correlation', () => {
@@ -621,7 +651,7 @@ describe('Correlation', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails, then implement `src/sims/Correlation.tsx`**
+- [x] **Step 2: Run it, confirm it fails, then implement `src/sims/Correlation.tsx`**
 
 State: `round` (seeds the rng), `guess` (−1 to 1, step 0.05, default 0),
 `revealed` (boolean), and a history array of `{ target, guess }`.
@@ -639,7 +669,7 @@ verdict line names the standard bias when it appears: *"You have overestimated
 the last three weak correlations — a cloud that looks slightly tilted is usually
 r below .3."*
 
-- [ ] **Step 3: CSS, register, test, commit**
+- [x] **Step 3: CSS, register, test, commit**
 
 ```bash
 git add src/sims/Correlation.tsx src/sims/Correlation.css src/sims/Correlation.test.tsx src/sims/registry.ts
@@ -666,7 +696,7 @@ the middle", or the line minimising perpendicular distance. It minimises the sum
 of *squared vertical* distances, and the squares have to be visible as squares
 for that to land.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 describe('LeastSquares', () => {
@@ -709,7 +739,7 @@ describe('LeastSquares', () => {
 });
 ```
 
-- [ ] **Step 2: Run it, confirm it fails, then implement `src/sims/LeastSquares.tsx`**
+- [x] **Step 2: Run it, confirm it fails, then implement `src/sims/LeastSquares.tsx`**
 
 State: `points` (12, generated with `correlate(0.65, 12, rng)` and then
 draggable), `intercept` and `slope` (sliders, deliberately initialised away from
@@ -735,7 +765,7 @@ The pedagogy is in the ordering: the student must move the line by hand and watc
 the total shrink *before* "Show the best line" is pressed. Keep that button below
 the readout, not beside the sliders.
 
-- [ ] **Step 3: CSS, register, test, commit**
+- [x] **Step 3: CSS, register, test, commit**
 
 ```bash
 git add src/sims/LeastSquares.tsx src/sims/LeastSquares.css src/sims/LeastSquares.test.tsx src/sims/registry.ts
@@ -750,7 +780,7 @@ git commit -m "feat: the least squares simulation"
 - Modify: `src/components/Simulation.test.tsx`, `e2e/smoke.spec.ts`
 - Test: both
 
-- [ ] **Step 1: Assert the registry matches the spec**
+- [x] **Step 1: Assert the registry matches the spec**
 
 ```ts
 test('every simulation the spec names is registered', () => {
@@ -781,12 +811,12 @@ the rendered aspect ratio — exactly what a unit test under jsdom cannot check.
 > Do it then; leave the checkbox unticked until it is real, and do not
 > substitute a Module 6 lesson, which proves nothing new.
 
-- [ ] **Step 3: Run everything**
+- [x] **Step 3: Run everything**
 
 Run: `npx tsc --noEmit && npx vitest run`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/Simulation.test.tsx e2e/smoke.spec.ts

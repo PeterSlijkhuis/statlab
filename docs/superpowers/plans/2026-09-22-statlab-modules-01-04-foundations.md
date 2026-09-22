@@ -10,6 +10,36 @@
 
 **Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22; `content-platform` tasks P1 (per-lesson packages), P2 (`public/data/workplace.csv` generated, committed and in `DATASET_FILES`), P3 (`PLANNED_MODULES`, the stub exercise files, `ALL_EXERCISES`) and P4 (the validator rules). Nothing here depends on the simulations plan: Modules 1–4 embed no `<Simulation>`.
 
+**Status (2026-09-22):** Implemented and merged in PR #4. All twelve lessons and nineteen exercises are live and graded in real R by CI. Every step is ticked except the four browser checks.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## Global Constraints
 
 The shell plan's Global Constraints and the overview's content constraints apply in full. These are additional, and specific to Part 1.
@@ -63,7 +93,7 @@ src/content/
 - Consumes: `ExerciseDef` (`src/r/checker.ts`), `has_answer`/`answer`, `LessonMeta.packages` (P1), `PLANNED_MODULES` (P3), the MDX components `CodeBlock`, `Predict`, `Exercise`, `Quiz`
 - Produces: `module01: ExerciseDef[]` with ids `m1-1-a`, `m1-1-b`, `m1-2-a`, `m1-2-b`, `m1-3-a`; three lesson files; the `module-01` entry in `PLANNED_MODULES`, which `MODULES` picks up once all three files exist
 
-- [ ] **Step 1: Add the module to `PLANNED_MODULES`**
+- [x] **Step 1: Add the module to `PLANNED_MODULES`**
 
 In `src/content/manifest.ts`, as the first element of `PLANNED_MODULES`:
 
@@ -98,7 +128,7 @@ In `src/content/manifest.ts`, as the first element of `PLANNED_MODULES`:
 
 `dplyr` is in `CORE_PACKAGES`, so declaring it on `01-3` costs no extra download; it is declared because the overview requires every lesson that attaches a package to name it, and because the validator's "attaches no package it did not declare" rule reads that field.
 
-- [ ] **Step 2: Write `src/content/exercises/module-01.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-01.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -384,7 +414,7 @@ export const module01: ExerciseDef[] = [
 
 Every wrong answer here is a mistake a first-week student actually makes — a dropped value, the median for the mean, `NA` from a missing score, `length()` where `sum()` was meant, `length()` where `nrow()` was meant, the fencepost, `>=` for `>`, `select()` for `filter()` — and every one fails through `pass = FALSE` rather than by erroring, which is what §8.1 requires of a negative fixture. Every alternate is a route the lesson has not taught but a student may know: the mean written out, `which()`, `ifelse()`, base subsetting, a re-ordered result.
 
-- [ ] **Step 3: Write `src/content/lessons/01-1-objects-and-scripts.mdx`**
+- [x] **Step 3: Write `src/content/lessons/01-1-objects-and-scripts.mdx`**
 
 ````mdx
 R is a calculator that remembers things. Everything in this course — every
@@ -497,7 +527,7 @@ use it in every module from here to the end of the course.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/01-2-functions-and-help.mdx`**
+- [x] **Step 4: Write `src/content/lessons/01-2-functions-and-help.mdx`**
 
 ````mdx
 You have already used half a dozen functions: `c()`, `mean()`, `sqrt()`,
@@ -602,7 +632,7 @@ is R's answer to exactly that problem.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/01-3-packages-and-libraries.mdx`**
+- [x] **Step 5: Write `src/content/lessons/01-3-packages-and-libraries.mdx`**
 
 ````mdx
 Everything you have used so far is **base R** — the functions that come with the
@@ -698,7 +728,7 @@ are identical either way.
 />
 ````
 
-- [ ] **Step 6: Add the Module 1 assertions**
+- [x] **Step 6: Add the Module 1 assertions**
 
 Append to `src/content/content.test.ts`, importing `PLANNED_MODULES` from `./manifest` and `module01` from `./exercises/module-01`:
 
@@ -735,7 +765,7 @@ present before running the suite; if the rule still scans the whole source,
 `01-3` will fail it, and the fix is P3's, not a weakening here. The
 forbidden-function rule still scans everything.
 
-- [ ] **Step 7: Run the content tests and the validator**
+- [x] **Step 7: Run the content tests and the validator**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS. `MODULES` now contains `module-01` and `module-06`, because all three Module 1 lesson files exist.
@@ -755,7 +785,7 @@ Run: `npm run dev`, then open in turn:
 
 Expected: **First steps in R** appears in the sidebar above **Sampling**, with its three lessons. Prose renders with no stray brackets. Every code block runs and prints. `01-3`'s first block prints dplyr's masking message rather than an error. Each `<Predict>` refuses to reveal its answer before a choice is made. Each exercise accepts its solution, rejects a wrong answer with the teaching message rather than a bare "incorrect", and reveals hints one at a time.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/content.test.ts src/content/exercises/module-01.ts src/content/lessons/01-1-objects-and-scripts.mdx src/content/lessons/01-2-functions-and-help.mdx src/content/lessons/01-3-packages-and-libraries.mdx
@@ -775,7 +805,7 @@ git commit -m "feat: Module 1, first steps in R"
 - Consumes: `ExerciseDef`, `has_answer`/`answer`, `data/workplace.csv` (P2, mounted through `DATASET_FILES`), `LessonMeta.packages` (P1), `PLANNED_MODULES` (P3)
 - Produces: `module02: ExerciseDef[]` with ids `m2-1-a`, `m2-1-b`, `m2-2-a`, `m2-2-b`, `m2-3-a`; three lesson files; the `module-02` entry in `PLANNED_MODULES`
 
-- [ ] **Step 1: Add the module to `PLANNED_MODULES`**
+- [x] **Step 1: Add the module to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -809,7 +839,7 @@ git commit -m "feat: Module 1, first steps in R"
 
 `02-1` declares no packages on purpose. It is the lesson where a student learns what a factor is, and base R's `str()`, `levels()` and `table()` show that more plainly than any dplyr verb would.
 
-- [ ] **Step 2: Write `src/content/exercises/module-02.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-02.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -1108,7 +1138,7 @@ export const module02: ExerciseDef[] = [
 ];
 ```
 
-- [ ] **Step 3: Write `src/content/lessons/02-1-reading-data.mdx`**
+- [x] **Step 3: Write `src/content/lessons/02-1-reading-data.mdx`**
 
 ````mdx
 From here to the end of the course you will work with one dataset: a fictional
@@ -1215,7 +1245,7 @@ summary(employees$wellbeing)`} />
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/02-2-pipe-and-verbs.mdx`**
+- [x] **Step 4: Write `src/content/lessons/02-2-pipe-and-verbs.mdx`**
 
 ````mdx
 Data analysis is a sequence of small changes to a table: keep these rows, drop
@@ -1313,7 +1343,7 @@ for being extreme will always look convincing. Module 9 tests it properly.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/02-3-wide-and-long.mdx`**
+- [x] **Step 5: Write `src/content/lessons/02-3-wide-and-long.mdx`**
 
 ````mdx
 Engagement was measured twice, and the file stores the two measurements as two
@@ -1407,7 +1437,7 @@ than a model:
 />
 ````
 
-- [ ] **Step 6: Add the Module 2 assertions**
+- [x] **Step 6: Add the Module 2 assertions**
 
 Append to `src/content/content.test.ts`, importing `module02`:
 
@@ -1439,7 +1469,7 @@ test('lesson 02-1 is written in base R', () => {
 });
 ```
 
-- [ ] **Step 7: Run the content tests and the validator**
+- [x] **Step 7: Run the content tests and the validator**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS, with `module-02` now live in `MODULES`.
@@ -1453,7 +1483,7 @@ Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/02-1`, `/02-
 
 Expected: the codebook table in `02-1` renders as a table. `str(employees)` prints the factor lines. `02-2`'s pipelines print tables rather than errors, and `02-3`'s status pill shows `tidyr` installing the first time that lesson opens (P1's on-demand path), then the blocks run.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/content.test.ts src/content/exercises/module-02.ts src/content/lessons/02-1-reading-data.mdx src/content/lessons/02-2-pipe-and-verbs.mdx src/content/lessons/02-3-wide-and-long.mdx
@@ -1481,7 +1511,7 @@ git commit -m "feat: Module 2, working with data"
 > in its choices — but no *check* may, because a re-seeded dataset can move the
 > other three departments around. Step 6 enforces the distinction.
 
-- [ ] **Step 1: Add the module to `PLANNED_MODULES`**
+- [x] **Step 1: Add the module to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -1514,7 +1544,7 @@ git commit -m "feat: Module 2, working with data"
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-03.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-03.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -1840,7 +1870,7 @@ export const module03: ExerciseDef[] = [
 ];
 ```
 
-- [ ] **Step 3: Write `src/content/lessons/03-1-summaries.mdx`**
+- [x] **Step 3: Write `src/content/lessons/03-1-summaries.mdx`**
 
 ````mdx
 A dataset of 480 employees and 14 columns holds more numbers than anyone can
@@ -1937,7 +1967,7 @@ max(employees$wellbeing) - min(employees$wellbeing)`} />
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/03-2-group-by.mdx`**
+- [x] **Step 4: Write `src/content/lessons/03-2-group-by.mdx`**
 
 ````mdx
 A single mean for 480 employees answers almost no question anyone asks. The
@@ -2037,7 +2067,7 @@ model and gets the same two means back.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/03-3-mean-vs-median.mdx`**
+- [x] **Step 5: Write `src/content/lessons/03-3-mean-vs-median.mdx`**
 
 ````mdx
 You now have everything you need to produce a summary table. This lesson is
@@ -2150,7 +2180,7 @@ Three rules, and you will use all of them for the rest of the course.
 />
 ````
 
-- [ ] **Step 6: Add the Module 3 assertions**
+- [x] **Step 6: Add the Module 3 assertions**
 
 Append to `src/content/content.test.ts`, importing `module03`:
 
@@ -2177,7 +2207,7 @@ test('Module 3 checks recompute from the dataset instead of naming a department'
 });
 ```
 
-- [ ] **Step 7: Run the content tests and the validator**
+- [x] **Step 7: Run the content tests and the validator**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS, with `module-03` live in `MODULES`.
@@ -2191,7 +2221,7 @@ Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/03-1`, `/03-
 
 Expected: every summary block prints a tibble. In `03-2`, the `n-trap` block prints a `with_nrow` column of four identical numbers, which is the point. In `03-3`, the medians table puts Engineering at the top and the means table does not, and the `<Interpret>` block reveals its explanations only after a choice is made.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/content.test.ts src/content/exercises/module-03.ts src/content/lessons/03-1-summaries.mdx src/content/lessons/03-2-group-by.mdx src/content/lessons/03-3-mean-vs-median.mdx
@@ -2221,7 +2251,7 @@ git commit -m "feat: Module 3, describing data"
 > picture — mapping in `ggplot()` or in the layer, a formula or `vars()` in
 > `facet_wrap()`, `lm` as a symbol or as a string.
 
-- [ ] **Step 1: Add the module to `PLANNED_MODULES`**
+- [x] **Step 1: Add the module to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -2256,7 +2286,7 @@ git commit -m "feat: Module 3, describing data"
 
 `04-1` and `04-3` declare `ggplot2` only, so neither lesson may use `%>%`: the pipe comes from the tidyverse packages that re-export it, and ggplot2 is not one of them. Both lessons are written with `ggplot(employees, ...)` directly, which is how ggplot2 code is normally written anyway.
 
-- [ ] **Step 2: Write `src/content/exercises/module-04.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-04.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -2528,7 +2558,7 @@ export const module04: ExerciseDef[] = [
 ];
 ```
 
-- [ ] **Step 3: Write `src/content/lessons/04-1-ggplot-layers.mdx`**
+- [x] **Step 3: Write `src/content/lessons/04-1-ggplot-layers.mdx`**
 
 ````mdx
 Module 3 described the wellbeing column with four numbers. This module draws it,
@@ -2610,7 +2640,7 @@ where you cannot see it.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/04-2-boxplots-and-facets.mdx`**
+- [x] **Step 4: Write `src/content/lessons/04-2-boxplots-and-facets.mdx`**
 
 ````mdx
 Module 3 ended with a puzzle: Engineering has the highest median wellbeing and a
@@ -2706,7 +2736,7 @@ common ggplot2 error message there is.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/04-3-scatter-and-apa.mdx`**
+- [x] **Step 5: Write `src/content/lessons/04-3-scatter-and-apa.mdx`**
 
 ````mdx
 So far every figure has described one column, or one column within groups. The
@@ -2813,7 +2843,7 @@ your readers cannot distinguish red from green.
 />
 ````
 
-- [ ] **Step 6: Add the Module 4 assertions**
+- [x] **Step 6: Add the Module 4 assertions**
 
 Append to `src/content/content.test.ts`, importing `module04`:
 
@@ -2853,7 +2883,7 @@ test('lessons 04-1 and 04-3 avoid the pipe, which ggplot2 does not export', () =
 });
 ```
 
-- [ ] **Step 7: Run the content tests and the validator**
+- [x] **Step 7: Run the content tests and the validator**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS, with all four Part 1 modules live in `MODULES`.
@@ -2870,7 +2900,7 @@ Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/04-1`, `/04-
 
 Expected: every code block draws a plot in the output pane — this is the first module that depends on the canvas path end to end. In `04-1` the `empty` block draws axes and no bars. In `04-2` the boxplot shows Engineering with the highest median line and a tail of low points below its whisker. In `04-3` the `loess` block prints ggplot2's "using formula" message and draws a curve, and the `apa` block draws the same data on a white panel with a straight line. Check the last one at a narrow browser width too, since the output pane sizes the graphics device.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/content.test.ts src/content/exercises/module-04.ts src/content/lessons/04-1-ggplot-layers.mdx src/content/lessons/04-2-boxplots-and-facets.mdx src/content/lessons/04-3-scatter-and-apa.mdx

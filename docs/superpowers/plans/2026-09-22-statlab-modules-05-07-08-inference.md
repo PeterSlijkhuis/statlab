@@ -12,6 +12,36 @@
 
 Module 6 (Sampling) is already built and is the middle of this arc. This plan does not touch it. It does build directly on it: Module 7 starts from the standard error Module 6 derived, and Module 8 starts from the sampling distribution Module 6 constructed. Read `src/content/lessons/06-2-sampling-distribution.mdx` before writing a line of Module 7, and `06-3-central-limit-theorem.mdx` before writing Module 8 — the voice, the length and the predict → build → interpret arc of these nine lessons must be indistinguishable from those three.
 
+**Status (2026-09-22):** Implemented and merged in PR #4. All nine lessons and thirteen exercises are live and graded in real R by CI. Every step is ticked except the three browser checks.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## Global Constraints
 
 The shell plan's Global Constraints and the overview's content constraints apply in full. These are additional, and specific to Part 2.
@@ -84,7 +114,7 @@ That last row is the reason Module 8 can teach both halves of NHST honestly agai
 
 Module 5 is the one Part 2 module that is not about sampling. It is about a *model*: a curve with two numbers that stands in for a population, and the two functions that read probabilities off it in either direction. Module 6 then samples from a population that is emphatically not normal, and Module 8 builds a null distribution that is. Both need this first.
 
-- [ ] **Step 1: Fill the `module-05` entry in `PLANNED_MODULES`**
+- [x] **Step 1: Fill the `module-05` entry in `PLANNED_MODULES`**
 
 In `src/content/manifest.ts`, replace the placeholder `module-05` entry created by content-platform task P3 with exactly this. Ids, titles, files and exercise ids are frozen by the P3 table; no `packages` field, because this module attaches nothing beyond the core set.
 
@@ -118,7 +148,7 @@ In `src/content/manifest.ts`, replace the placeholder `module-05` entry created 
 
 `MODULES` is derived from `PLANNED_MODULES` by keeping only modules whose lesson files all exist, so Module 5 appears in the sidebar the moment step 5 writes the third file — not before, and never as a dead link.
 
-- [ ] **Step 2: Write `src/content/exercises/module-05.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-05.ts`**
 
 Five exercises. None of them is random, but each carries `setupCode: 'set.seed(505)'` so that a student who sanity-checks an answer with `rnorm()` gets the same numbers on every attempt, and so that the validator's two suites agree.
 
@@ -433,7 +463,7 @@ export const module05: ExerciseDef[] = [
 
 Every wrong answer above is a mistake seen in a real marking pile — the right tail for the left, a height for an area, a forgotten `mean`/`sd` so the standard normal is used by accident, the bottom decile for the top, `pnorm` where `qnorm` was meant, a z-score computed on the wrong column — and every one of them runs cleanly and fails through `pass = FALSE`, which is what the validator's negative-fixture rule requires.
 
-- [ ] **Step 3: Write `src/content/lessons/05-1-density-and-area.mdx`**
+- [x] **Step 3: Write `src/content/lessons/05-1-density-and-area.mdx`**
 
 ````mdx
 Module 6 will ask what happens when you take a sample. Before that, it is worth
@@ -557,7 +587,7 @@ at 1 however wide the curve spreads.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/05-2-z-scores.mdx`**
+- [x] **Step 4: Write `src/content/lessons/05-2-z-scores.mdx`**
 
 ````mdx
 A student scored 85 on the exam. Another sleeps 9.1 hours a night. Which of
@@ -677,7 +707,7 @@ within about two standard errors of the mean" becomes the confidence interval.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/05-3-probabilities.mdx`**
+- [x] **Step 5: Write `src/content/lessons/05-3-probabilities.mdx`**
 
 ````mdx
 Two questions come up constantly, and they run in opposite directions.
@@ -780,7 +810,7 @@ SD you set, because in z units the curve is always the same curve.
 />
 ````
 
-- [ ] **Step 6: Add Module 5 assertions to `src/content/content.test.ts`**
+- [x] **Step 6: Add Module 5 assertions to `src/content/content.test.ts`**
 
 Append a module block. These encode the three things that would ship silently:
 a lesson that stops teaching the area idea, a simulation that quietly moved, and
@@ -829,7 +859,7 @@ describe('Module 5', () => {
 
 Import `module05` from `./exercises/module-05` and `MODULES`/`PLANNED_MODULES` from `./manifest` at the top of the file.
 
-- [ ] **Step 7: Run the validator**
+- [x] **Step 7: Run the validator**
 
 Run: `npm run validate`
 
@@ -879,7 +909,7 @@ Expected:
   marks the exercise complete in the sidebar.
 - Reloading the page keeps the completion marks and the edited code drafts.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/lessons/05-1-density-and-area.mdx src/content/lessons/05-2-z-scores.mdx src/content/lessons/05-3-probabilities.mdx src/content/exercises/module-05.ts src/content/manifest.ts src/content/content.test.ts
@@ -907,7 +937,7 @@ second lesson then attacks the sentence that this interval is almost always
 described with, and the third shows how the same three numbers produce three
 completely different-looking figures.
 
-- [ ] **Step 1: Fill the `module-07` entry in `PLANNED_MODULES`**
+- [x] **Step 1: Fill the `module-07` entry in `PLANNED_MODULES`**
 
 ```ts
   {
@@ -938,7 +968,7 @@ completely different-looking figures.
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-07.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-07.ts`**
 
 Three of the four exercises take a fixture from `setupCode`: a seeded study drawn
 from the population. The checks read that fixture back with `answer()` and derive
@@ -1242,7 +1272,7 @@ export const module07: ExerciseDef[] = [
 ];
 ````
 
-- [ ] **Step 3: Write `src/content/lessons/07-1-standard-error-to-interval.mdx`**
+- [x] **Step 3: Write `src/content/lessons/07-1-standard-error-to-interval.mdx`**
 
 ````mdx
 Module 6 finished with a formula: the standard error of the mean is **σ/√n**.
@@ -1354,7 +1384,7 @@ t.test(study$exam_score)$conf.int`} />
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/07-2-what-95-percent-means.mdx`**
+- [x] **Step 4: Write `src/content/lessons/07-2-what-95-percent-means.mdx`**
 
 ````mdx
 Here is a sentence that appears in published papers, in textbooks, and in about
@@ -1472,7 +1502,7 @@ at all.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/07-3-error-bars.mdx`**
+- [x] **Step 5: Write `src/content/lessons/07-3-error-bars.mdx`**
 
 ````mdx
 Open any journal and you will find figures with little vertical bars on top of
@@ -1580,7 +1610,7 @@ for a *difference* is a different interval, and Module 8 computes it.
 />
 ````
 
-- [ ] **Step 6: Add Module 7 assertions to `src/content/content.test.ts`**
+- [x] **Step 6: Add Module 7 assertions to `src/content/content.test.ts`**
 
 ```ts
 describe('Module 7', () => {
@@ -1631,7 +1661,7 @@ describe('Module 7', () => {
 });
 ```
 
-- [ ] **Step 7: Run the validator**
+- [x] **Step 7: Run the validator**
 
 Run: `npm run validate`
 
@@ -1687,7 +1717,7 @@ Expected:
 - `m7-1-b`: submitting the `1.96` version returns the "that comes from the
   normal distribution" message, not a generic failure.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/lessons/07-1-standard-error-to-interval.mdx src/content/lessons/07-2-what-95-percent-means.mdx src/content/lessons/07-3-error-bars.mdx src/content/exercises/module-07.ts src/content/manifest.ts src/content/content.test.ts
@@ -1723,7 +1753,7 @@ The dataset supports all of that without any arrangement after the fact:
 `sleep_hours` carries a real 6-point effect on `exam_score`, and `programme`
 carries none at all.
 
-- [ ] **Step 1: Fill the `module-08` entry in `PLANNED_MODULES`**
+- [x] **Step 1: Fill the `module-08` entry in `PLANNED_MODULES`**
 
 ```ts
   {
@@ -1753,7 +1783,7 @@ carries none at all.
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-08.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-08.ts`**
 
 ````ts
 import type { ExerciseDef } from '../../r/checker';
@@ -2056,7 +2086,7 @@ export const module08: ExerciseDef[] = [
 ];
 ````
 
-- [ ] **Step 3: Write `src/content/lessons/08-1-null-distribution.mdx`**
+- [x] **Step 3: Write `src/content/lessons/08-1-null-distribution.mdx`**
 
 ````mdx
 A study finds that students who sleep seven hours or more score higher on the
@@ -2175,7 +2205,7 @@ testing is looking at that picture and asking how surprising the dashed line is.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/08-2-p-values-and-alpha.mdx`**
+- [x] **Step 4: Write `src/content/lessons/08-2-p-values-and-alpha.mdx`**
 
 ````mdx
 The null distribution is built; the observed difference is a dashed line in its
@@ -2308,7 +2338,7 @@ neither can a reader.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/08-3-errors-and-power.mdx`**
+- [x] **Step 5: Write `src/content/lessons/08-3-errors-and-power.mdx`**
 
 > **No markdown tables.** The MDX pipeline runs `@mdx-js/rollup` without
 > `remark-gfm`, so a pipe table renders as literal text. The two-by-two of
@@ -2450,7 +2480,7 @@ reader plainly that the study could not distinguish "nothing" from "quite a lot"
 />
 ````
 
-- [ ] **Step 6: Add Module 8 assertions to `src/content/content.test.ts`**
+- [x] **Step 6: Add Module 8 assertions to `src/content/content.test.ts`**
 
 ```ts
 describe('Module 8', () => {
@@ -2499,7 +2529,7 @@ describe('Module 8', () => {
 });
 ```
 
-- [ ] **Step 7: Run the validator**
+- [x] **Step 7: Run the validator**
 
 Run: `npm run validate`
 
@@ -2564,7 +2594,7 @@ Expected:
   error rate" message; submitting a test against the true population mean
   returns the "that is alpha" message.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/content/lessons/08-1-null-distribution.mdx src/content/lessons/08-2-p-values-and-alpha.mdx src/content/lessons/08-3-errors-and-power.mdx src/content/exercises/module-08.ts src/content/manifest.ts src/content/content.test.ts

@@ -19,6 +19,36 @@ The shell plan's self-review says the remaining modules are "content work agains
 - `DATASET_FILES` is `['wellbeing-population.csv']`. Ten of the thirteen remaining modules read a dataset that does not exist.
 - `MODULES` contains one module. The sidebar, the home page and "continue where you left off" all read it.
 
+**Status (2026-09-22):** Implemented and merged in PR #4. `ensurePackages`, `CORE_PACKAGES`, `ON_DEMAND_PACKAGES`, `workplace.csv`, the derived `MODULES` and the validator rules are all on `main`. Every step is ticked except the browser check, which no sandbox here can run.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## Global Constraints
 
 The shell plan's Global Constraints apply in full. In addition:
@@ -56,7 +86,7 @@ public/data/
 - Consumes: `setStatus` (`src/r/webrClient.ts`), `prepareSession`
 - Produces: `CORE_PACKAGES`, `ensurePackages(webR, names)`, `LessonMeta.packages?: string[]`
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Create `src/r/session.test.ts`. This file must not boot webR — it drives a fake.
 
@@ -127,12 +157,12 @@ describe('ensurePackages', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/session.test.ts`
 Expected: FAIL — `ensurePackages` is not exported.
 
-- [ ] **Step 3: Implement `ensurePackages` in `src/r/session.ts`**
+- [x] **Step 3: Implement `ensurePackages` in `src/r/session.ts`**
 
 Replace `COURSE_PACKAGES` with the spec's core set and add the on-demand path. Keep `installCoursePackages` as the boot-time caller so `prepareSession` is unchanged.
 
@@ -233,7 +263,7 @@ export async function installCoursePackages(webR: WebR): Promise<void> {
 
 > **`src/r/session.itest.ts` imports `COURSE_PACKAGES`** (line 5, used at line 54). Either keep `COURSE_PACKAGES` exported as an alias of `CORE_PACKAGES` or update that import; do not leave a dangling name.
 
-- [ ] **Step 4: Add `packages` to the manifest type**
+- [x] **Step 4: Add `packages` to the manifest type**
 
 In `src/content/manifest.ts`:
 
@@ -252,7 +282,7 @@ export type LessonMeta = {
 };
 ```
 
-- [ ] **Step 5: Install a lesson's packages in `useLessonSession`**
+- [x] **Step 5: Install a lesson's packages in `useLessonSession`**
 
 `useLessonSession` currently takes a lesson id. It needs the package list too. Change the signature to take the lesson's metadata, and install between `prepareSession` and `createLessonEnv`:
 
@@ -279,7 +309,7 @@ Two callers change. `src/pages/Lesson.tsx` passes `meta` in place of `meta.id`.
 `prepareSession` and nothing more, which is correct: a student experimenting
 there has not opened a lesson that justifies a 20 MB install.
 
-- [ ] **Step 6: Show an on-demand install in `RStatus`**
+- [x] **Step 6: Show an on-demand install in `RStatus`**
 
 `RStatus` renders the busy pill for any phase that is not `idle`, `ready` or
 `error`, so a transition back into `installing` after `ready` already re-shows
@@ -297,12 +327,12 @@ test('an install that starts after R is ready is shown again', () => {
 });
 ```
 
-- [ ] **Step 7: Run the unit tests**
+- [x] **Step 7: Run the unit tests**
 
 Run: `npx vitest run src/r/session.test.ts src/components/RStatus.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 8: Verify the modelling packages actually install under webR 0.6.0**
+- [x] **Step 8: Verify the modelling packages actually install under webR 0.6.0**
 
 This is the step that de-risks Module 13. Add to `src/r/session.itest.ts`:
 
@@ -329,7 +359,7 @@ repository, **stop and record it** — open question 3 in the overview says what
 Module 13 becomes instead. Do not proceed to write Module 13 content on the
 assumption that it works.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/r/session.ts src/r/session.test.ts src/r/session.itest.ts src/r/useLessonSession.ts src/content/manifest.ts src/pages/Lesson.tsx src/components/RStatus.tsx src/components/RStatus.test.tsx
@@ -380,7 +410,7 @@ something to find):
 - `left_company`: `logit(p) = 1.9 − 0.06·wellbeing − 0.11·tenure_years`, giving roughly 20 % leavers.
 - **A deliberate surprise for Module 3:** Engineering has both the highest `workload` and the highest `autonomy`, so its mean `wellbeing` sits mid-table while its median is the highest of the four departments. A summary of means alone tells the wrong story, which is what §7.1's "always look at the descriptives" is for.
 
-- [ ] **Step 1: Refactor `scripts/generate-datasets.mjs` into two generators**
+- [x] **Step 1: Refactor `scripts/generate-datasets.mjs` into two generators**
 
 Wrap the existing code in `function writeWellbeingPopulation()` with its own
 `const rng = makeRng(20260914)` and its own `normal(rng, mu, sigma)` — the
@@ -388,7 +418,7 @@ existing `normal` closes over the module-level `rng`, so it must take the rng as
 its first argument once there are two. The sequence of `rng()` calls inside the
 loop must stay exactly as it is.
 
-- [ ] **Step 2: Add the workplace generator**
+- [x] **Step 2: Add the workplace generator**
 
 ```js
 const DEPARTMENTS = ['Sales', 'Engineering', 'Support', 'Marketing'];
@@ -472,12 +502,12 @@ function writeWorkplace() {
 Write it to `public/data/workplace.csv` exactly as the existing file is written,
 and log the row count.
 
-- [ ] **Step 3: Generate the dataset**
+- [x] **Step 3: Generate the dataset**
 
 Run: `node scripts/generate-datasets.mjs`
 Expected: `Wrote 5000 rows.` and `Wrote 480 employees.`
 
-- [ ] **Step 4: Check the built-in effects actually landed**
+- [x] **Step 4: Check the built-in effects actually landed**
 
 A seeded generator can produce a sample where a designed effect is not
 recoverable. Verify before committing, in R (the playground, or `Rscript` if you
@@ -506,14 +536,14 @@ mean wellbeing is neither highest nor lowest while its median is highest; the
 seed, not the effect sizes**, and re-run — the effect sizes are what the lessons
 teach against.
 
-- [ ] **Step 5: Verify the existing dataset is unchanged**
+- [x] **Step 5: Verify the existing dataset is unchanged**
 
 Run: `git status --short public/data/`
 Expected: `?? public/data/workplace.csv` only. If `wellbeing-population.csv`
 appears as modified, the refactor changed the draw sequence — revert and redo
 step 1 without touching the loop.
 
-- [ ] **Step 6: Add the dataset to the mount list**
+- [x] **Step 6: Add the dataset to the mount list**
 
 In `src/r/session.ts`:
 
@@ -521,7 +551,7 @@ In `src/r/session.ts`:
 export const DATASET_FILES = ['wellbeing-population.csv', 'workplace.csv'] as const;
 ```
 
-- [ ] **Step 7: Add an integration test**
+- [x] **Step 7: Add an integration test**
 
 Append to `src/r/session.itest.ts`:
 
@@ -548,12 +578,12 @@ test('the workplace dataset mounts with its factors intact', async () => {
 }, 300_000);
 ```
 
-- [ ] **Step 8: Run it**
+- [x] **Step 8: Run it**
 
 Run: `npx vitest run src/r/session.itest.ts`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add scripts/generate-datasets.mjs public/data/workplace.csv src/r/session.ts src/r/session.itest.ts
@@ -580,7 +610,7 @@ git commit -m "feat: the workplace study dataset for Parts 1 and 3"
 > declares the modules in a **draft list that the sidebar does not yet read**,
 > and each module task moves its own entry into `MODULES`. See step 3.
 
-- [ ] **Step 1: Write the module and lesson table**
+- [x] **Step 1: Write the module and lesson table**
 
 The full curriculum, ids frozen. Each module plan fills in one block.
 
@@ -641,7 +671,7 @@ testing; Correlation and simple regression; Multiple regression; Categorical
 predictors; Interactions and factorial designs; Repeated measures and nested
 data; Binary outcomes.
 
-- [ ] **Step 2: Create empty exercise files**
+- [x] **Step 2: Create empty exercise files**
 
 For each of `module-01` … `module-14` except `module-06`:
 
@@ -662,7 +692,7 @@ export const ALL_EXERCISES: ExerciseDef[] = [
 ];
 ```
 
-- [ ] **Step 3: Add the manifest entries behind a completeness gate**
+- [x] **Step 3: Add the manifest entries behind a completeness gate**
 
 Put the full fourteen-module list in `manifest.ts` as `PLANNED_MODULES`, and
 derive `MODULES` from it by keeping only modules whose lesson files exist:
@@ -694,7 +724,7 @@ half-finished module never appears in the sidebar as a dead link.
 > `content.test.ts` already relies on this. Do not read `MODULES` from
 > `scripts/`.
 
-- [ ] **Step 4: Add the validator rules this task makes possible**
+- [x] **Step 4: Add the validator rules this task makes possible**
 
 In `src/content/content.test.ts`:
 
@@ -752,7 +782,7 @@ test('a live lesson attaches no package it did not declare', () => {
 });
 ```
 
-- [ ] **Step 5: Run the content tests**
+- [x] **Step 5: Run the content tests**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS, with `MODULES` containing only Module 6.
@@ -762,7 +792,7 @@ Expected: PASS, with `MODULES` containing only Module 6.
 Run: `npm run dev` and open `http://localhost:5173/statlab/`.
 Expected: Module 6 is listed and reachable. No empty module headings.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/ src/content/content.test.ts
@@ -784,7 +814,7 @@ git commit -m "feat: declare the full fourteen-module curriculum"
 **Why:** the existing validator was written for three lessons. Three mistakes
 become likely only at scale, and each of them ships silently.
 
-- [ ] **Step 1: Every exercise in the registry is reachable**
+- [x] **Step 1: Every exercise in the registry is reachable**
 
 ```ts
 test('every defined exercise is referenced by some lesson', () => {
@@ -800,7 +830,7 @@ test('every defined exercise is referenced by some lesson', () => {
 An orphaned exercise is never seen by a student, is never opened in review, and
 still passes the validator today.
 
-- [ ] **Step 2: Every inferential lesson ends with an `<Interpret>`**
+- [x] **Step 2: Every inferential lesson ends with an `<Interpret>`**
 
 Spec §4.1 says `<Interpret>` "closes every inferential lesson". Encode it:
 
@@ -819,7 +849,7 @@ test('every inferential lesson closes with an Interpret block', () => {
 });
 ```
 
-- [ ] **Step 3: Every exercise carries negative and alternate fixtures**
+- [x] **Step 3: Every exercise carries negative and alternate fixtures**
 
 ```ts
 test('every exercise has at least one wrong answer and one alternate solution', () => {
@@ -838,7 +868,7 @@ not. Add one to it rather than scoping the test around it — a `dplyr` route
 exists for all three, and the validator already requires every alternate to
 pass.
 
-- [ ] **Step 4: Checks read the student's objects only through `answer()`**
+- [x] **Step 4: Checks read the student's objects only through `answer()`**
 
 ```ts
 test('checks do not read objects from the lesson environment', () => {
@@ -856,7 +886,7 @@ lessons' worth of checks gets the feedback immediately rather than after a
 long R run. Module 6's three checks already comply, so this test passes the
 moment it is written — which is the point: it is a ratchet, not a migration.
 
-- [ ] **Step 5: Bound the validator's runtime**
+- [x] **Step 5: Bound the validator's runtime**
 
 With thirty-nine lessons the R validation suite runs every lesson's code blocks
 and every exercise's fixtures. Measure it:
@@ -870,12 +900,12 @@ both but in separate jobs so a static failure reports in under a minute. Update
 `.github/workflows/deploy.yml` accordingly, keeping `npm run validate` as the
 alias that runs both.
 
-- [ ] **Step 6: Run the whole suite**
+- [x] **Step 6: Run the whole suite**
 
 Run: `npx tsc --noEmit && npx vitest run && npm run validate`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/content/content.test.ts src/content/exercises/ package.json .github/workflows/deploy.yml
