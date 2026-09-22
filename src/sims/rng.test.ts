@@ -1,5 +1,21 @@
 import { describe, expect, test } from 'vitest';
-import { describeShape, histogram, makeRng, mean, POPULATIONS, sampleMeans, sd, skewness } from './rng';
+import {
+  correlate,
+  describeShape,
+  fitLine,
+  histogram,
+  makeRng,
+  mean,
+  normalCdf,
+  normalPdf,
+  normalQuantile,
+  POPULATIONS,
+  residualSumOfSquares,
+  sampleMeans,
+  sd,
+  skewness,
+  tQuantile,
+} from './rng';
 
 describe('seeded rng', () => {
   test('is deterministic for a given seed', () => {
@@ -100,5 +116,80 @@ describe('describeShape', () => {
     expect(describeShape(0.7)).toBe('moderately skewed right');
     expect(describeShape(-1.5)).toBe('strongly skewed left');
     expect(describeShape(Number.NaN)).toBe('shape unclear');
+  });
+});
+
+describe('normal distribution helpers', () => {
+  test('normalPdf matches dnorm', () => {
+    expect(normalPdf(0, 0, 1)).toBeCloseTo(0.3989423, 6);   // dnorm(0)
+    expect(normalPdf(1.5, 0, 1)).toBeCloseTo(0.1295176, 6); // dnorm(1.5)
+    expect(normalPdf(72, 70, 4)).toBeCloseTo(0.08801633, 6); // dnorm(72, 70, 4)
+  });
+
+  test('normalCdf matches pnorm to six decimals', () => {
+    expect(normalCdf(0, 0, 1)).toBeCloseTo(0.5, 9);
+    expect(normalCdf(1.96, 0, 1)).toBeCloseTo(0.9750021, 6);   // pnorm(1.96)
+    expect(normalCdf(-2.5, 0, 1)).toBeCloseTo(0.006209665, 7); // pnorm(-2.5)
+    // The tails are where a cheap approximation falls apart, and the p-value
+    // simulation lives in the tails.
+    expect(normalCdf(-5, 0, 1)).toBeCloseTo(2.866516e-7, 12);  // pnorm(-5)
+  });
+
+  test('normalQuantile inverts normalCdf', () => {
+    expect(normalQuantile(0.975)).toBeCloseTo(1.959964, 5);  // qnorm(0.975)
+    expect(normalQuantile(0.05)).toBeCloseTo(-1.644854, 5);  // qnorm(0.05)
+    for (const p of [0.001, 0.1, 0.5, 0.9, 0.999]) {
+      expect(normalCdf(normalQuantile(p))).toBeCloseTo(p, 6);
+    }
+  });
+
+  test('tQuantile matches qt closely enough to draw', () => {
+    expect(tQuantile(0.975, 4)).toBeCloseTo(2.776445, 3);   // qt(0.975, 4)
+    expect(tQuantile(0.975, 29)).toBeCloseTo(2.045230, 3);  // qt(0.975, 29)
+    expect(tQuantile(0.975, 200)).toBeCloseTo(1.971896, 3); // qt(0.975, 200)
+    // As df grows it must approach the normal quantile, or the CI simulation
+    // would show intervals that visibly disagree with the formula students use.
+    expect(tQuantile(0.975, 100000)).toBeCloseTo(normalQuantile(0.975), 3);
+  });
+});
+
+describe('bivariate helpers', () => {
+  test('correlate produces points with the requested correlation', () => {
+    const rng = makeRng(11);
+    for (const target of [-0.8, -0.3, 0, 0.5, 0.95]) {
+      const points = correlate(target, 400, rng);
+      const r = fitLine(points).r;
+      expect(r).toBeCloseTo(target, 1);
+    }
+  });
+
+  test('fitLine reproduces a line it is given exactly', () => {
+    const points = [0, 1, 2, 3, 4].map((x) => ({ x, y: 3 + 2 * x }));
+    const { intercept, slope, r } = fitLine(points);
+    expect(intercept).toBeCloseTo(3, 9);
+    expect(slope).toBeCloseTo(2, 9);
+    expect(r).toBeCloseTo(1, 9);
+  });
+
+  test('the OLS line minimises the residual sum of squares', () => {
+    // This is the whole point of the leastsquares simulation. If it were not
+    // true of our implementation, the simulation would teach the opposite of
+    // what it claims.
+    const rng = makeRng(3);
+    const points = correlate(0.6, 40, rng);
+    const best = fitLine(points);
+    const bestRss = residualSumOfSquares(points, best.intercept, best.slope);
+    for (const dSlope of [-0.3, -0.05, 0.05, 0.3]) {
+      for (const dIntercept of [-0.4, 0, 0.4]) {
+        if (dSlope === 0 && dIntercept === 0) continue;
+        expect(residualSumOfSquares(points, best.intercept + dIntercept, best.slope + dSlope))
+          .toBeGreaterThan(bestRss);
+      }
+    }
+  });
+
+  test('fitLine is degenerate-safe', () => {
+    // A student can drag every point onto one x in the leastsquares simulation.
+    expect(Number.isFinite(fitLine([{ x: 1, y: 2 }, { x: 1, y: 5 }]).slope)).toBe(false);
   });
 });
