@@ -1,0 +1,129 @@
+Part 3 of this course is about one idea with several names. Regression, the
+*t*-test, ANOVA — statistics textbooks put them in separate chapters, and in R
+they are one function. From here to Module 14 you will fit models with `lm()`,
+`lmer()` and `glm()`, and everything else is a special case of one of the three.
+
+The data for all six modules is a workplace study: 480 employees across four
+departments and six sites, each with a workload rating, an autonomy rating, a
+wellbeing score, engagement measured twice, a performance rating, and a record
+of whether they left the company.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(ggplot2)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+glimpse(d)`} />
+
+`stringsAsFactors = TRUE` matters more here than it did in Module 2. It is what
+turns `department`, `site`, `remote`, `training` and `mentoring` into factors,
+and from Module 11 onwards a factor is what tells `lm()` to compare groups
+rather than to treat a label as a number.
+
+## Start with the descriptives, always
+
+Before any model, look at what you have. Means and SDs for the variables you are
+about to relate to each other, and the *n* they are computed from.
+
+<CodeBlock id="c-descriptives" code={`d %>%
+  summarise(
+    n = n(),
+    mean_autonomy = mean(autonomy), sd_autonomy = sd(autonomy),
+    mean_workload = mean(workload), sd_workload = sd(workload),
+    mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing)
+  )`} />
+
+This is not a formality, and it is not something to do once and forget. Every
+model output you meet in Part 3 is a number whose sign and size you can only
+sanity-check against the means. When the model says something surprising, the
+descriptives are where you find out whether it is a discovery or a typo.
+
+<Predict
+  id="p-direction"
+  question="Autonomy is how much control an employee has over their own work; workload is how much of it there is. Before plotting anything: which way will each relate to wellbeing?"
+  choices={[
+    { text: 'Both positive: more of anything at work goes with feeling better', response: 'Two variables can point in opposite directions, and here they do. Autonomy is a resource; workload is a demand.' },
+    { text: 'Autonomy positive, workload negative', correct: true, response: 'That is the demand-resource pattern the study was designed around, and the plots below show it.' },
+    { text: 'Both negative: work is a cost', response: 'Workload behaves that way, but autonomy does not. Control over your own work is a resource, not a demand.' },
+    { text: 'Neither: wellbeing is a personality trait and nothing at work moves it', response: 'Then both scatterplots would be shapeless clouds. They are not - look at the next two blocks.' },
+  ]}
+/>
+
+## Seeing it
+
+A scatterplot, one point per employee, with the straight line that best summarises
+the cloud drawn through it. `geom_smooth(method = lm)` fits exactly the line the
+next lesson fits with `lm()`.
+
+<CodeBlock id="c-scatter-autonomy" code={`d %>%
+  ggplot(aes(x = autonomy, y = wellbeing)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = lm, se = FALSE) +
+  labs(x = "Autonomy (1-10)", y = "Wellbeing", title = "Autonomy and wellbeing") +
+  theme_classic()`} />
+
+<CodeBlock id="c-scatter-workload" code={`d %>%
+  ggplot(aes(x = workload, y = wellbeing)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = lm, se = FALSE) +
+  labs(x = "Workload (1-10)", y = "Wellbeing", title = "Workload and wellbeing") +
+  theme_classic()`} />
+
+> **Change the y variable.** Edit either block to use `performance` instead of
+> `wellbeing` and run it again. The relationships are not the same, and noticing
+> that now will save you an embarrassing sentence in Module 10.
+
+## Measuring it
+
+The correlation *r* puts a number on how tightly the points hug a straight line.
+It runs from −1 through 0 to +1, it has no units, and it is symmetric: the
+correlation of autonomy with wellbeing is the correlation of wellbeing with
+autonomy.
+
+<CodeBlock id="c-cor" code={`d %>%
+  summarise(
+    r_autonomy = cor(autonomy, wellbeing),
+    r_workload = cor(workload, wellbeing),
+    r_tenure   = cor(tenure_years, wellbeing)
+  )`} />
+
+Three things *r* is not, each of which has ended up in a published paper:
+
+1. **It is not a slope.** *r* is unit-free. If you rescaled wellbeing from 0–100
+   to 0–1, *r* would not move and the slope would shrink by a factor of 100.
+2. **It is not a percentage.** *r* = .50 does not mean half of anything. Its
+   square does: *r*² = .25 is the share of the variance the line accounts for.
+3. **It is not a cause.** Every sentence in this module about autonomy and
+   wellbeing is a statement about how they vary together in these 480 people.
+
+## Guess before you compute
+
+Drag the slider until the cloud looks like the one you just plotted, then reveal
+the number. Most people over-estimate weak correlations and under-estimate strong
+ones, and the only cure is practice.
+
+<Simulation name="correlation" />
+
+<Exercise id="m9-1-a" />
+
+<Quiz
+  id="q-r-meaning"
+  question="A study reports r = -.42 between workload and wellbeing, n = 480. Which statement is supported?"
+  choices={[
+    { text: 'Reducing workload would raise wellbeing by .42 points.', response: 'Two errors at once: r is not in points, and a correlation from observational data does not license a claim about what would happen if you intervened.' },
+    { text: 'Employees with heavier workloads tend to report lower wellbeing, and about 18 % of the variance in wellbeing is shared with workload.', correct: true, response: 'Correct. The direction comes from the sign, and .42 squared is about .18 - the shared variance.' },
+    { text: '42 % of the variance in wellbeing is explained by workload.', response: 'That is r squared, not r. Square it first: .42 squared is about .18.' },
+    { text: 'Workload and wellbeing are unrelated in 58 % of employees.', response: 'A correlation describes the whole sample at once. It does not split people into a related group and an unrelated one.' },
+  ]}
+/>
+
+<Interpret
+  id="i-9-1"
+  question="A colleague sends you this line for their results section: they found r = -.42 between workload and wellbeing across 480 employees, p < .001. Which sentence reports it correctly in APA 7 style?"
+  choices={[
+    { text: 'Workload was negatively correlated with wellbeing, r(478) = -.42, p < .001.', correct: true, response: 'Correct. Pearson r takes n - 2 degrees of freedom, the sign is kept, and the leading zero is dropped from a statistic that cannot exceed 1.' },
+    { text: 'Workload reduced wellbeing, r(478) = -.42, p < .001.', response: '"Reduced" is a causal claim. Nothing was manipulated here; employees with heavier workloads simply reported lower wellbeing.' },
+    { text: 'Workload was negatively correlated with wellbeing, r(480) = -0.42, p = .000.', response: 'Two reporting errors: df for r is n - 2, and a p value is never written as .000 - report p < .001.' },
+    { text: 'There was a significant correlation between workload and wellbeing, r(478) = -.42, p < .001, showing that 42 % of wellbeing is due to workload.', response: 'The first half is fine; the tail is wrong twice over. r squared is about .18, and "due to" is causal.' },
+  ]}
+/>

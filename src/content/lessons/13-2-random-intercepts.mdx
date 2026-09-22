@@ -1,0 +1,113 @@
+The spaghetti plot showed two kinds of variation at once: employees sitting at
+different heights, and each employee moving a little between measurements. A
+mixed-effects model estimates both, and keeps them apart.
+
+> **This lesson installs `lmerTest` and `lme4`.** They are the largest download
+> in the course; the status pill shows the progress and the browser caches them.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+library(lmerTest)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+long_d <- d %>%
+  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+long_d %>%
+  group_by(time) %>%
+  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())`} />
+
+## Fixed and random
+
+- A **fixed effect** is something you want an estimate of, with the same meaning
+  for everyone: the effect of time here. It gets a coefficient, an SE, a *t* and
+  a *p*.
+- A **random effect** is a set of deviations you assume are drawn from a
+  distribution: each employee's own starting level. You do not estimate 480
+  separate parameters and report them; you estimate the standard deviation of
+  that distribution.
+
+The question "is this factor fixed or random?" is really "do I want to compare
+these particular levels, or account for the fact that levels exist?"
+
+<CodeBlock id="c-fit" code={`m_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)
+
+summary(m_time)`} />
+
+Read the formula as two halves. `engagement ~ time` is the fixed part, exactly the
+`lm` from Module 11. `(1 | employee_id)` is the random part: a `1` means an
+intercept, and the vertical bar reads "grouped by". Every employee gets their own
+starting height; the model estimates how spread out those heights are.
+
+<Exercise id="m13-2-a" />
+
+## Two sources of variation
+
+<CodeBlock id="c-varcorr" code={`vc <- as.data.frame(VarCorr(m_time))
+vc
+
+c(
+  icc = vc$sdcor[vc$grp == "employee_id"]^2 /
+        (vc$sdcor[vc$grp == "employee_id"]^2 + vc$sdcor[vc$grp == "Residual"]^2)
+)`} />
+
+The `employee_id` row is how much employees differ from each other; the
+`Residual` row is what is left within an employee once their own level and the
+time effect are accounted for. Their ratio is the **intraclass correlation**: the
+share of the total variance that is stable differences between people.
+
+A high ICC is the whole justification for the model. It says most of the raw
+variation has nothing to do with your research question, and that an ordinary
+`lm` would have been trying to find a small effect inside it.
+
+<Predict
+  id="p-icc"
+  question="The ICC comes out around .65. What does that imply for an ordinary lm on the same 960 rows?"
+  choices={[
+    { text: 'The lm would have given the same answer', response: 'The same estimate of the change, yes. Not the same standard error, and so not the same t or p.' },
+    { text: 'The lm would put that 65 % into its residual variance, inflating the standard error of time and losing most of the power', correct: true, response: 'Exactly. The mixed model removes that variance from the comparison, which is why its t is so much larger.' },
+    { text: 'The ICC has no bearing on the lm', response: 'It is the exact quantity the lm cannot see and the mixed model removes.' },
+    { text: 'The lm would have been anti-conservative, giving too small a p value', response: 'For a within-person effect it goes the other way: the naive lm is too conservative. Ignoring clustering is anti-conservative for a BETWEEN-cluster predictor, and that difference is worth knowing.' },
+  ]}
+/>
+
+<Exercise id="m13-2-b" />
+
+## Where the p values come from
+
+`lme4` deliberately reports no *p* values for fixed effects, because the
+denominator degrees of freedom for a mixed model are not a settled question.
+`lmerTest` — which is what `library(lmerTest)` loads on top of it — adds them
+using Satterthwaite's approximation, which is why the `summary()` above has a
+`Pr(>|t|)` column and why this course attaches `lmerTest` rather than `lme4`.
+
+<CodeBlock id="c-coefs" code={`coef(summary(m_time))`} />
+
+Degrees of freedom that are not whole numbers are normal here, and are reported
+as such: *t*(478.0) or *t*(942.7), rounded to one decimal.
+
+<Quiz
+  id="q-random"
+  question="What does (1 | employee_id) add to the model?"
+  choices={[
+    { text: 'A separate coefficient for every employee, reported in the output', response: 'The deviations are estimated but not reported as fixed coefficients. What is reported is their standard deviation.' },
+    { text: 'One extra parameter: the standard deviation of employees\' own starting levels, which lets the model know which rows belong to the same person', correct: true, response: 'Correct - one parameter for 480 employees, which is what makes the approach practical.' },
+    { text: 'An interaction between employee and time', response: 'That would be a random slope, written (1 + time | employee_id). This is an intercept only.' },
+    { text: 'A correction applied to the p value after fitting', response: 'Nothing is corrected afterwards. The dependence is part of the model from the start.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-2"
+  question="Your model gives a fixed effect of time b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001, with employee SD = 5.84 and residual SD = 3.21. Which write-up is correct?"
+  choices={[
+    { text: 'A linear mixed-effects model with a random intercept for each employee showed that engagement increased from time 1 to time 2, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001. Employees differed substantially in their overall level of engagement (SD = 5.84) relative to the within-employee residual variation (SD = 3.21).', correct: true, response: 'Correct: the random structure is described, the fixed effect is reported in full, and both variance components are given.' },
+    { text: 'Engagement increased significantly over time, p < .001, in a mixed model.', response: 'No estimate, no SE, no degrees of freedom, and nothing about the random structure - a reader could not reproduce or evaluate this.' },
+    { text: 'The intervention raised engagement by 1.31 points, t(479.0) = 8.73, p < .001.', response: 'The model has no intervention in it. The fixed effect is a change over time, which in a study with no control group cannot be attributed to any particular cause.' },
+    { text: 'A mixed model showed engagement increased, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001; the random effect was not significant, so it could be dropped.', response: 'The random intercept is a feature of the design, not a hypothesis. It stays whether or not some test of it reaches .05.' },
+  ]}
+/>
