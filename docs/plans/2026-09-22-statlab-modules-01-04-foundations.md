@@ -6,7 +6,7 @@
 
 **Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §7 (Modules 1–4), §7.1, §7.2, §4.1, §5
 
-**Depends on:** the shell plan, merged; `content-platform` tasks P1 (per-lesson packages), P2 (`public/data/workplace.csv` generated, committed and in `DATASET_FILES`), P3 (`PLANNED_MODULES`, the stub exercise files, `ALL_EXERCISES`) and P4 (the validator rules). Nothing here depends on the simulations plan: Modules 1–4 embed no `<Simulation>`.
+**Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22; `content-platform` tasks P1 (per-lesson packages), P2 (`public/data/workplace.csv` generated, committed and in `DATASET_FILES`), P3 (`PLANNED_MODULES`, the stub exercise files, `ALL_EXERCISES`) and P4 (the validator rules). Nothing here depends on the simulations plan: Modules 1–4 embed no `<Simulation>`.
 
 ## Global Constraints
 

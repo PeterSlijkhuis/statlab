@@ -6,7 +6,7 @@
 
 **Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §6
 
-**Depends on:** the shell plan, merged. Independent of the content platform — nothing here reads a dataset or a package.
+**Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22. Independent of the content platform — nothing here reads a dataset or a package.
 
 **Consumed by:** Module 5 (`distribution`), Module 7 (`ci`), Module 8 (`pvalue`), Module 9 (`correlation`, `leastsquares`). Building these first means those module tasks never block.
 
