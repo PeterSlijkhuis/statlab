@@ -57,10 +57,9 @@ export const module13: ExerciseDef[] = [
             list(pass = FALSE, message = paste0("time_means should have two rows, one per time point. Yours has ", if (is.data.frame(tbl)) nrow(tbl) else 0, ". Group by time."))
           } else {
             found <- FALSE
-            for (nm in names(tbl)) {
-              value <- tbl[[nm]]
-              if (is.numeric(value) && length(value) == 2L &&
-                  isTRUE(all.equal(sort(as.vector(value)), sort(c(exp_m1, exp_m2)), tolerance = 1e-6, check.attributes = FALSE))) found <- TRUE
+            for (value in numeric_columns(tbl)) {
+              if (length(value) == 2L &&
+                  isTRUE(all.equal(sort(value), sort(c(exp_m1, exp_m2)), tolerance = 1e-6, check.attributes = FALSE))) found <- TRUE
             }
             if (!found) {
               list(pass = FALSE, message = paste0("No column of time_means holds the two mean engagement scores, which are ", round(exp_m1, 2), " and ", round(exp_m2, 2), ". Check that you grouped by time."))
