@@ -35,7 +35,8 @@ versions left inconsistent:
 4. **Stale example data** (§3.5). An example referred to a `stress.csv` that
    does not exist.
 
-§12 records where the code still lags this specification.
+§12 records the gaps between this specification and the code at the time of
+reconciliation, and when each was closed.
 
 ## 1. Purpose
 
@@ -512,25 +513,21 @@ low-risk, and requiring no further architectural decisions.
   writing code needs a keyboard and the design assumes a laptop.
 - No offline/PWA support.
 
-## 12. Where the code still lags this specification
+## 12. Gaps at reconciliation, since closed
 
-Recorded here so the gaps are tracked rather than rediscovered. None is a
-change of design; each is work the implementation has not reached.
+When this specification was reconciled, only Module 6 existed and the code
+lagged it in five places. PR #4, merged on 2026-09-22, closed all five. They
+are kept here so the history is readable next to the decisions in §0.
 
-- **The chooser's names.** The implementation is `src/pages/TestChooser.tsx` at
-  `/which-test`, with the title already reading "Which model should I use?".
-  §4.2 requires the component renamed to `ModelChooser.tsx`, the route moved to
-  `/which-model`, and a redirect left behind. This touches `App.tsx`,
-  `Sidebar.tsx`, the component and its test.
-- **The core package set.** `src/r/session.ts` installs `dplyr` and `ggplot2`
-  only. §3.5's core set adds `tidyr` and `broom`; Module 6 needs neither, so
-  the set grows with the module that first needs it.
-- **Leaf-to-lesson links.** §4.2 says each leaf links to the lesson that
-  teaches it. `ModelChooser`'s `Node` type carries an optional `lessonId` and
-  renders the link, but no leaf sets one yet, because only Module 6 exists.
-  Each module fills in its own leaves as it lands.
-- **Content.** §7 describes fourteen modules; `src/content/manifest.ts` holds
-  Module 6. §10 is the plan for that, and the remaining thirteen modules are
-  content work against the frozen schema.
-- **Datasets.** `wellbeing-population.csv` exists. The workplace study of §7.2
-  is not written yet, so no Part 3 module can be built until it is.
+- **The chooser's names.** It was `src/pages/TestChooser.tsx` at `/which-test`.
+  It is now `src/pages/ModelChooser.tsx` at `/which-model`, and `/which-test`
+  redirects there.
+- **The core package set.** `src/r/session.ts` installed `dplyr` and `ggplot2`
+  only. It now installs the full §3.5 core set, `dplyr`, `ggplot2`, `tidyr` and
+  `broom`, and the modelling packages on demand.
+- **Leaf-to-lesson links.** No chooser leaf set a `lessonId`. All eight leaves
+  now link to the lesson that teaches them.
+- **Content.** `src/content/manifest.ts` held Module 6 only. It now holds all
+  fourteen modules of §7.
+- **Datasets.** Only `wellbeing-population.csv` existed. The workplace study of
+  §7.2 now ships as `workplace.csv`.
