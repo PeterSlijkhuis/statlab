@@ -1,0 +1,108 @@
+Five modules of linear models, and one kind of outcome they cannot handle. Did
+the employee leave, yes or no? Did the patient recover? Did the student pass?
+The outcome is not a quantity; it is one of two things.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(ggplot2)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% summarise(n = n(), leavers = sum(left_company), rate = mean(left_company))`} />
+
+`left_company` is stored as 0 and 1, so its mean is the proportion who left. That
+small trick — the mean of a 0/1 column is a proportion — is worth remembering,
+because it is how every descriptive in this module is computed.
+
+<CodeBlock id="c-rates" code={`d %>%
+  mutate(third = ntile(wellbeing, 3)) %>%
+  group_by(third) %>%
+  summarise(rate = mean(left_company), n = n())`} />
+
+Read the direction before fitting anything: the leaving rate falls as wellbeing
+rises. Whatever the model says next has to agree with these three numbers.
+
+<Predict
+  id="p-lm"
+  question="What happens if you fit lm(left_company ~ wellbeing) - a straight line through zeros and ones?"
+  choices={[
+    { text: 'R refuses, because the outcome is not continuous', response: 'R runs it without complaint. The output looks like any other regression table.' },
+    { text: 'It runs, and the fitted values are predicted probabilities that can fall below 0 or above 1', correct: true, response: 'Exactly - and the next block counts how many of them do.' },
+    { text: 'It runs and gives the same answer as logistic regression', response: 'The two agree on the direction and disagree about almost everything else, most visibly at the extremes.' },
+    { text: 'All the fitted values come out as 0 or 1', response: 'A straight line takes every value in between. That is the problem.' },
+  ]}
+/>
+
+## What goes wrong
+
+<CodeBlock id="c-lpm" code={`lpm <- lm(left_company ~ wellbeing, data = d)
+
+fitted_values <- fitted(lpm)
+
+c(
+  smallest = min(fitted_values),
+  largest = max(fitted_values),
+  impossible = sum(fitted_values < 0 | fitted_values > 1)
+)`} />
+
+<CodeBlock id="c-lpm-plot" code={`d %>%
+  ggplot(aes(x = wellbeing, y = left_company)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = lm, se = FALSE) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed") +
+  labs(x = "Wellbeing", y = "Left the company (0/1)", title = "A straight line through a yes/no outcome") +
+  theme_classic()`} />
+
+The line leaves the strip between the dashed lines. Every prediction outside it
+is a probability that cannot exist, and it happens exactly where the data are
+most informative — at the two extremes of wellbeing.
+
+There is a second problem, less visible and just as fatal. A linear model assumes
+the residuals have the same spread everywhere. With a 0/1 outcome the residual
+can only take two values at any given prediction, and their spread depends
+entirely on the predicted probability: near .5 there is a lot of room to be
+wrong, near 0 or 1 there is almost none. The standard errors are wrong before you
+start.
+
+<Exercise id="m14-1-a" />
+
+## The shape we want
+
+A model for a probability should produce a curve that approaches 0 and 1 without
+ever reaching them, and that is steepest in the middle where the outcome is
+genuinely uncertain. That curve is the **logistic** function, and the next lesson
+fits it.
+
+<CodeBlock id="c-curve" code={`d %>%
+  ggplot(aes(x = wellbeing, y = left_company)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = "glm", method.args = list(family = binomial), se = FALSE) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed") +
+  labs(x = "Wellbeing", y = "Left the company (0/1)", title = "A logistic curve through the same data") +
+  theme_classic()`} />
+
+> **Put both on one plot.** Add a second `geom_smooth(method = lm, se = FALSE,
+> linetype = "dashed")` layer to the block above and run it again. The two agree
+> across the middle and part company at the ends, which is the whole story of this
+> lesson in one figure.
+
+<Quiz
+  id="q-lpm"
+  question="Which is the strongest reason not to fit a linear model to a 0/1 outcome?"
+  choices={[
+    { text: 'The coefficients are hard to interpret', response: 'They are unusually easy to interpret - a change in probability per unit. That is not the problem.' },
+    { text: 'It can predict probabilities below 0 or above 1, and its residual spread necessarily changes with the prediction, so the standard errors are wrong', correct: true, response: 'Correct on both counts, and the second reason is the one people forget.' },
+    { text: 'R cannot fit it', response: 'R fits it happily. Nothing in the output warns you.' },
+    { text: 'The outcome is a factor', response: 'Here it is stored as 0/1 numbers. Even so, the model is the wrong shape.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-1"
+  question="A colleague fits lm(left_company ~ wellbeing) and reports b = -0.011, SE = 0.002, t(478) = -5.42, p < .001, concluding that each extra point of wellbeing reduces the probability of leaving by 1.1 percentage points. What should you say?"
+  choices={[
+    { text: 'The conclusion is fine; a linear probability model is a standard approach.', response: 'It is used in some fields, but not without the caveats - and none of them appears here.' },
+    { text: 'The direction is right and the model is the wrong shape: it predicts probabilities outside 0 to 1 at the extremes of wellbeing, and its standard errors assume a constant residual spread that a 0/1 outcome cannot have. Refit with glm(..., family = binomial).', correct: true, response: 'Correct: the finding survives, the model and its inference do not.' },
+    { text: 'The effect is too small to be worth reporting.', response: 'Just over a percentage point per point of wellbeing, across a scale tens of points wide, is a substantial effect. Size is not the issue.' },
+    { text: 'They should report the odds ratio instead, exp(-0.011) = 0.989.', response: 'Exponentiating a linear-model slope produces a number with no interpretation. The odds ratio has to come from a logistic model.' },
+  ]}
+/>

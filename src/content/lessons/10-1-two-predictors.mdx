@@ -1,0 +1,108 @@
+Module 9 ended with a model that accounted for about a fifth of the variance in
+wellbeing. That is a fifth explained and four fifths not, and some of those four
+fifths are sitting in the dataset in plain sight.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% summarise(
+  n = n(),
+  mean_autonomy = mean(autonomy), sd_autonomy = sd(autonomy),
+  mean_workload = mean(workload), sd_workload = sd(workload),
+  mean_tenure = mean(tenure_years), sd_tenure = sd(tenure_years),
+  mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing)
+)`} />
+
+## Adding a predictor
+
+One character changes: a plus sign.
+
+<CodeBlock id="c-fit-two" code={`model1 <- lm(wellbeing ~ autonomy, data = d)
+model2 <- lm(wellbeing ~ autonomy + workload, data = d)
+
+model2 %>% tidy()`} />
+
+The table now has three rows. Each slope answers the same question it did
+before — how much does predicted wellbeing change per unit of this predictor —
+with one clause added: **among employees who have the same value on the other
+predictor**.
+
+<Predict
+  id="p-move"
+  question="Compare the autonomy coefficient in model2 with the one in model1. What will have happened to it?"
+  choices={[
+    { text: 'Exactly the same number: adding a predictor cannot change another one', response: 'It can, and it almost always does. It stays the same only when the two predictors are perfectly uncorrelated.' },
+    { text: 'A bit different, because autonomy and workload are not independent of each other', correct: true, response: 'Right. The size of the shift depends on how strongly the two predictors go together in this sample.' },
+    { text: 'Reduced to zero, because workload is the real cause', response: 'A coefficient can shrink substantially, but here both predictors carry their own information.' },
+  ]}
+/>
+
+<CodeBlock id="c-compare" code={`bind_rows(
+  model1 %>% tidy() %>% mutate(model = "autonomy only"),
+  model2 %>% tidy() %>% mutate(model = "autonomy + workload")
+) %>%
+  filter(term == "autonomy") %>%
+  select(model, term, estimate, std.error)`} />
+
+## Why coefficients move
+
+Fitting `wellbeing ~ autonomy` alone asks: how does wellbeing differ between
+employees who differ in autonomy? Those employees also differ in workload,
+tenure and everything else, so the answer quietly includes whatever those
+differences contribute.
+
+Adding workload to the model asks a narrower question: among employees with the
+**same** workload, how does wellbeing differ with autonomy? The coefficient moves
+by exactly as much as the answers to those two questions differ.
+
+<CodeBlock id="c-predcor" code={`d %>% summarise(
+  r_autonomy_workload = cor(autonomy, workload),
+  r_autonomy_tenure = cor(autonomy, tenure_years),
+  r_workload_tenure = cor(workload, tenure_years)
+)`} />
+
+Predictors that barely correlate with each other barely move each other's
+coefficients. Predictors that correlate strongly — above about .8, say — start to
+compete for the same variance, their standard errors inflate, and the individual
+*b*s become unstable even while the model as a whole fits well. That is
+**multicollinearity**, and the first sign of it is a coefficient that flips sign
+when you add a variable.
+
+<Exercise id="m10-1-a" />
+
+## A third predictor
+
+<CodeBlock id="c-three" code={`model3 <- lm(wellbeing ~ autonomy + workload + tenure_years, data = d)
+
+model3 %>% tidy()
+model3 %>% glance() %>% select(r.squared, adj.r.squared, statistic, df, df.residual, p.value)`} />
+
+*R*² can only rise when you add a predictor, even a useless one — it is the share
+of variance the fitted model accounts for, and an extra column always lets the
+fit wriggle a little closer. **Adjusted *R*²** subtracts a penalty for each
+predictor, so it can fall. When the two are far apart you have paid for
+predictors that bought you nothing.
+
+<Quiz
+  id="q-adding"
+  question="You add a predictor that is pure noise, unrelated to everything. What happens?"
+  choices={[
+    { text: 'R-squared falls slightly and adjusted R-squared falls more', response: 'R-squared cannot fall when a predictor is added. It rises, if only by a rounding error.' },
+    { text: 'R-squared rises slightly; adjusted R-squared falls', correct: true, response: 'Correct, and that gap is exactly what adjusted R-squared exists to show you.' },
+    { text: 'Both stay exactly the same', response: 'Only if the noise variable were perfectly uncorrelated with the residuals in this sample, which never quite happens.' },
+    { text: 'The model becomes invalid', response: 'It stays a valid model. It is just a slightly worse one, and adjusted R-squared is how it tells you so.' },
+  ]}
+/>
+
+<Interpret
+  id="i-10-1"
+  question="In a model with autonomy alone the autonomy slope is b = 2.24; with workload added it is b = 2.31. A colleague writes: 'Adding workload proved that autonomy has a causal effect of 2.31 on wellbeing.' Which reading is right?"
+  choices={[
+    { text: 'The colleague is right: controlling for workload removes the confounding.', response: 'Adjusting for one measured variable removes that variable, not confounding in general. Everything unmeasured is still in there.' },
+    { text: 'With workload in the model, b = 2.31 is the predicted difference in wellbeing per point of autonomy among employees with the same workload. It is an adjusted association, not a causal effect, because workload is the only confounder that has been accounted for.', correct: true, response: 'Correct. "Holding constant" is arithmetic about this model and these variables, not a substitute for an experiment.' },
+    { text: 'The coefficient barely changed, so autonomy and workload measure the same thing.', response: 'A coefficient that barely moves means the two predictors are close to independent - the opposite of measuring the same thing.' },
+    { text: 'The change from 2.24 to 2.31 means workload suppresses the effect of autonomy, which should be reported as the main finding.', response: 'A shift that small is not a finding on its own. Report both coefficients and let the reader see the shift.' },
+  ]}
+/>

@@ -1,0 +1,116 @@
+`glm` stands for generalised linear model, and the generalisation is one idea: put
+the linear part on a scale where a straight line makes sense, then transform back.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>%
+  group_by(left_company) %>%
+  summarise(n = n(), mean_wellbeing = mean(wellbeing), mean_tenure = mean(tenure_years))`} />
+
+Descriptives for a binary outcome mean comparing the two groups on the
+predictors. Leavers should have lower wellbeing and shorter tenure than stayers;
+if the model later says otherwise, one of the two is wrong.
+
+## Probability, odds, log odds
+
+Three ways of saying the same thing, each fixing a problem with the last.
+
+- A **probability** *p* runs from 0 to 1. A straight line will not stay inside it.
+- The **odds** are *p* / (1 − *p*): how many times more likely the event is than
+  its absence. They run from 0 to infinity — better at the top, still floored at
+  zero.
+- The **log odds**, log(*p* / (1 − *p*)), run from minus infinity to plus
+  infinity. A straight line can live there safely.
+
+<CodeBlock id="c-scales" code={`probabilities <- c(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)
+
+data.frame(
+  probability = probabilities,
+  odds = probabilities / (1 - probabilities),
+  log_odds = log(probabilities / (1 - probabilities))
+)`} />
+
+Look at the symmetry in the last column: *p* = .25 and *p* = .75 give log odds of
+equal size and opposite sign, and *p* = .5 gives exactly 0. Zero log odds means
+even chances, which is why zero is the null value on this scale.
+
+<Predict
+  id="p-logodds"
+  question="A model gives a log-odds coefficient of -0.06 for wellbeing. What does the minus sign mean?"
+  choices={[
+    { text: 'Wellbeing is negatively skewed', response: 'The coefficient says nothing about the distribution of the predictor.' },
+    { text: 'Higher wellbeing goes with lower odds of leaving', correct: true, response: 'Right. On the log-odds scale, negative means downward, exactly as a negative slope does in a linear model.' },
+    { text: 'The probability of leaving is negative', response: 'Probabilities cannot be negative. The log odds can, and that is the point of the scale.' },
+    { text: 'The model failed to converge', response: 'A negative coefficient is perfectly ordinary. Convergence failures announce themselves as warnings.' },
+  ]}
+/>
+
+## Fitting it
+
+<CodeBlock id="c-fit" code={`m_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+
+m_left %>% tidy()`} />
+
+The formula is the same as always. `family = binomial` is the whole difference,
+and leaving it out is the single most common mistake in this module: `glm()`
+without a family fits an ordinary linear model, prints a perfectly plausible
+table, and answers a different question.
+
+<CodeBlock id="c-no-family" code={`no_family <- glm(left_company ~ wellbeing + tenure_years, data = d)
+
+family(no_family)$family
+family(m_left)$family
+
+c(with_binomial = coef(m_left)[["wellbeing"]], without = coef(no_family)[["wellbeing"]])`} />
+
+Two coefficients, two scales, no warning. Check `family()` when a logistic
+coefficient looks suspiciously small.
+
+<Exercise id="m14-2-a" />
+
+## Reading the table
+
+`tidy()` on a `glm` gives the same four columns as on an `lm`, with two changes
+of name and meaning:
+
+- **`estimate`** is the change in **log odds** per unit of the predictor.
+- **`statistic`** is a *z* value, not a *t* — the sampling distribution here is
+  normal rather than *t*, so there are no residual degrees of freedom to report.
+
+<CodeBlock id="c-glance" code={`m_left %>% glance()`} />
+
+There is no *R*². `glance()` gives the null and residual deviance and the AIC
+instead. Deviance is the logistic analogue of a residual sum of squares: lower is
+better, and the drop from null to residual is what the model bought.
+
+<CodeBlock id="c-lrtest" code={`anova(m_left, test = "LRT") %>% tidy()`} />
+
+That likelihood-ratio test is the closest thing to the model *F* of Module 10: it
+asks whether the predictors together explain more than chance.
+
+<Exercise id="m14-2-b" />
+
+<Quiz
+  id="q-family"
+  question="What does family = binomial actually change?"
+  choices={[
+    { text: 'It tells R the predictors are categorical', response: 'The family describes the outcome, not the predictors. Predictors can be anything.' },
+    { text: 'It says the outcome is a yes/no event and models its log odds as a linear function of the predictors', correct: true, response: 'Correct: a distribution for the outcome and a link function for the scale, which is what "generalised" means.' },
+    { text: 'It makes the p values more conservative', response: 'It changes the model entirely, not the strictness of a test.' },
+    { text: 'It standardises the coefficients', response: 'Nothing is standardised. The coefficients are in log odds per original unit of each predictor.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-2"
+  question="Your model gives, for wellbeing, b = -0.062, SE = 0.013, z = -4.77, p < .001, and for tenure b = -0.108, SE = 0.031, z = -3.48, p < .001. Which reading is correct?"
+  choices={[
+    { text: 'Each additional point of wellbeing reduces the probability of leaving by 0.062.', response: 'The coefficient is in log odds, not in probability. How much the probability moves depends on where on the curve you start.' },
+    { text: 'Holding tenure constant, each additional point of wellbeing was associated with a decrease of 0.062 in the log odds of leaving, b = -0.062, SE = 0.013, z = -4.77, p < .001.', correct: true, response: 'Correct: the scale is named, the adjustment is named, and the statistics are reported in full.' },
+    { text: 'Wellbeing and tenure both had large effects, since both p values are below .001.', response: 'p measures surprise under the null, not size. With 480 employees a modest effect reaches p < .001 easily.' },
+    { text: 'Employees with higher wellbeing are 6.2 % less likely to leave.', response: 'That converts a log odds into a percentage as though they were the same scale. Exponentiate first, and even then an odds ratio is not a percentage change in risk.' },
+  ]}
+/>
