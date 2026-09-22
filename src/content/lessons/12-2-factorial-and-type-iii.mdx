@@ -1,0 +1,109 @@
+A supervisor who asks for "a two-way ANOVA" is asking for an *F* test of each
+factor and of the interaction. You already have the model; what is missing is the
+table — and one argument without which the table is quietly wrong.
+
+> **This lesson installs `car`.** The status pill shows the download; it is
+> cached afterwards.
+
+<CodeBlock id="c-load" code={`library(broom)
+library(car)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+d$change <- d$engagement_t2 - d$engagement_t1
+
+model <- lm(change ~ training * mentoring, data = d)
+model %>% tidy()`} />
+
+## Sums of squares have types
+
+In a perfectly balanced design with no missing data, every way of carving up the
+variance agrees. Real designs are rarely perfectly balanced, and then the order
+in which you credit the terms matters.
+
+- **Type I** (`anova()`) is sequential: each term gets the variance left after the
+  ones written before it. Reorder the formula and the answer changes.
+- **Type II** tests each main effect ignoring the interaction. Defensible when
+  the interaction is negligible, awkward when it is not.
+- **Type III** tests each term with every other term, interaction included,
+  already in the model. This is what psychology journals mean by a factorial
+  ANOVA table, and it is what `car::Anova(model, type = "III")` gives.
+
+## The argument you must not forget
+
+Type III main-effect tests depend on how the factors are coded. R's default is
+**treatment** coding, where each factor is measured from its own first level —
+and under that coding the type III row labelled `training` tests training **at
+the reference level of mentoring**, not on average. It is a simple effect wearing
+a main effect's name.
+
+Sum-to-zero coding centres each factor on the average of its levels, and only
+then does the row mean what its label says.
+
+<CodeBlock id="c-wrong-right" code={`wrong <- lm(change ~ training * mentoring, data = d)
+
+right <- lm(change ~ training * mentoring, data = d,
+            contrasts = list(training = contr.sum, mentoring = contr.sum))
+
+Anova(wrong, type = "III")
+Anova(right, type = "III")`} />
+
+Compare the two tables row by row. The `training` and `mentoring` rows differ.
+The `training:mentoring` row is identical — the interaction's type III test does
+not depend on the coding, which is precisely why forgetting the contrasts is so
+easy to miss: the term you were most interested in looks fine.
+
+<Predict
+  id="p-contrasts"
+  question="Which rows of a type III table change when you switch from treatment to sum-to-zero contrasts?"
+  choices={[
+    { text: 'All of them, including the interaction', response: 'The interaction row is invariant. Run the two tables above and compare.' },
+    { text: 'The main-effect rows, but not the interaction', correct: true, response: 'Right, and that is the trap: the row you care about most looks the same either way, so nothing signals the mistake.' },
+    { text: 'None: contrasts only rename coefficients', response: 'They rename coefficients in a model with no interaction. With an interaction present they change what a type III main-effect test is asking.' },
+    { text: 'Only the intercept', response: 'The intercept does change, but so do both main-effect rows.' },
+  ]}
+/>
+
+Note also that the model's fit is untouched: the fitted values, residuals, *R*²
+and the interaction coefficient are identical under both codings. Contrasts
+change the questions, not the fit.
+
+<CodeBlock id="c-same-fit" code={`c(
+  r2_wrong = summary(wrong)$r.squared,
+  r2_right = summary(right)$r.squared,
+  max_difference_in_fitted = max(abs(fitted(wrong) - fitted(right)))
+)`} />
+
+## Cell means first
+
+<Exercise id="m12-2-a" />
+
+## The table
+
+<Exercise id="m12-2-b" />
+
+An APA factorial ANOVA reports each effect as *F*(df_effect, df_error) with its
+*p*, alongside the cell means and SDs, and then interprets the interaction
+first — because when the interaction is real, the main effects are averages over
+conditions that behave differently.
+
+<Quiz
+  id="q-type3"
+  question="Your colleague runs Anova(model, type = 'III') on a model fitted with R's default contrasts and reports the main effect of training. What have they reported?"
+  choices={[
+    { text: 'The main effect of training, correctly', response: 'Only if the interaction were absent from the model. With it present and treatment coding in force, that row is something else.' },
+    { text: 'The effect of training among employees at the reference level of mentoring - a simple effect, not an average', correct: true, response: 'Correct, and the fix is one argument: contrasts = list(training = contr.sum, mentoring = contr.sum).' },
+    { text: 'A type I sum of squares', response: 'Type I is what anova() with a lower-case a produces. This is genuinely type III - of a quantity nobody wanted.' },
+    { text: 'Nothing at all: the function would have errored', response: 'It runs perfectly happily and prints a plausible table. That is the problem.' },
+  ]}
+/>
+
+<Interpret
+  id="i-12-2"
+  question="Your type III table with sum-to-zero contrasts gives training F(1, 476) = 26.14, p < .001; mentoring F(1, 476) = 9.02, p = .003; training x mentoring F(1, 476) = 15.28, p < .001. Which write-up is correct?"
+  choices={[
+    { text: 'A 2 x 2 factorial analysis of the change in engagement found a significant interaction between training and mentoring, F(1, 476) = 15.28, p < .001, qualifying significant main effects of training, F(1, 476) = 26.14, p < .001, and mentoring, F(1, 476) = 9.02, p = .003. Simple effects are reported below.', correct: true, response: 'Correct: the interaction leads, the main effects are explicitly described as qualified by it, and the reader is told where to find the simple effects.' },
+    { text: 'There were significant main effects of training, F(1, 476) = 26.14, p < .001, and mentoring, F(1, 476) = 9.02, p = .003. The interaction was also significant.', response: 'Reporting main effects first and the interaction as an afterthought invites exactly the reading the interaction rules out - and it gives no statistics for the interaction.' },
+    { text: 'Training improved engagement more than mentoring did, F(1, 476) = 26.14, p < .001.', response: 'Two F values cannot be compared to rank effects, and with an interaction present neither main effect describes any actual group.' },
+    { text: 'The interaction was significant, F(1, 476) = 15.28, p < .001, so the main effects are meaningless and are not reported.', response: 'They are qualified, not meaningless, and a factorial table reports every row. Suppressing them makes the analysis unreproducible.' },
+  ]}
+/>

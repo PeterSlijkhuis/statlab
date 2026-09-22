@@ -1,0 +1,138 @@
+Log odds are the right scale for fitting and the wrong scale for writing. Nobody
+has an intuition for −0.062 log odds. Exponentiate, and you get a number people
+can argue about.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>%
+  group_by(left_company) %>%
+  summarise(n = n(), mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing))
+
+m_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+m_left %>% tidy()`} />
+
+## The odds ratio
+
+<CodeBlock id="c-or" code={`exp(coef(m_left))`} />
+
+An odds ratio **multiplies**. An OR of 0.94 for wellbeing means that each extra
+point of wellbeing multiplies the odds of leaving by 0.94 — a 6 % reduction in
+the odds, applied again for every further point. Ten points multiply the odds by
+0.94 to the power of ten.
+
+The null value is **1**, not 0. Exponentiating moved it along with everything
+else, which is why a confidence interval for an odds ratio is read against 1.
+
+<CodeBlock id="c-table" code={`or_table <- exp(cbind(OR = coef(m_left), confint(m_left)))
+
+round(or_table, 3)`} />
+
+`confint()` builds the interval on the log-odds scale and `exp()` transforms the
+whole thing, estimate and bounds together. Doing it the other way round — an
+interval around the exponentiated estimate — gives a symmetric interval on a
+scale where the quantity is not symmetric, and it is wrong.
+
+The message `Waiting for profiling to be done...` is R computing
+profile-likelihood bounds rather than the quicker Wald approximation. It is a
+message, not a warning, and the intervals are the better ones.
+
+<Predict
+  id="p-or"
+  question="The odds ratio for tenure is 0.90, with a 95 % interval from 0.85 to 0.95. Is the effect of tenure significant at the .05 level?"
+  choices={[
+    { text: 'Yes, because the interval does not contain 1', correct: true, response: 'Right. On the odds-ratio scale, 1 means no effect - the value 0 has been transformed away.' },
+    { text: 'No, because the interval contains values below 1', response: 'Every value in the interval is below 1, which is what a protective effect looks like.' },
+    { text: 'Yes, because the interval does not contain 0', response: 'True but irrelevant: an odds ratio can never be 0, so that test would call everything significant.' },
+    { text: 'Impossible to tell without the p value', response: 'A 95 % interval and a test at .05 carry the same information. The interval also tells you the plausible sizes.' },
+  ]}
+/>
+
+<Exercise id="m14-3-a" />
+
+## Odds ratios are not risk ratios
+
+This is the misreading that reaches print most often. An odds ratio of 2 does
+**not** mean the event is twice as likely.
+
+<CodeBlock id="c-or-vs-rr" code={`p1 <- 0.10
+p2 <- 0.20
+
+c(
+  risk_ratio = p2 / p1,
+  odds_ratio = (p2 / (1 - p2)) / (p1 / (1 - p1))
+)
+
+q1 <- 0.40
+q2 <- 0.60
+
+c(
+  risk_ratio = q2 / q1,
+  odds_ratio = (q2 / (1 - q2)) / (q1 / (1 - q1))
+)`} />
+
+When the outcome is rare the two are close. When it is common they diverge
+sharply, and the odds ratio always looks like the bigger effect. Say "the odds of
+leaving", not "the chance of leaving", and the sentence stays true.
+
+## Back to probabilities
+
+For readers who want a probability, give them one at a stated value of the
+predictors.
+
+<CodeBlock id="c-predict" code={`profiles <- data.frame(
+  wellbeing = c(50, 60, 70),
+  tenure_years = rep(mean(d$tenure_years), 3)
+)
+
+profiles %>%
+  mutate(predicted_probability = predict(m_left, newdata = profiles, type = "response"))`} />
+
+`type = "response"` returns probabilities; without it you get log odds. Notice
+that the three gaps are not equal even though the wellbeing values are evenly
+spaced — the curve is steepest in the middle, so the same change in the predictor
+buys a different change in probability depending on where you start. That is
+exactly the non-linearity the model was chosen for, and the reason a single
+"effect on the probability" does not exist.
+
+## Reporting it
+
+> A logistic regression predicting whether an employee left the company from
+> wellbeing and tenure was a significant improvement on the null model,
+> χ²(2) = 38.11, *p* < .001. Lower wellbeing was associated with higher odds of
+> leaving, *OR* = 0.94, 95 % CI [0.92, 0.97], *z* = −4.77, *p* < .001, as was
+> shorter tenure, *OR* = 0.90, 95 % CI [0.85, 0.95], *z* = −3.48, *p* < .001.
+
+<CodeBlock id="c-lrt" code={`anova(m_left, test = "LRT") %>% tidy()
+
+m_left %>% glance() %>% select(null.deviance, df.null, deviance, df.residual, AIC)`} />
+
+What that report contains, and why each part is there: the model test against the
+null, so the reader knows the predictors do something; the odds ratio, so they
+know the direction and size; the confidence interval, so they know the precision;
+*z* and *p*, because a journal will ask. Report *OR* and its interval together —
+an odds ratio with no interval is an estimate with no error bar.
+
+<Quiz
+  id="q-or-rr"
+  question="A study of a common outcome (about 40 % of people) reports OR = 2.0. A newspaper writes 'twice as likely'. What is wrong?"
+  choices={[
+    { text: 'Nothing; an odds ratio of 2 means twice as likely', response: 'That is true only when the outcome is rare. At 40 % the two diverge substantially.' },
+    { text: 'An odds ratio compares odds, not probabilities. At a 40 % baseline an OR of 2.0 corresponds to a probability rising to about 57 %, a risk ratio near 1.4', correct: true, response: 'Correct, and that gap between 2.0 and 1.4 is the whole reason the distinction matters.' },
+    { text: 'The odds ratio should have been reported as a percentage', response: 'An OR is a ratio and is reported as one. The problem is the translation, not the format.' },
+    { text: 'Odds ratios cannot exceed 1', response: 'They run from 0 to infinity. Above 1 means the event becomes more likely.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-3"
+  question="Your final model gives, for wellbeing, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001, with a likelihood-ratio test of the model against the null of chi-square(2) = 38.11, p < .001, on 480 employees of whom 97 left. Which write-up is correct APA 7?"
+  choices={[
+    { text: 'A logistic regression predicting whether an employee left the company (97 of 480) from wellbeing and tenure improved significantly on the null model, chi-square(2) = 38.11, p < .001. Each additional point of wellbeing was associated with lower odds of leaving, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001.', correct: true, response: 'Correct: the base rate, the model test, the odds ratio with its interval, and "odds" rather than "chance".' },
+    { text: 'Employees with higher wellbeing were 6 % less likely to leave, OR = 0.94, 95 % CI [0.92, 0.97], p < .001.', response: 'It reads the odds ratio as a risk ratio. With 20 % leaving, a 6 % reduction in the odds is not a 6 % reduction in the probability.' },
+    { text: 'Wellbeing protected employees from leaving, OR = 0.94, p < .001.', response: 'Two problems: "protected" is causal in an observational study, and the confidence interval is missing.' },
+    { text: 'Wellbeing significantly predicted leaving, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001; since the interval excludes 0, the effect is reliable.', response: 'Everything is right except the last clause. An odds ratio is tested against 1, and an interval excluding 0 would be true of every odds ratio ever computed.' },
+  ]}
+/>

@@ -1,0 +1,95 @@
+The overall *F* said that wellbeing differs somewhere among the four departments.
+It did not say where, and the coefficient table only compares each department
+with Engineering. Marketing against Sales is nowhere in the output.
+
+> **This lesson installs `emmeans`.** The first code block may wait a few seconds
+> while it downloads; the status pill at the top of the page shows what is
+> happening. It is cached afterwards.
+
+<CodeBlock id="c-load" code={`library(broom)
+library(emmeans)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+model_dept <- lm(wellbeing ~ department, data = d)
+model_dept %>% glance() %>% select(statistic, df, df.residual, p.value)`} />
+
+## Estimated marginal means
+
+`emmeans()` asks the model for its predicted mean at each level of a factor.
+
+<CodeBlock id="c-emm" code={`emm <- emmeans(model_dept, ~ department)
+emm`} />
+
+With department as the only predictor these match the raw group means exactly.
+They stop matching as soon as the model contains anything else — then they are
+the predicted means with the other predictors held at their average, which is
+what makes `emmeans` worth learning rather than just averaging by hand.
+
+<Predict
+  id="p-multiple"
+  question="Four departments give six pairwise comparisons. If you tested each at the .05 level with no adjustment, what is the chance of at least one false positive when no department really differs?"
+  choices={[
+    { text: 'Still 5 %, because each test is at 5 %', response: 'Each test is, but you are running six of them. The chance that at least one misfires is much higher.' },
+    { text: 'About 26 %', correct: true, response: 'Right: 1 - .95 to the power of 6 is about .26. One comparison in four studies would look real and be noise.' },
+    { text: 'About 30 %, which is six times 5 %', response: 'Close to the right ballpark but by the wrong arithmetic - probabilities of independent events do not add.' },
+    { text: '100 %, because you tested everything', response: 'Testing more raises the risk, it does not guarantee a false positive.' },
+  ]}
+/>
+
+## All six comparisons, adjusted
+
+<CodeBlock id="c-pairwise" code={`comparisons <- emmeans(model_dept, pairwise ~ department, adjust = "tukey")
+
+comparisons$contrasts`} />
+
+Each row is one comparison: the difference between two estimated means, its
+standard error, a *t* ratio, and a *p* value adjusted so that the chance of **any**
+false positive across all six stays near .05. Tukey's method is designed for
+exactly this situation — every pair, after a linear model — and is less
+conservative than Bonferroni for the same guarantee.
+
+<CodeBlock id="c-compare-adjust" code={`library(dplyr)
+
+bind_rows(
+  as.data.frame(emmeans(model_dept, pairwise ~ department, adjust = "none")$contrasts) %>%
+    mutate(adjustment = "none"),
+  as.data.frame(comparisons$contrasts) %>% mutate(adjustment = "tukey")
+) %>%
+  select(adjustment, contrast, estimate, p.value) %>%
+  arrange(contrast, adjustment)`} />
+
+Every adjusted *p* is larger than its unadjusted twin, and the estimates never
+move. Adjustment changes what counts as surprising, not what was measured.
+
+<Exercise id="m11-3-a" />
+
+## Confidence intervals, which report better than p values
+
+<CodeBlock id="c-ci" code={`confint(comparisons$contrasts)`} />
+
+A difference of 3.2 points with an interval from 0.4 to 6.0 and a difference of
+3.2 points with an interval from 2.9 to 3.5 have the same *p*-value story and
+completely different scientific ones. Report the interval.
+
+<Quiz
+  id="q-tukey"
+  question="A reviewer asks why you used Tukey rather than simply reporting all six unadjusted tests."
+  choices={[
+    { text: 'Because Tukey gives smaller p values, so more results are significant', response: 'The opposite: adjusted p values are always larger. Adjustment costs power and buys control of the error rate.' },
+    { text: 'Because six tests at .05 each give roughly a one-in-four chance of at least one false positive, and Tukey holds that risk near .05 across the whole family', correct: true, response: 'Correct, and that is exactly how to phrase it to a reviewer.' },
+    { text: 'Because the data are not normally distributed', response: 'Tukey adjusts for multiplicity. It has nothing to do with the shape of the data.' },
+    { text: 'Because the overall F was significant, which requires a post-hoc test', response: 'A significant F does not require anything. It tells you a difference exists; you then decide which comparisons your question needs.' },
+  ]}
+/>
+
+<Interpret
+  id="i-11-3"
+  question="Your Tukey table shows Engineering - Support = 4.12, SE = 1.15, t(476) = 3.58, adjusted p = .002, and Marketing - Sales = 1.03, SE = 1.21, t(476) = 0.85, adjusted p = .830. Which write-up is correct APA 7?"
+  choices={[
+    { text: 'Tukey-adjusted pairwise comparisons showed that wellbeing was higher in Engineering than in Support, M difference = 4.12, SE = 1.15, t(476) = 3.58, p = .002, whereas Marketing and Sales did not differ reliably, M difference = 1.03, SE = 1.21, t(476) = 0.85, p = .830.', correct: true, response: 'Correct: the adjustment is named, both comparisons are reported with their statistics, and the null result is described as "did not differ reliably" rather than as equality.' },
+    { text: 'Engineering scored significantly higher than Support (p = .002) and Marketing and Sales were equal (p = .830).', response: 'Two problems: bare p values with no differences or SEs, and "equal", which a non-significant comparison never establishes.' },
+    { text: 'All pairwise comparisons were conducted; Engineering differed from Support, t(476) = 3.58, p < .05.', response: 'The adjustment is not named, the difference and its SE are missing, and an adjusted p of .002 should be reported exactly.' },
+    { text: 'Engineering had the highest wellbeing of the four departments, t(476) = 3.58, p = .002.', response: 'One comparison against one department does not make Engineering highest overall - and the medians in lesson 11-2 tell a different story about "highest" anyway.' },
+  ]}
+/>
