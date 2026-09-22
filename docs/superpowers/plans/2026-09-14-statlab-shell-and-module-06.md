@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
 
+**Status (2026-09-22):** Tasks 1-18 implemented on branch `feat/shell-and-module-06`, open as PR #1 and not yet merged. 129 of the 131 steps below are ticked. The two that are not are Task 18's last two: enabling GitHub Pages in the repository settings, and verifying the deployed site. Both wait on the repository being made public and PR #1 being merged, which spec section 2.3 describes as a deliberate, separate step. Everything else is verified by the test suite, the content validator, and the Playwright smoke test that CI runs against the built site.
+
+**What comes next:** the thirteen modules, five simulations and workplace dataset this plan left out are planned in `2026-09-22-statlab-remaining-work-overview.md` and the four documents it indexes.
+
 ## Global Constraints
 
 Every task's requirements implicitly include this section. Values are copied verbatim from the spec.
@@ -115,7 +119,7 @@ statlab/
 - Consumes: nothing
 - Produces: a Vite project whose `base` is `/statlab/`; `vitest` runs; `App` renders.
 
-- [ ] **Step 1: Create `package.json`**
+- [x] **Step 1: Create `package.json`**
 
 ```json
 {
@@ -162,7 +166,7 @@ statlab/
 
 Note: `webr` is pinned exactly, with no `^`. This is deliberate (see Global Constraints).
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/config.test.ts`. This guards the single most common GitHub Pages deployment failure.
 
@@ -182,12 +186,12 @@ describe('vite config', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npm install && npx vitest run src/config.test.ts`
 Expected: FAIL — cannot resolve `../vite.config`.
 
-- [ ] **Step 4: Create `vite.config.ts`**
+- [x] **Step 4: Create `vite.config.ts`**
 
 ```ts
 import { defineConfig } from 'vite';
@@ -205,7 +209,7 @@ export default defineConfig({
 
 The MDX plugin must run before the React plugin, and React's `include` must cover `.mdx`, or MDX files compile without JSX transform.
 
-- [ ] **Step 5: Create `tsconfig.json`**
+- [x] **Step 5: Create `tsconfig.json`**
 
 ```json
 {
@@ -227,7 +231,7 @@ The MDX plugin must run before the React plugin, and React's `include` must cove
 }
 ```
 
-- [ ] **Step 6: Create `vitest.config.ts` and the test setup file**
+- [x] **Step 6: Create `vitest.config.ts` and the test setup file**
 
 `src/test-setup.ts`:
 
@@ -262,7 +266,7 @@ Integration tests that boot real R use a `// @vitest-environment node` docblock
 and set their own timeout. The setup file is harmless there: `cleanup()` is a
 no-op when nothing has been rendered.
 
-- [ ] **Step 7: Create `index.html`, `src/main.tsx`, `src/App.tsx`**
+- [x] **Step 7: Create `index.html`, `src/main.tsx`, `src/App.tsx`**
 
 `index.html`:
 
@@ -308,17 +312,17 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 8: Run tests to verify they pass**
+- [x] **Step 8: Run tests to verify they pass**
 
 Run: `npx vitest run src/config.test.ts`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 9: Verify the dev server renders**
+- [x] **Step 9: Verify the dev server renders**
 
 Run: `npm run dev`
 Expected: `http://localhost:5173/statlab/` shows the heading. Note the path includes `/statlab/`; the bare root will 404, which is correct.
 
-- [ ] **Step 10: Verify React component testing actually works under jsdom**
+- [x] **Step 10: Verify React component testing actually works under jsdom**
 
 Everything from Task 8 onward depends on this. Create a throwaway
 `src/__probe.test.tsx` that renders a small stateful component twice — in two
@@ -327,7 +331,7 @@ separate `test()` blocks — clicks a button in one, and asserts on
 failure means cleanup is not wired up. Delete the probe once it passes; do not
 commit it.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add package.json package-lock.json tsconfig.json vite.config.ts vitest.config.ts index.html src/
@@ -358,7 +362,7 @@ git commit -m "feat: scaffold Vite + React + MDX project with pinned base path"
 > first boot is still pending, it captures a null `instance`, leaves that boot
 > running, and lets it overwrite the singleton when it resolves.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/r/webrClient.test.ts`. These are pure unit tests — they never boot R.
 
@@ -382,12 +386,12 @@ describe('webR version pin', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/webrClient.test.ts`
 Expected: FAIL — cannot resolve `./webrClient`.
 
-- [ ] **Step 3: Implement `src/r/webrClient.ts`**
+- [x] **Step 3: Implement `src/r/webrClient.ts`**
 
 ```ts
 import { WebR } from 'webr';
@@ -445,12 +449,12 @@ export function getWebR(): Promise<WebR> {
 
 There is deliberately no in-place restart function here; see the note above.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/webrClient.test.ts`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/r/webrClient.ts src/r/webrClient.test.ts
@@ -475,7 +479,7 @@ git commit -m "feat: webR client with pinned v0.6.0 and restart support"
 
 This takes the `WebR` instance as a parameter rather than importing the singleton, so Node tests and the CI validator can pass their own instance. That is the seam that makes the whole R layer testable.
 
-- [ ] **Step 0: Patch webR so it can boot under Node on Windows**
+- [x] **Step 0: Patch webR so it can boot under Node on Windows**
 
 Without this, every R integration test in the project fails before running a
 line of R. webR 0.6.0's worker does `await import(path.resolve(e))`; on Windows
@@ -525,7 +529,7 @@ rm -rf node_modules && npm ci
 `npm ci` must print that patch-package applied the webr patch. If it does not,
 the patch is not wired up and every later R task will fail on a fresh clone.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/r/evaluate.itest.ts`. This boots real R under Node.
 
@@ -595,12 +599,12 @@ describe('evaluateR', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/evaluate.itest.ts`
 Expected: FAIL — cannot resolve `./evaluate`. First run downloads the R WebAssembly binaries, so allow several minutes.
 
-- [ ] **Step 3: Implement `src/r/evaluate.ts`**
+- [x] **Step 3: Implement `src/r/evaluate.ts`**
 
 ```ts
 import type { RCharacter, RObject, WebR } from 'webr';
@@ -692,12 +696,12 @@ page reload clears it. Avoiding it would mean binding the condition into an R
 environment for a shelter-scoped `conditionMessage()` call — more machinery in the
 hottest path of the app for no measurable gain.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/evaluate.itest.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/r/evaluate.ts src/r/evaluate.itest.ts
@@ -723,7 +727,7 @@ git commit -m "feat: R evaluation wrapper with captured output and safe graphics
 > on `WebR`/`Shelter`. `destroyEnv` therefore takes the instance, like every other
 > function in the R layer.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/r/environments.itest.ts`.
 
@@ -793,12 +797,12 @@ describe('lesson environments', () => {
 
 The fourth test is the one that matters pedagogically: it proves a previous exercise attempt cannot leave an object behind that makes a later wrong answer pass.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/environments.itest.ts`
 Expected: FAIL — cannot resolve `./environments`.
 
-- [ ] **Step 3: Implement `src/r/environments.ts`**
+- [x] **Step 3: Implement `src/r/environments.ts`**
 
 ```ts
 import type { RObject, WebR } from 'webr';
@@ -830,12 +834,12 @@ export async function destroyEnv(webR: WebR, env: RObject): Promise<void> {
 
 `new.env(parent = environment())` evaluated *with* `env: parent` yields an environment whose parent is `parent` — webR sets `environment()` to the evaluation environment.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/environments.itest.ts`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/r/environments.ts src/r/environments.itest.ts
@@ -860,7 +864,7 @@ git commit -m "feat: per-lesson R environments with fresh child scopes for exerc
 
 `mountDatasets` takes a loader function rather than calling `fetch` itself, so Node tests and the validator can read from disk while the browser fetches over HTTP.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/r/session.itest.ts`.
 
@@ -933,12 +937,12 @@ describe('course packages', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/session.itest.ts`
 Expected: FAIL — cannot resolve `./session`. (It will also fail on the missing CSV until Task 15; that is expected and this test is re-run there.)
 
-- [ ] **Step 3: Implement `src/r/session.ts`**
+- [x] **Step 3: Implement `src/r/session.ts`**
 
 ```ts
 import type { WebR } from 'webr';
@@ -981,14 +985,14 @@ export async function mountDatasets(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/session.itest.ts`
 Expected: PASS, 4 tests. Nothing here depends on the real dataset, so the suite must be
 fully green before this task is reviewed. The package-install test downloads binaries and
 may take a minute or more on a first run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/r/session.ts src/r/session.itest.ts
@@ -1020,7 +1024,7 @@ git commit -m "feat: course package installation and dataset mounting into webR 
   - `importProgress(json: string): boolean`
   - `subscribeProgress(fn: () => void): () => void`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/state/progress.test.ts`.
 
@@ -1132,12 +1136,12 @@ describe('progress store', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/state/progress.test.ts`
 Expected: FAIL — cannot resolve `./progress`.
 
-- [ ] **Step 3: Implement `src/state/progress.ts`**
+- [x] **Step 3: Implement `src/state/progress.ts`**
 
 ```ts
 export const STORAGE_KEY = 'statlab.progress.v1';
@@ -1277,12 +1281,12 @@ export function importProgress(json: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/state/progress.test.ts`
 Expected: PASS, 13 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/state/progress.ts src/state/progress.test.ts
@@ -1306,7 +1310,7 @@ git commit -m "feat: versioned local progress store with export and import"
 
 This is the highest-stakes module in the project: it decides whether a student is told they are right. The four outcomes are distinct by design (see Global Constraints).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/r/checker.itest.ts`.
 
@@ -1409,12 +1413,12 @@ describe('runExercise', () => {
 
 The last test is the reason exercise runs use a fresh child environment. Without it, a student who solved the exercise then deleted their code would still pass.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/r/checker.itest.ts`
 Expected: FAIL — cannot resolve `./checker`.
 
-- [ ] **Step 3: Implement `src/r/checker.ts`**
+- [x] **Step 3: Implement `src/r/checker.ts`**
 
 ```ts
 import type { RCharacter, RObject, WebR } from 'webr';
@@ -1519,12 +1523,12 @@ export async function runExercise(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/checker.itest.ts`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/r/checker.ts src/r/checker.itest.ts
@@ -1543,7 +1547,7 @@ git commit -m "feat: exercise checker with four distinct outcomes and value-base
 - Consumes: `RunResult` (Task 3)
 - Produces: `<OutputPane result={RunResult | null} running={boolean} />`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/components/OutputPane.test.tsx`.
 
@@ -1602,12 +1606,12 @@ describe('OutputPane', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/OutputPane.test.tsx`
 Expected: FAIL — cannot resolve `./OutputPane`.
 
-- [ ] **Step 3: Implement `src/components/OutputPane.tsx`**
+- [x] **Step 3: Implement `src/components/OutputPane.tsx`**
 
 ```tsx
 import { useEffect, useRef } from 'react';
@@ -1678,7 +1682,7 @@ export default function OutputPane({ result, running }: Props) {
 }
 ```
 
-- [ ] **Step 4: Create `src/components/OutputPane.css`**
+- [x] **Step 4: Create `src/components/OutputPane.css`**
 
 ```css
 .output-pane { background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 0.75rem; min-height: 3rem; }
@@ -1699,12 +1703,12 @@ export default function OutputPane({ result, running }: Props) {
 .output-plot:not([hidden]) { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/OutputPane.test.tsx`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/OutputPane.tsx src/components/OutputPane.css src/components/OutputPane.test.tsx
@@ -1729,7 +1733,7 @@ git commit -m "feat: output pane rendering console streams and plots"
 
 `REditor` is a thin CodeMirror configuration shim with no logic of its own; `CodeBlock` holds the behaviour and is tested with `REditor` mocked. This keeps CodeMirror's DOM requirements out of jsdom.
 
-- [ ] **Step 1: Create `src/content/LessonContext.tsx`**
+- [x] **Step 1: Create `src/content/LessonContext.tsx`**
 
 ```tsx
 import { createContext, useContext, type ReactNode } from 'react';
@@ -1758,7 +1762,7 @@ export function useLesson(): LessonContextValue {
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/components/CodeBlock.test.tsx`.
 
@@ -1842,12 +1846,12 @@ describe('CodeBlock', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/CodeBlock.test.tsx`
 Expected: FAIL — cannot resolve `./CodeBlock`.
 
-- [ ] **Step 4: Implement `src/components/REditor.tsx`**
+- [x] **Step 4: Implement `src/components/REditor.tsx`**
 
 ```tsx
 import { useEffect, useRef } from 'react';
@@ -1905,7 +1909,7 @@ export default function REditor({ value, onChange }: Props) {
 }
 ```
 
-- [ ] **Step 5: Implement `src/components/CodeBlock.tsx`**
+- [x] **Step 5: Implement `src/components/CodeBlock.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -1967,7 +1971,7 @@ export default function CodeBlock({ id, code }: Props) {
 }
 ```
 
-- [ ] **Step 6: Create `src/components/CodeBlock.css`**
+- [x] **Step 6: Create `src/components/CodeBlock.css`**
 
 ```css
 .code-block { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.75rem; margin: 1.25rem 0; background: #f8fafc; }
@@ -1980,12 +1984,12 @@ export default function CodeBlock({ id, code }: Props) {
 .code-block-hint { color: #64748b; font-size: 0.85rem; }
 ```
 
-- [ ] **Step 7: Run the test to verify it passes**
+- [x] **Step 7: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/CodeBlock.test.tsx`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/content/LessonContext.tsx src/components/REditor.tsx src/components/CodeBlock.tsx src/components/CodeBlock.css src/components/CodeBlock.test.tsx
@@ -2009,7 +2013,7 @@ git commit -m "feat: runnable code block with persisted drafts and lesson contex
 
 All three share one primitive: ask, require a commitment, then reveal a per-choice response. They differ only in framing and in whether the result is recorded. `Predict` never records a score — its purpose is commitment, not assessment, and grading it would discourage honest guessing.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/components/ChoiceBlock.test.tsx`.
 
@@ -2075,12 +2079,12 @@ describe('ChoiceBlock', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/ChoiceBlock.test.tsx`
 Expected: FAIL — cannot resolve `./ChoiceBlock`.
 
-- [ ] **Step 3: Implement `src/components/ChoiceBlock.tsx`**
+- [x] **Step 3: Implement `src/components/ChoiceBlock.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -2151,7 +2155,7 @@ export default function ChoiceBlock({ id, kind, question, choices }: Props) {
 }
 ```
 
-- [ ] **Step 4: Implement the three wrappers**
+- [x] **Step 4: Implement the three wrappers**
 
 `src/components/Predict.tsx`:
 
@@ -2183,7 +2187,7 @@ export default function Interpret(props: { id: string; question: string; choices
 }
 ```
 
-- [ ] **Step 5: Create `src/components/ChoiceBlock.css`**
+- [x] **Step 5: Create `src/components/ChoiceBlock.css`**
 
 ```css
 .choice-block { border-left: 4px solid #6366f1; background: #eef2ff; padding: 0.9rem 1.1rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
@@ -2200,12 +2204,12 @@ export default function Interpret(props: { id: string; question: string; choices
 .choice-response.wrong { border-color: #dc2626; }
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/ChoiceBlock.test.tsx`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/components/ChoiceBlock.tsx src/components/ChoiceBlock.css src/components/Predict.tsx src/components/Quiz.tsx src/components/Interpret.tsx src/components/ChoiceBlock.test.tsx
@@ -2228,7 +2232,7 @@ git commit -m "feat: predict, quiz, and interpret blocks on a shared choice prim
 > the type check and the build to pass — Step 1 creates it here, empty. Task 14
 > tests it and Task 15 fills it with Module 6's exercises.
 
-- [ ] **Step 1: Create the empty exercise registry**
+- [x] **Step 1: Create the empty exercise registry**
 
 `src/content/exercises/module-06.ts`:
 
@@ -2253,7 +2257,7 @@ export function getExercise(id: string): ExerciseDef | undefined {
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/components/Exercise.test.tsx`.
 
@@ -2372,12 +2376,12 @@ describe('Exercise', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
 Expected: FAIL — cannot resolve `./Exercise`.
 
-- [ ] **Step 4: Implement `src/components/Exercise.tsx`**
+- [x] **Step 4: Implement `src/components/Exercise.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -2491,7 +2495,7 @@ export default function Exercise({ id }: { id: string }) {
 }
 ```
 
-- [ ] **Step 5: Create `src/components/Exercise.css`**
+- [x] **Step 5: Create `src/components/Exercise.css`**
 
 ```css
 .exercise { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
@@ -2512,18 +2516,18 @@ export default function Exercise({ id }: { id: string }) {
 .exercise-missing { color: #b91c1c; font-weight: 600; }
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
 Expected: PASS, 7 tests. The test mocks `getExercise`; the real registry exists
 but is empty until Task 15.
 
-- [ ] **Step 7: Verify the project still type-checks**
+- [x] **Step 7: Verify the project still type-checks**
 
 Run: `npx tsc --noEmit`
 Expected: clean. This is what the registry created in Step 1 is for.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/content/exercises/ src/components/Exercise.tsx src/components/Exercise.css src/components/Exercise.test.tsx
@@ -2552,7 +2556,7 @@ git commit -m "feat: exercise component with staged hints and distinct check out
 
 The statistics run in TypeScript, not R. A slider must respond within a frame, and a round trip to the R worker cannot promise that.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/sims/rng.test.ts`.
 
@@ -2638,12 +2642,12 @@ describe('histogram', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run src/sims/rng.test.ts`
 Expected: FAIL — cannot resolve `./rng`.
 
-- [ ] **Step 3: Implement `src/sims/rng.ts`**
+- [x] **Step 3: Implement `src/sims/rng.ts`**
 
 ```ts
 /** mulberry32: small, fast, and seedable so simulations are reproducible. */
@@ -2753,12 +2757,12 @@ export function histogram(values: number[], bins: number): { edges: number[]; co
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/sims/rng.test.ts`
 Expected: PASS, 9 tests.
 
-- [ ] **Step 5: Implement `src/sims/CLT.tsx`**
+- [x] **Step 5: Implement `src/sims/CLT.tsx`**
 
 ```tsx
 import { useMemo, useState } from 'react';
@@ -2895,7 +2899,7 @@ export default function CLT() {
 }
 ```
 
-- [ ] **Step 6: Create `src/sims/CLT.css`**
+- [x] **Step 6: Create `src/sims/CLT.css`**
 
 ```css
 .clt { border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
@@ -2913,7 +2917,7 @@ export default function CLT() {
 .clt-readout td { padding: 0.2rem 1.25rem 0.2rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }
 ```
 
-- [ ] **Step 7: Implement the registry and `Simulation` component**
+- [x] **Step 7: Implement the registry and `Simulation` component**
 
 `src/sims/registry.ts`:
 
@@ -2942,7 +2946,7 @@ export default function Simulation({ name }: { name: string }) {
 }
 ```
 
-- [ ] **Step 8: Write and run the Simulation test**
+- [x] **Step 8: Write and run the Simulation test**
 
 Create `src/components/Simulation.test.tsx`.
 
@@ -2967,7 +2971,7 @@ describe('Simulation', () => {
 Run: `npx vitest run src/components/Simulation.test.tsx`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/sims/ src/components/Simulation.tsx src/components/Simulation.test.tsx
@@ -2989,7 +2993,7 @@ git commit -m "feat: seeded sampling engine and the central limit theorem simula
 
 > **Note for the implementer:** create `src/content/manifest.ts` in this task with the Module 6 entries below. Task 14 builds the loader that consumes it; Task 15 fills in the lesson files themselves.
 
-- [ ] **Step 1: Create `src/content/manifest.ts`**
+- [x] **Step 1: Create `src/content/manifest.ts`**
 
 ```ts
 export type LessonMeta = {
@@ -3032,7 +3036,7 @@ export function lessonNeighbours(id: string): { previous?: LessonMeta; next?: Le
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/components/Sidebar.test.tsx`.
 
@@ -3077,12 +3081,12 @@ describe('Sidebar', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/Sidebar.test.tsx`
 Expected: FAIL — cannot resolve `./Sidebar`.
 
-- [ ] **Step 4: Implement `src/components/Sidebar.tsx`**
+- [x] **Step 4: Implement `src/components/Sidebar.tsx`**
 
 ```tsx
 import { NavLink } from 'react-router-dom';
@@ -3151,7 +3155,7 @@ export default function Sidebar() {
 }
 ```
 
-- [ ] **Step 5: Implement `src/components/RStatus.tsx`**
+- [x] **Step 5: Implement `src/components/RStatus.tsx`**
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -3212,7 +3216,7 @@ which would preserve scroll position and output and re-run the lesson's earlier
 code blocks, is deferred; when it is built it needs its own guard against a
 restart racing an in-flight first boot.
 
-- [ ] **Step 6: Implement `src/pages/Home.tsx`**
+- [x] **Step 6: Implement `src/pages/Home.tsx`**
 
 ```tsx
 import { Link } from 'react-router-dom';
@@ -3304,7 +3308,7 @@ export default function Home() {
 }
 ```
 
-- [ ] **Step 7: Rewrite `src/App.tsx`**
+- [x] **Step 7: Rewrite `src/App.tsx`**
 
 ```tsx
 import { Route, Routes } from 'react-router-dom';
@@ -3334,7 +3338,7 @@ own route alongside the page they create, so `tsc --noEmit` passes after every
 task and no placeholder files are ever needed. Until then the sidebar's lesson
 links fall through to the catch-all and land on the home page.
 
-- [ ] **Step 8: Create `src/App.css`**
+- [x] **Step 8: Create `src/App.css`**
 
 ```css
 :root { color-scheme: light; }
@@ -3369,12 +3373,12 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 ```
 
-- [ ] **Step 9: Run the test to verify it passes**
+- [x] **Step 9: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/Sidebar.test.tsx`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/App.tsx src/App.css src/components/Sidebar.tsx src/components/RStatus.tsx src/pages/ src/content/manifest.ts src/components/Sidebar.test.tsx
@@ -3398,7 +3402,7 @@ git commit -m "feat: application shell with navigation, R status, and progress e
   - `prepareSession(webR: WebR, load): Promise<void>` — memoised package install + dataset mount
   - `<Lesson />` routed at `/lesson/:lessonId`
 
-- [ ] **Step 1: Add `prepareSession` to `src/r/session.ts`**
+- [x] **Step 1: Add `prepareSession` to `src/r/session.ts`**
 
 ```ts
 let prepared: Promise<void> | null = null;
@@ -3429,7 +3433,7 @@ export async function fetchDataset(name: string): Promise<Uint8Array> {
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/content/exercises/index.test.ts`. This enforces the exercise contract at the data level, so a malformed definition fails fast rather than during a lesson.
 
@@ -3475,12 +3479,12 @@ describe('exercise definitions', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/content/exercises/index.test.ts`
 Expected: FAIL — cannot resolve `./index`.
 
-- [ ] **Step 4: Confirm the exercise registry from Task 11 is unchanged**
+- [x] **Step 4: Confirm the exercise registry from Task 11 is unchanged**
 
 `src/content/exercises/index.ts` and `src/content/exercises/module-06.ts` were
 created in Task 11 so `Exercise.tsx` could compile. Read them and confirm
@@ -3488,7 +3492,7 @@ created in Task 11 so `Exercise.tsx` could compile. Read them and confirm
 still an empty array. Do not rewrite either file — the test written in Step 2
 is what this task adds. Task 15 fills `module06`.
 
-- [ ] **Step 5: Implement `src/content/mdxComponents.tsx`**
+- [x] **Step 5: Implement `src/content/mdxComponents.tsx`**
 
 ```tsx
 import CodeBlock from '../components/CodeBlock';
@@ -3508,7 +3512,7 @@ export const mdxComponents = {
 };
 ```
 
-- [ ] **Step 6: Implement `src/pages/Lesson.tsx`**
+- [x] **Step 6: Implement `src/pages/Lesson.tsx`**
 
 ```tsx
 import { useEffect, useState, type ComponentType } from 'react';
@@ -3612,7 +3616,7 @@ export default function Lesson() {
 }
 ```
 
-- [ ] **Step 7: Register the lesson route in `src/App.tsx`**
+- [x] **Step 7: Register the lesson route in `src/App.tsx`**
 
 Add the import and the route alongside the existing home route:
 
@@ -3624,7 +3628,7 @@ import Lesson from './pages/Lesson';
 <Route path="/lesson/:lessonId" element={<Lesson />} />
 ```
 
-- [ ] **Step 8: Add lesson styles to `src/App.css`**
+- [x] **Step 8: Add lesson styles to `src/App.css`**
 
 ```css
 .lesson h1 { margin-top: 0; }
@@ -3636,14 +3640,14 @@ import Lesson from './pages/Lesson';
 .lesson-nav .lesson-next { margin-left: auto; }
 ```
 
-- [ ] **Step 9: Run the test to verify it passes**
+- [x] **Step 9: Run the test to verify it passes**
 
 Run: `npx vitest run src/content/exercises/index.test.ts`
 Expected: PASS, 5 tests. Every test here holds vacuously on an empty exercise
 list; Task 15 adds the test that requires the list to be non-empty, once there
 are exercises to require.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/exercises/ src/content/mdxComponents.tsx src/pages/Lesson.tsx src/r/session.ts src/App.tsx src/App.css
@@ -3667,7 +3671,7 @@ git commit -m "feat: MDX lesson pipeline with per-lesson R session setup"
 > `/statlab/data/<name>.csv` and Node reads them from `public/data/<name>.csv`.
 > This single location serves the browser, the tests, and the CI validator.
 
-- [ ] **Step 1: Create `scripts/generate-datasets.mjs`**
+- [x] **Step 1: Create `scripts/generate-datasets.mjs`**
 
 ```js
 // Generates the course population dataset deterministically.
@@ -3712,12 +3716,12 @@ await writeFile(new URL('../public/data/wellbeing-population.csv', import.meta.u
 console.log(`Wrote ${N} rows.`);
 ```
 
-- [ ] **Step 2: Generate and inspect the dataset**
+- [x] **Step 2: Generate and inspect the dataset**
 
 Run: `node scripts/generate-datasets.mjs`
 Expected: `Wrote 5000 rows.` Confirm the header and a few rows look sane before committing.
 
-- [ ] **Step 3: Fill in `src/content/exercises/module-06.ts`**
+- [x] **Step 3: Fill in `src/content/exercises/module-06.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -3840,7 +3844,7 @@ export const module06: ExerciseDef[] = [
 
 Each wrong answer is a real student mistake — using the whole population, using the wrong n, confusing the SD with the SE, dividing by n instead of √n — and each fails through the check rather than by erroring.
 
-- [ ] **Step 4: Write `src/content/lessons/06-1-samples-vary.mdx`**
+- [x] **Step 4: Write `src/content/lessons/06-1-samples-vary.mdx`**
 
 ````mdx
 Every study you will ever read is based on a sample. The researchers did not
@@ -3922,7 +3926,7 @@ unavoidable consequence of looking at some people instead of all of them.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/06-2-sampling-distribution.mdx`**
+- [x] **Step 5: Write `src/content/lessons/06-2-sampling-distribution.mdx`**
 
 ````mdx
 In the last lesson you saw one sample mean, then another, then another. Each was
@@ -4005,7 +4009,7 @@ to see that the shrinkage happens whatever shape you start from.
 />
 ````
 
-- [ ] **Step 6: Write `src/content/lessons/06-3-central-limit-theorem.mdx`**
+- [x] **Step 6: Write `src/content/lessons/06-3-central-limit-theorem.mdx`**
 
 ````mdx
 Look again at the stress scores. That population is severely skewed — most
@@ -4086,7 +4090,7 @@ claim that, from a single sample, without ever repeating the study.
 />
 ````
 
-- [ ] **Step 7: Add the tests that require real content to exist**
+- [x] **Step 7: Add the tests that require real content to exist**
 
 Append to `src/content/exercises/index.test.ts`:
 
@@ -4119,17 +4123,17 @@ describe('the real course dataset', () => {
 });
 ```
 
-- [ ] **Step 8: Run the content tests to verify they pass**
+- [x] **Step 8: Run the content tests to verify they pass**
 
 Run: `npx vitest run src/content/exercises/index.test.ts src/r/session.itest.ts`
 Expected: PASS. The new dataset test reports 5000 rows.
 
-- [ ] **Step 9: Verify the lessons render in the browser**
+- [x] **Step 9: Verify the lessons render in the browser**
 
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/06-1`.
 Expected: prose renders, R boots, the code blocks run and plot, the CLT simulation responds to the slider.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add scripts/generate-datasets.mjs public/data/ src/content/lessons/ src/content/exercises/module-06.ts
@@ -4149,7 +4153,7 @@ git commit -m "feat: Module 6 lessons, exercises, and the course population data
 - Consumes: `LessonProvider` (Task 9), `CodeBlock` (Task 9), `getWebR`/`prepareSession` (Tasks 2, 14), manifest (Task 13)
 - Produces: `<Playground />` at `/playground`, `<TestChooser />` at `/which-test`
 
-- [ ] **Step 1: Implement `src/pages/Playground.tsx`**
+- [x] **Step 1: Implement `src/pages/Playground.tsx`**
 
 ```tsx
 import { useEffect, useState } from 'react';
@@ -4212,7 +4216,7 @@ summary(population)`}
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/pages/TestChooser.test.tsx`.
 
@@ -4261,12 +4265,12 @@ describe('TestChooser', () => {
 });
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/pages/TestChooser.test.tsx`
 Expected: FAIL — cannot resolve `./TestChooser`.
 
-- [ ] **Step 4: Implement `src/pages/TestChooser.tsx`**
+- [x] **Step 4: Implement `src/pages/TestChooser.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -4439,7 +4443,7 @@ export default function TestChooser() {
 
 As later modules land, set `lessonId` on the answers they teach so each leaf links to its lesson.
 
-- [ ] **Step 5: Add styles to `src/App.css`**
+- [x] **Step 5: Add styles to `src/App.css`**
 
 ```css
 .test-chooser-options { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; max-width: 34rem; }
@@ -4451,7 +4455,7 @@ As later modules land, set `lessonId` on the answers they teach so each leaf lin
 .link-button { border: none; background: none; color: #1d4ed8; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
 ```
 
-- [ ] **Step 6: Register both routes in `src/App.tsx`**
+- [x] **Step 6: Register both routes in `src/App.tsx`**
 
 With these two, every route in the spec exists and the catch-all is only a
 genuine fallback:
@@ -4466,12 +4470,12 @@ import TestChooser from './pages/TestChooser';
 <Route path="/which-test" element={<TestChooser />} />
 ```
 
-- [ ] **Step 7: Run the test suite to verify nothing regressed**
+- [x] **Step 7: Run the test suite to verify nothing regressed**
 
 Run: `npx tsc --noEmit && npx vitest run`
 Expected: type check clean; every suite PASSES, integration suites included.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/pages/Playground.tsx src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx src/App.tsx src/App.css
@@ -4497,7 +4501,7 @@ git commit -m "feat: R playground and the which-test decision tree"
 > the test reporter for free — and it is the same checks against the same data.
 > The `npm run validate` script still exists as the single CI entry point.
 
-- [ ] **Step 1: Write the static content test**
+- [x] **Step 1: Write the static content test**
 
 Create `src/content/content.test.ts`.
 
@@ -4584,12 +4588,12 @@ describe('lesson content', () => {
 });
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `npx vitest run src/content/content.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 3: Write the R validation suite**
+- [x] **Step 3: Write the R validation suite**
 
 Create `src/content/exercises/validate.itest.ts`. This is the check the whole grading system rests on.
 
@@ -4650,7 +4654,7 @@ describe.each(ALL_EXERCISES.map((exercise) => [exercise.id, exercise] as const))
 );
 ```
 
-- [ ] **Step 4: Run it**
+- [x] **Step 4: Run it**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts`
 Expected: PASS. Every solution passes and every wrong answer is rejected with status `fail`.
@@ -4667,14 +4671,14 @@ once there are thirty exercises rather than three:
    exercise definition under a new id and re-run. Both copies must pass
    independently. Revert the duplicate afterwards.
 
-- [ ] **Step 5: Prove the validator actually catches a broken check**
+- [x] **Step 5: Prove the validator actually catches a broken check**
 
 This step verifies the safety net itself. Temporarily edit the `check` of `m6-1-a` to `list(pass = TRUE, message = "ok")` and re-run.
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts`
 Expected: FAIL on both of `m6-1-a`'s wrong answers. **Revert the edit** and confirm the suite passes again. Do not commit the temporary edit.
 
-- [ ] **Step 6: Confirm the `validate` script runs both files**
+- [x] **Step 6: Confirm the `validate` script runs both files**
 
 The script was added in Task 1 and should already read:
 
@@ -4685,7 +4689,7 @@ The script was added in Task 1 and should already read:
 Run: `npm run validate`
 Expected: both suites PASS. This is the exact command CI runs.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/content/content.test.ts src/content/exercises/validate.itest.ts
@@ -4704,7 +4708,7 @@ git commit -m "test: validate lesson content and exercise checks against real R"
 - Consumes: the built site
 - Produces: a green pipeline that deploys to GitHub Pages
 
-- [ ] **Step 1: Create `playwright.config.ts`**
+- [x] **Step 1: Create `playwright.config.ts`**
 
 ```ts
 import { defineConfig } from '@playwright/test';
@@ -4724,7 +4728,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Write the smoke test**
+- [x] **Step 2: Write the smoke test**
 
 Create `e2e/smoke.spec.ts`. This is the only test that exercises the real browser path — base path, worker loading, and webR boot — which no unit test can reach.
 
@@ -4757,12 +4761,12 @@ test('a lesson renders its simulation and responds to the slider', async ({ page
 });
 ```
 
-- [ ] **Step 3: Run the smoke test**
+- [x] **Step 3: Run the smoke test**
 
 Run: `npx playwright install --with-deps chromium && npx playwright test`
 Expected: PASS, 2 tests. The first run is slow because it builds the site and downloads R.
 
-- [ ] **Step 4: Create `.github/workflows/deploy.yml`**
+- [x] **Step 4: Create `.github/workflows/deploy.yml`**
 
 ```yaml
 name: Deploy
@@ -4839,6 +4843,8 @@ separate jobs rather than dropping either.
 
 - [ ] **Step 5: Enable Pages and push**
 
+> **Open (2026-09-22).** The commit and push below are done. Enabling Pages is not, and cannot be until the repository is public.
+
 In the repository settings, set Pages → Build and deployment → Source to **GitHub Actions**. Note that Pages serves from a private repository only on a paid plan; making the repository public is a separate, deliberate step.
 
 ```bash
@@ -4848,6 +4854,8 @@ git push
 ```
 
 - [ ] **Step 6: Verify the deployed site**
+
+> **Open (2026-09-22).** Nothing is deployed yet: the workflow deploys on push to `main`, and PR #1 has not merged, so `main` does not carry the workflow.
 
 Open `https://peterslijkhuis.github.io/statlab/` (once the repository is public and the workflow is green). Confirm a lesson URL such as `/statlab/lesson/06-3` loads directly on refresh — this proves the 404.html fallback works.
 
@@ -4888,4 +4896,8 @@ Run against the spec after completing the plan.
 
 **Remaining scope note**
 
-The five simulations other than `clt` (§6) and Modules 1–5 and 7–12 (§7) are out of scope here by the spec's own §10, and become content work against the interfaces this plan freezes.
+The five simulations other than `clt` (§6) and Modules 1–5 and 7–14 (§7) are out of scope here by the spec's own §10.
+They are planned in `2026-09-22-statlab-remaining-work-overview.md` and the four documents it indexes. Note that they are
+not purely content work: `COURSE_PACKAGES` covers two of the spec's five core packages and there is no on-demand install
+mechanism for the modelling packages, `DATASET_FILES` has one of the two datasets, and `MODULES` has one of the fourteen
+modules. The `content-platform` plan closes those four gaps before any module content is written.
