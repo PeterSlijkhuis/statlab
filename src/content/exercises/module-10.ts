@@ -174,13 +174,12 @@ export const module10: ExerciseDef[] = [
           if (is.null(group_col)) {
             list(pass = FALSE, message = "remote_means has no column holding the two levels No and Yes. Check which variable you grouped by.")
           } else {
-            mean_col <- NULL
-            for (nm in names(means_tbl)) {
-              value <- means_tbl[[nm]]
-              if (is.numeric(value) && length(value) == 2L &&
-                  isTRUE(all.equal(sort(as.vector(value)), sort(as.vector(raw)), tolerance = 1e-6, check.attributes = FALSE))) mean_col <- nm
+            found_means <- FALSE
+            for (value in numeric_columns(means_tbl)) {
+              if (length(value) == 2L &&
+                  isTRUE(all.equal(sort(value), sort(as.vector(raw)), tolerance = 1e-6, check.attributes = FALSE))) found_means <- TRUE
             }
-            if (is.null(mean_col)) {
+            if (!found_means) {
               list(pass = FALSE, message = paste0("No column of remote_means holds the two mean wellbeing scores, which are ", round(raw[["No"]], 1), " for office-based and ", round(raw[["Yes"]], 1), " for remote."))
             } else {
               list(pass = TRUE, message = paste0("b = ", round(exp_b, 2), ": remote employees score ", round(exp_b, 2), " points higher than office-based employees with the same autonomy and workload. The raw gap in the means is ", round(raw_gap, 2), " - the same direction, a different size, because the raw gap does not hold anything constant. When those two disagree in sign, believe the means first and go looking for what changed."))

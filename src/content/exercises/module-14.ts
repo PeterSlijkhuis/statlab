@@ -39,6 +39,12 @@ export const module14: ExerciseDef[] = [
         breaks <- quantile(d$wellbeing, probs = c(0, 1/3, 2/3, 1))
         third <- cut(d$wellbeing, breaks = breaks, include.lowest = TRUE, labels = FALSE)
         exp_rates <- as.vector(tapply(d$left_company, third, mean))
+        # cut() on the quantiles keeps tied wellbeing scores in one third;
+        # ntile() splits them so the thirds come out equal in size. Both are
+        # correct readings of "the lowest third", and on this data the tie at
+        # the boundary makes them differ, so accept either.
+        by_rank <- ceiling(rank(d$wellbeing, ties.method = "first") * 3 / nrow(d))
+        exp_rates_ntile <- as.vector(tapply(d$left_company, by_rank, mean))
         if (!inherits(lpm, "lm")) {
           list(pass = FALSE, message = "lpm should be an ordinary linear model - this exercise is about what goes wrong when you fit one to a 0/1 outcome.")
         } else if (!("wellbeing" %in% names(coef(lpm)))) {
@@ -55,15 +61,20 @@ export const module14: ExerciseDef[] = [
           list(pass = FALSE, message = "rate_by_third should have three rows, one per third of wellbeing.")
         } else {
           found <- FALSE
-          for (nm in names(tbl)) {
-            value <- tbl[[nm]]
-            if (is.numeric(value) && length(value) == 3L &&
-                isTRUE(all.equal(as.vector(value), exp_rates, tolerance = 1e-6, check.attributes = FALSE))) found <- TRUE
+          shown <- exp_rates
+          for (value in numeric_columns(tbl)) {
+            if (length(value) != 3L) next
+            if (isTRUE(all.equal(value, exp_rates, tolerance = 1e-6, check.attributes = FALSE))) {
+              found <- TRUE
+            } else if (isTRUE(all.equal(value, exp_rates_ntile, tolerance = 1e-6, check.attributes = FALSE))) {
+              found <- TRUE
+              shown <- exp_rates_ntile
+            }
           }
           if (!found) {
             list(pass = FALSE, message = paste0("No column of rate_by_third holds the three leaving rates, which are ", paste(round(exp_rates, 3), collapse = ", "), " from the lowest third of wellbeing to the highest. Split on wellbeing, not on left_company."))
           } else {
-            list(pass = TRUE, message = paste0(exp_n, " of the ", nrow(d), " fitted values are impossible probabilities. And the descriptives say the effect is real: ", round(100 * exp_rates[1], 1), " % of the least happy third left, against ", round(100 * exp_rates[3], 1), " % of the happiest. A model that predicts a negative probability for the very employees it should be most confident about is the wrong shape, not the wrong data."))
+            list(pass = TRUE, message = paste0(exp_n, " of the ", nrow(d), " fitted values are impossible probabilities. And the descriptives say the effect is real: ", round(100 * shown[1], 1), " % of the least happy third left, against ", round(100 * shown[3], 1), " % of the happiest. A model that predicts a negative probability for the very employees it should be most confident about is the wrong shape, not the wrong data."))
           }
         }
       }

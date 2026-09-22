@@ -232,10 +232,9 @@ export const module11: ExerciseDef[] = [
           list(pass = FALSE, message = paste0("dept_summary should have one row per department, so ", nlevels(d$department), " rows. Yours has ", if (is.data.frame(tbl)) nrow(tbl) else 0, ". Check which variable you grouped by."))
         } else {
           has_median <- FALSE
-          for (nm in names(tbl)) {
-            value <- tbl[[nm]]
-            if (is.numeric(value) && length(value) == nrow(tbl) &&
-                isTRUE(all.equal(sort(as.vector(value)), sort(as.vector(medians)), tolerance = 1e-6, check.attributes = FALSE))) has_median <- TRUE
+          for (value in numeric_columns(tbl)) {
+            if (length(value) == nrow(tbl) &&
+                isTRUE(all.equal(sort(value), sort(as.vector(medians)), tolerance = 1e-6, check.attributes = FALSE))) has_median <- TRUE
           }
           if (!has_median) {
             list(pass = FALSE, message = "dept_summary has no column of medians. Add median_wellbeing = median(wellbeing) to your summarise() - you cannot answer the second half from means alone.")

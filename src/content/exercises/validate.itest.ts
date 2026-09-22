@@ -7,7 +7,7 @@ import { ALL_LESSONS } from '../manifest';
 import { runExercise } from '../../r/checker';
 import { createLessonEnv, destroyEnv } from '../../r/environments';
 import { evaluateR } from '../../r/evaluate';
-import { installCoursePackages, mountDatasets } from '../../r/session';
+import { ensurePackages, installCoursePackages, mountDatasets } from '../../r/session';
 
 let webR: WebR;
 /** search() before any course package is attached. */
@@ -20,10 +20,15 @@ beforeAll(async () => {
   bootSearch = (await (search as RCharacter).toArray()) as string[];
   await webR.destroy(search);
   await installCoursePackages(webR);
+  // The browser installs a lesson's extra packages when the lesson opens.
+  // Install exactly what the manifest declares and nothing more, so a lesson
+  // that calls library() on a package it never declared still fails here.
+  const declared = [...new Set(ALL_LESSONS.flatMap((lesson) => lesson.packages ?? []))];
+  if (declared.length > 0) await ensurePackages(webR, declared);
   await mountDatasets(webR, async (name) =>
     new Uint8Array(await readFile(new URL(`../../../public/data/${name}`, import.meta.url))),
   );
-}, 600_000);
+}, 1_800_000);
 
 afterAll(async () => {
   await webR.close();
