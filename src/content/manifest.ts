@@ -200,6 +200,9 @@ export const PLANNED_MODULES: ModuleMeta[] = [
         title: 'SD, SE and CI error bars',
         file: '07-3-error-bars',
         exercises: ['m7-3-a'],
+        // Both are core, so this costs no download. Declared because the lesson
+        // attaches them and the overview asks every such lesson to say so.
+        packages: ['dplyr', 'ggplot2'],
       },
     ],
   },
