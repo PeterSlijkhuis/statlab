@@ -12,8 +12,8 @@ Until this revision two live versions of this specification existed: the
 2026-09-14 original on `main` (twelve modules, base R, a "Which test should I
 use?" framing) and the 2026-09-15 amendment on the `feat/shell-and-module-06`
 branch (fourteen modules, tidyverse, a linear-model-centred curriculum). The
-application code was written against the amendment; `main` carried documents
-only.
+application code was written against the amendment, and that branch merged on
+2026-09-22, bringing its copy of the amendment onto `main` unchanged.
 
 **This document supersedes both.** It takes the 2026-09-15 amendment as its
 base, because the course team's own R workshops, the implemented decision tree

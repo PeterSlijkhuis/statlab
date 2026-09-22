@@ -1,0 +1,85 @@
+Look again at the stress scores. That population is severely skewed — most
+students report low stress, and a long tail report a great deal of it. Nothing
+about it is bell-shaped.
+
+<CodeBlock id="skew" code={`library(dplyr)
+library(ggplot2)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+population %>%
+  ggplot(aes(x = stress)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Stress in the population", x = "Stress score", y = "Frequency") +
+  theme_classic()`} />
+
+<Predict
+  id="p-clt"
+  question="If the population is skewed like this, what shape will the sampling distribution of the mean have for n = 40?"
+  choices={[
+    { text: 'Skewed, like the population', response: 'This is the intuition almost everyone has, and it is wrong. Run the next block and see.' },
+    { text: 'Approximately normal', correct: true, response: 'Yes — and this is the single most useful fact in introductory statistics. The next block shows it.' },
+    { text: 'Impossible to say without knowing the population shape', response: 'Remarkably, you can say. That is exactly what the Central Limit Theorem guarantees.' },
+  ]}
+/>
+
+<CodeBlock id="clt" code={`set.seed(7)
+means_40 <- replicate(2000, mean(sample(population$stress, 40)))
+
+tibble(mean_stress = means_40) %>%
+  ggplot(aes(x = mean_stress)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Means of 40 students", x = "Sample mean stress", y = "Frequency") +
+  theme_classic()`} />
+
+## The Central Limit Theorem
+
+> As the sample size grows, the sampling distribution of the mean approaches a
+> normal distribution — **whatever the shape of the population**.
+
+Three things are worth stating precisely, because students routinely mix them up:
+
+1. It is the **sampling distribution** that becomes normal, not the population
+   and not your sample. Your data can stay as skewed as it likes.
+2. It centres on **μ**, the population mean.
+3. Its spread is **σ/√n**, the standard error.
+
+For roughly symmetric populations, n around 15 is plenty. For strongly skewed
+ones like this, n of 40 or so is a common rule of thumb.
+
+Use the simulation to test that claim yourself: choose **Two peaks**, set n to 2,
+and then raise it. The population never becomes normal. The sampling
+distribution does.
+
+<Simulation name="clt" />
+
+<Exercise id="m6-3-a" />
+
+## Why this matters
+
+Everything from here on depends on it. A *t*-test, a confidence interval, a
+regression coefficient's *p*-value — each assumes you know how a sample estimate
+behaves across repeated samples. The Central Limit Theorem is what lets you
+claim that, from a single sample, without ever repeating the study.
+
+<Interpret
+  id="i-6-3"
+  question="A colleague writes: 'Our reaction-time data are heavily skewed, so we cannot use a t-test.' With n = 120 per group, how should you respond?"
+  choices={[
+    { text: 'They are right — skewed data rule out a t-test.', response: 'The t-test assumes the sampling distribution of the mean is approximately normal, not that the raw data are. Those are different claims.' },
+    { text: 'The t-test (or the equivalent linear model) assumes the sampling distribution of the mean is approximately normal. With n = 120 per group, the Central Limit Theorem makes that reasonable despite the skew.', correct: true, response: 'Exactly right, and precisely stated. Skew in the raw data matters most at small n; at 120 per group it is rarely disqualifying.' },
+    { text: 'They should transform the data first, because normality of the raw scores is required.', response: 'A transformation is sometimes useful for other reasons, but normality of raw scores is not what the test requires.' },
+    { text: 'It does not matter, because t-tests make no assumptions.', response: 'They certainly make assumptions — about the sampling distribution, about independence, and about variances. The point is which assumption applies here.' },
+  ]}
+/>
+
+<Quiz
+  id="q-6-3"
+  question="Which statement about the Central Limit Theorem is correct?"
+  choices={[
+    { text: 'It says large samples are normally distributed.', response: 'It says nothing about your sample. A large sample from a skewed population is still skewed.' },
+    { text: 'It says the sampling distribution of the mean becomes approximately normal as n grows.', correct: true, response: 'Correct — the claim is about the distribution of the mean across repeated samples.' },
+    { text: 'It says the population becomes normal with enough data.', response: 'Collecting data does not change the population. The population is whatever it is.' },
+    { text: 'It only applies when the population is already normal.', response: 'The opposite: its power is precisely that it holds regardless of the population shape.' },
+  ]}
+/>

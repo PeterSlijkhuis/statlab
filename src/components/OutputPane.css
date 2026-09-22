@@ -1,0 +1,16 @@
+.output-pane { background: #0f172a; color: #e2e8f0; border-radius: 6px; padding: 0.75rem; min-height: 3rem; }
+.output-status { margin: 0; color: #94a3b8; font-style: italic; }
+.output-console { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; }
+.output-line { display: block; }
+.output-error { color: #fca5a5; }
+.output-warning { color: #fcd34d; }
+.output-message { color: #93c5fd; }
+.output-stderr { color: #fcd34d; }
+/* :not([hidden]) is required, not decorative. An author-stylesheet `display`
+   declaration beats the user-agent `[hidden] { display: none }` rule, so a
+   plain `.output-plot { display: block }` would leave the canvas visible even
+   when hidden — showing an empty white box before any code runs, and leaving
+   the previous plot on screen after a run that produced none. jsdom does not
+   apply the cascade, so no unit test can catch this; the Playwright smoke
+   test asserts the canvas is not visible before a plot exists. */
+.output-plot:not([hidden]) { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
