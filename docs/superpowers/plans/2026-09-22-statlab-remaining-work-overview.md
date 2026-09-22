@@ -61,8 +61,20 @@ one task, and the tasks are independent of each other once the platform is in
 place — a module touches only its own manifest entry, its own exercise file, and
 its own lesson files.
 
-Recommended sequence for one worker: P1 → P2 → P3 → P4 → S1…S5 → M1…M4 →
-M5, M7, M8 → M9…M14.
+Recommended sequence for one worker: P1 → P2 → P3 → P4 → S0…S6 → M1…M4 →
+M5, M7, M8 → M9…M14 → M15.
+
+Three orderings inside that sequence are hard rather than merely convenient:
+
+- **A module that embeds a simulation cannot land before that simulation is
+  registered.** `content.test.ts` fails a `<Simulation name="…" />` whose name is
+  not in the registry, so Module 5 waits on `distribution`, Module 7 on `ci`,
+  Module 8 on `pvalue`, and Module 9 on both `correlation` and `leastsquares`.
+- **M15, the chooser wiring, runs last.** It links each leaf to the lesson that
+  teaches it through `findLesson`, which reads the *derived* `MODULES` — so a
+  leaf pointing at a module whose lesson files do not exist yet links nowhere.
+- **Module 13 waits on P1 step 8**, which is the step that establishes whether
+  `lme4` and `lmerTest` install under webR 0.6.0 at all. See open question 3.
 
 ## Global constraints
 
