@@ -48,25 +48,25 @@ their traditional names.
 **14 modules, 42 lessons, 61 checked exercises and 6 interactive simulations**,
 in three parts.
 
-| | Module | Simulation |
-|---|---|---|
-| **Foundations** | | |
-| 1 | First steps in R | |
-| 2 | Working with data | |
-| 3 | Describing data | |
-| 4 | Visualising data | |
-| **Inference** | | |
-| 5 | The normal distribution | Distribution |
-| 6 | Sampling | Central Limit Theorem |
-| 7 | Estimation | Confidence intervals |
-| 8 | Hypothesis testing | p-values and power |
-| **The linear model** | | |
-| 9 | Correlation and simple regression | Correlation, least squares |
-| 10 | Multiple regression | |
-| 11 | Categorical predictors | |
-| 12 | Interactions and factorial designs | |
-| 13 | Repeated measures and nested data | |
-| 14 | Binary outcomes | |
+| | Module | What it covers | Simulation |
+|---|---|---|---|
+| **Foundations** | | | |
+| 1 | First steps in R | Objects, functions, help, packages and `library()` | |
+| 2 | Working with data | `read.csv`, factors, the pipe, `select`, `filter`, `mutate`, wide and long data | |
+| 3 | Describing data | `group_by` and `summarise`, mean versus median, surprises in a summary | |
+| 4 | Visualising data | ggplot2 as layers, facets, and an APA-ready figure | |
+| **Inference** | | | |
+| 5 | The normal distribution | Density, z-scores and probabilities | Distribution |
+| 6 | Sampling | Sampling error, sampling distributions, the Central Limit Theorem | Central Limit Theorem |
+| 7 | Estimation | Standard errors, confidence intervals, SD, SE and CI error bars | Confidence intervals |
+| 8 | Hypothesis testing | Null distributions, p-values, Type I and II errors, power | p-values and power |
+| **The linear model** | | | |
+| 9 | Correlation and simple regression | `lm(y ~ x)`, reading model output with `tidy()` and `glance()` | Correlation, least squares |
+| 10 | Multiple regression | Several predictors, each slope holding the others constant, reporting R² and F | |
+| 11 | Categorical predictors | The t-test as `lm`, dummy coding, `emmeans` pairwise comparisons | |
+| 12 | Interactions and factorial designs | `a * b`, sum-to-zero contrasts, Type III tests with `car`, interaction plots | |
+| 13 | Repeated measures and nested data | `lmer` with `(1 \| id)`, fixed and random effects, the paired t-test | |
+| 14 | Binary outcomes | `glm(..., family = binomial)`, log odds, odds ratios and reporting | |
 
 Each lesson is written in MDX from a small set of blocks:
 
