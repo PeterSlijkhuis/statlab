@@ -24,7 +24,16 @@ describe('exercise definitions', () => {
   test('no exercise uses a function that hangs on the PostMessage channel', () => {
     const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
     for (const exercise of ALL_EXERCISES) {
-      const sources = [exercise.starterCode, exercise.setupCode ?? '', exercise.solution, exercise.check];
+      const sources = [
+        exercise.starterCode,
+        exercise.setupCode ?? '',
+        exercise.solution,
+        exercise.check,
+        // The validator runs these in real R too, so a blocking call in one of
+        // them hangs CI until the job times out rather than failing it here.
+        ...exercise.wrongAnswers,
+        ...(exercise.alternateSolutions ?? []),
+      ];
       for (const source of sources) {
         expect(forbidden.test(source), `${exercise.id} uses a blocking function`).toBe(false);
       }
