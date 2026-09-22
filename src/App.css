@@ -268,6 +268,10 @@ button { font: inherit; }
 .lesson th, .lesson td { padding: 0.45rem 0.9rem 0.45rem 0; text-align: left; border-bottom: 1px solid var(--line); }
 .lesson th { color: var(--ink); font-size: 0.9rem; }
 .lesson pre { max-width: 100%; overflow-x: auto; }
+/* The inline-code chip above must not reach code inside a block. Without this
+   the exercise solution, a dark <pre>, drew every line as a separate pale
+   chip in indigo text, and long lines broke mid-token. */
+.lesson pre code { background: none; color: inherit; padding: 0; border-radius: 0; font-size: inherit; overflow-wrap: normal; }
 .lesson img, .lesson video { max-width: 100%; height: auto; }
 
 .section-guide { position: sticky; top: 2rem; padding: 1rem 0.5rem 1rem 1rem; border-left: 2px solid var(--line); font-size: 0.86rem; }
