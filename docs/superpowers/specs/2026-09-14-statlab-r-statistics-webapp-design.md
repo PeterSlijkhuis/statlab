@@ -2,11 +2,49 @@
 
 **Date:** 2026-09-14
 **Status:** Approved design, ready for implementation planning
+**Amended:** 2026-09-15 — tidyverse and a linear-model-centred curriculum (§3.5, §4.2, §5.1, §7, §8.1, §10, §11),
+following the course team's R workshops; decisions recorded in §7.1
+**Reconciled:** 2026-09-22 — one authoritative version; see §0
+
+## 0. Reconciliation note
+
+Until this revision two live versions of this specification existed: the
+2026-09-14 original on `main` (twelve modules, base R, a "Which test should I
+use?" framing) and the 2026-09-15 amendment on the `feat/shell-and-module-06`
+branch (fourteen modules, tidyverse, a linear-model-centred curriculum). The
+application code was written against the amendment; `main` carried documents
+only.
+
+**This document supersedes both.** It takes the 2026-09-15 amendment as its
+base, because the course team's own R workshops, the implemented decision tree
+and 82 files of application code all follow it, while the original's curriculum
+has no implementation behind it. On that base it settles four things the two
+versions left inconsistent:
+
+1. **One name for the chooser** (§4.2). The page was titled "Which model should
+   I use?", routed at `/which-test` and implemented as `TestChooser.tsx` —
+   three names for one thing. The course teaches *models*, so *model* wins in
+   the code and the route; the student's word, *test*, is kept on the page and
+   as a redirect.
+2. **The purpose statement matches the curriculum** (§1, §11). Modules 13 and
+   14 teach mixed-effects and logistic regression, which "introductory" alone
+   does not describe.
+3. **The core package set matches what the content actually uses** (§3.5).
+   `readr` was listed but nothing reads data with it; lessons use
+   `read.csv(..., stringsAsFactors = TRUE)`.
+4. **Stale example data** (§3.5). An example referred to a `stress.csv` that
+   does not exist.
+
+§12 records where the code still lags this specification.
 
 ## 1. Purpose
 
-StatLab is a browser-based learning environment that teaches introductory
-statistics and R to university psychology and business students.
+StatLab is a browser-based learning environment that teaches statistics and R
+to university psychology and business students. It assumes no prior statistics
+and no prior programming, and carries a student from the first line of R as far
+as the models a bachelor's thesis actually needs: regression, factorial
+designs, repeated measures and binary outcomes (§7). *Introductory* describes
+where the course starts, not where it stops.
 
 Three commitments shape every decision below:
 
@@ -45,7 +83,7 @@ components are less code than the configuration those dependencies require.
       components/   CodeBlock, Exercise, Quiz, Predict, Interpret, OutputPane
       sims/         Six simulation components and their registry
       state/        Progress store
-      pages/        Home, Lesson, Playground, TestChooser
+      pages/        Home, Lesson, Playground, ModelChooser
     scripts/
       validate-content.mjs    CI content validation under Node
 
@@ -150,11 +188,30 @@ in their setup code.
 - **Boot.** webR initialises on first app load, in the background, with a
   progress indicator. Theory prose, predictions, and quizzes are readable and
   usable before R is ready; only code blocks and exercises wait.
-- **Packages.** `dplyr` and `ggplot2` are installed from the webR binary
-  repository immediately after boot, in the background. Code blocks needing them
-  wait on that promise. The browser caches the downloads.
-- **Datasets.** Course CSVs are fetched and written into webR's virtual file
-  system at boot, so `read.csv("data/stress.csv")` works as in any R session.
+- **Packages.** The course uses tidyverse packages (§7.1). A core set — `dplyr`,
+  `ggplot2`, `tidyr`, `broom` — installs in the background after boot; code
+  blocks needing it wait on that promise. Measured on 2026-09-15 that set plus
+  `readr` came to 41 packages and about 40 MB from the webR binary repository.
+  `readr` has since been dropped, because every lesson loads data with
+  `read.csv(..., stringsAsFactors = TRUE)` and nothing calls `read_csv`; the
+  figure above therefore overstates the current core slightly and is to be
+  re-measured whenever the core set changes. Modelling packages (`emmeans`,
+  `car`, `lme4`, `lmerTest`; about 49 MB beyond the core) install on demand,
+  only when a lesson that declares them opens. The browser caches every
+  download.
+- **The deferred half is deliberate.** A student's first visit pays for webR
+  plus the core set and nothing else; the modelling packages arrive only for
+  the student who reaches Modules 11–14. Adding a package to the core set moves
+  its cost onto every student's first load, so it is a decision to take
+  explicitly rather than by convenience.
+- **No `library(tidyverse)` in lessons.** The `tidyverse` meta-package adds about
+  34 MB of packages the course never uses (googledrive, rvest, rmarkdown, …).
+  Lessons attach the specific packages (`library(dplyr)`, `library(ggplot2)`);
+  Module 1 explains that `library(tidyverse)` attaches the same packages in one
+  line in RStudio, which is what students will see in their own projects.
+- **Datasets.** Course CSVs (§7.2) are fetched and written into webR's virtual
+  file system at boot, so `read.csv("data/wellbeing-population.csv")` works as
+  in any R session.
 - **Boot failure** (unsupported browser, offline, CDN unreachable) shows a clear
   message stating requirements, with a retry control. The rest of the lesson
   remains usable.
@@ -195,12 +252,43 @@ misinterpretations. Free-text grading is out of scope.
 Every inferential lesson follows the same six-step chain, named explicitly so
 students internalise the sequence rather than memorising commands:
 
-**Question → Assumptions → Choice of test → Computation → Interpretation → Report**
+**Question → Assumptions → Choice of model → Computation → Interpretation → Report**
 
-A standalone **"Which test should I use?"** page presents this as a navigable
-decision tree (outcome type, number of groups, independence, distribution) and
-links each leaf to the lesson that teaches it. It is reachable from anywhere and
-is the reference students will actually use during their own thesis work.
+A standalone **"Which model should I use?"** page (route `/which-model`,
+component `ModelChooser.tsx`) presents this as a navigable decision tree and
+links each leaf to the lesson that teaches it. It is reachable from anywhere
+and is the reference students will actually use during their own thesis work.
+The tree asks, in order:
+
+1. **Outcome type** — a number (→ linear model) or a yes/no outcome (→ logistic
+   regression, `glm(..., family = binomial)`).
+2. **Independence** — one observation per person, or repeated / nested
+   observations (→ mixed-effects model, `lmer(... + (1 | id))`).
+3. **Predictors** — one continuous; several; a categorical predictor with two or
+   more groups; two factors that may interact.
+4. **Assumptions** — each leaf states what to check before trusting the result
+   (for linear models: a roughly linear relationship, residuals roughly normal
+   with similar spread, no extreme outliers) and names the rank-based
+   alternative in one line where one exists.
+
+Each leaf shows the model code in the course's style (for example
+`model <- lm(score ~ group, data = d)`, then `model %>% tidy()` and
+`model %>% glance()`), and names the traditional test it is equivalent to with its
+R call (for example the independent-samples t-test,
+`t.test(score ~ group, data = d, var.equal = TRUE)`).
+
+**One name, in three places.** The page title, the route and the component all
+say *model*: "Which model should I use?", `/which-model`, `ModelChooser.tsx`.
+This is the course's own vocabulary (§7.1: regression, t-tests and ANOVA are
+one linear model under different names), and a route or filename that says
+*test* teaches the opposite of the curriculum every time a student or a
+maintainer reads it.
+
+Students, supervisors and journals do say *test*, so that word is kept where it
+helps rather than in the code: `/which-test` redirects permanently to
+`/which-model`, and every leaf names the traditional test it reproduces, with
+its R call. The page is found by the question a student arrives with and
+answers it in the vocabulary the course teaches.
 
 ## 5. Exercise checking
 
@@ -216,6 +304,7 @@ An exercise is defined in a TypeScript file beside the lesson, not inside MDX:
   setupCode?: string,      // runs before student code (seeds, data)
   solution: string,        // a correct answer
   wrongAnswers: string[],  // plausible incorrect answers that MUST fail
+  alternateSolutions?: string[],  // other correct routes that MUST pass
   check: string,           // R snippet returning list(pass=, message=)
   hints: string[],
 }
@@ -225,7 +314,10 @@ Keeping these in TypeScript rather than MDX props means the CI validator simply
 imports them, with no MDX parsing.
 
 The `check` snippet runs in a child of the environment the student's code ran in,
-so it can inspect their objects. It returns `list(pass = <logical>, message = <character>)`.
+so it can inspect their objects. Checks read those objects only through
+`has_answer(name)` and `answer(name)`, which look in the attempt environment and never in the lesson
+environment above it. Lesson code blocks routinely create the very objects an exercise asks for;
+inheriting them would pass an empty submission. The check returns `list(pass = <logical>, message = <character>)`.
 
 ### 5.2 Rules
 
@@ -234,7 +326,11 @@ These exist because auto-graders lose student trust in exactly these ways:
 - **Check values, never code text.** Any correct route to the right answer
   passes. Checks never match on strings of source code.
 - **Compare numerically with tolerance**, via
-  `isTRUE(all.equal(actual, expected, tolerance = 1e-6))`. Never `==` on doubles.
+  `isTRUE(all.equal(actual, expected, tolerance = 1e-6, check.attributes = FALSE))`
+  on values extracted with `as.vector()`, which drops the names and dimensions a
+  correct route can leave behind (`unlist()`, `as.matrix()`). Never `==` on
+  doubles. A looser tolerance is allowed where a legitimate route differs
+  slightly; the check says why in a comment.
 - **A student error is not a wrong answer.** If the student's code throws, show
   the R error message and do not run the check.
 - **A broken check is not a wrong answer.** If the check snippet errors or
@@ -263,24 +359,65 @@ references a name that is not registered.
 
 ## 7. Curriculum
 
-Twelve modules. Datasets are psychology- and business-flavoured throughout:
-stress and exam performance, a personality survey, customer satisfaction, and an
-A/B marketing test.
+Fourteen modules in three parts. Datasets are original and fictional,
+psychology- and business-flavoured (§7.2).
 
 | # | Module | Content | Simulation |
 |---|---|---|---|
-| 1 | First steps in R | Console, variables, vectors, functions, help | |
-| 2 | Working with data | Data frames, measurement levels, loading data | |
-| 3 | Describing data | Central tendency, spread, mean vs median | |
-| 4 | Visualising data | ggplot2: histograms, boxplots, scatter, bar | |
+| | **Foundations** | | |
+| 1 | First steps in R | Scripts and comments, objects, functions, help, packages and `library()` | |
+| 2 | Working with data | `read.csv(..., stringsAsFactors = TRUE)`, factors, the pipe `%>%`, `select`/`filter`/`mutate`, wide vs long with `pivot_longer` | |
+| 3 | Describing data | `group_by` + `summarise` (mean, SD, n), mean vs median, spotting surprises in summaries | |
+| 4 | Visualising data | ggplot2 as layers: histogram, density, boxplot, scatter with `geom_smooth(method = lm)`, `facet_wrap`, `labs` and `theme_classic` for an APA-ready figure | |
+| | **Inference** | | |
 | 5 | The normal distribution | Density, z-scores, probabilities | `distribution` |
 | 6 | Sampling | Sampling error, sampling distributions, CLT | `clt` |
-| 7 | Estimation | Standard error, confidence intervals | `ci` |
+| 7 | Estimation | Standard error, confidence intervals; SD vs SE vs CI error bars computed with `summarise` + `mutate` | `ci` |
 | 8 | Hypothesis testing | NHST logic, p-values, Type I/II errors, power | `pvalue` |
-| 9 | Comparing two means | One-sample, independent, paired *t*-tests; Cohen's *d* | |
-| 10 | Categorical data | Frequencies, chi-square goodness of fit and independence | |
-| 11 | Relationships | Correlation, simple linear regression | `correlation`, `leastsquares` |
-| 12 | Comparing several means | One-way ANOVA, post-hoc tests | |
+| | **The linear model** | | |
+| 9 | Correlation and simple regression | `lm(y ~ x)`, `tidy()` and `glance()`, reading b, SE, t, p and R², correlation as a standardised slope | `correlation`, `leastsquares` |
+| 10 | Multiple regression | Several predictors, each b holding the others constant, APA report of R² and F | |
+| 11 | Categorical predictors | Two groups: `lm` reproduces the independent t-test; three or more: dummy coding and the reference category, overall F, `emmeans` pairwise comparisons with Tukey adjustment | |
+| 12 | Interactions and factorial designs | `a * b` and `a:b`, `car::Anova(model, type = "III")` with sum-to-zero contrasts (`contrasts = list(a = contr.sum, b = contr.sum)` — without them the main-effect tests are wrong), cell means with `group_by(a, b)`, interaction plots | |
+| 13 | Repeated measures and nested data | `pivot_longer`, `lmer` with `(1 | id)` via `lmerTest`, fixed vs random effects, nesting, the paired t-test as the two-time-point special case | |
+| 14 | Binary outcomes | `glm(..., family = binomial)`, log odds, odds ratios with `exp(cbind(OR = coef(m), confint(m)))`, reporting logistic regression | |
+
+### 7.1 Teaching approach
+
+These follow the course team's own R workshops and were confirmed on 2026-09-15:
+
+- **Tidyverse style throughout.** Pipes, `group_by`/`summarise`, ggplot2, and
+  `broom::tidy`/`glance` to read model output. Base R appears only where the
+  tidyverse has no equivalent or the base call is the simpler teaching object:
+  `read.csv(..., stringsAsFactors = TRUE)` for loading data, and `t.test`,
+  `exp` and `confint`.
+- **One model, many names.** Regression, t-tests and ANOVA are taught as the
+  general linear model (`lm`), repeated measures as mixed-effects models
+  (`lmer`), and binary outcomes as the generalised linear model (`glm`). Where a
+  supervisor or journal expects a traditional test, the lesson shows the
+  traditional call and demonstrates that its statistics match the model's. There
+  are no separate lessons for t-tests, ANOVA or chi-square; rank-based tests get a
+  one-line mention in the chooser's assumptions step.
+- **Always look at the descriptives.** Every model lesson pairs model output with
+  `group_by` + `summarise` means and SDs, and at least one exercise per part
+  hinges on a sign or direction that only the descriptives reveal.
+- **Report in APA 7 style.** Every `<Interpret>` block's correct option is an APA
+  sentence with the statistics the model output actually supports.
+- **Original material.** Lessons follow the workshops' approach, code patterns
+  and reporting style, but their text, examples and datasets are written fresh
+  for StatLab rather than copied from the workshop documents.
+
+### 7.2 Datasets
+
+- **`wellbeing-population.csv`** (exists) — a complete population of 5000
+  students, used by Modules 5–8 to make sampling tangible.
+- **A workplace study** (new; Modules 2–4 and 9–14) — fictional employees in
+  several departments and sites, designed so every model in Part 3 has a genuine
+  effect to find: a continuous outcome with continuous predictors; a two-level and
+  a four-level group; two crossed yes/no interventions that interact; a measure
+  taken at two time points in wide format; employees nested in sites; and a
+  binary outcome. Generated by a seeded script like the existing one, with the
+  built-in effect sizes documented in the script.
 
 ## 8. Testing
 
@@ -296,8 +433,15 @@ exercise before deployment:
   does (§5.2), and only the latter counts as a satisfied negative fixture. A
   wrong answer that merely fails to run proves nothing about whether the check
   can tell a correct answer from an incorrect one.
+- Each exercise's **`alternateSolutions` must every one pass** its check.
+  Rejecting a correct route loses student trust as surely as accepting a wrong
+  one, and several grading defects found in review were exactly that.
+- Every lesson's code blocks run in order, in one fresh lesson environment, without an R error.
+- Exercises are also validated in the environment a lesson leaves behind after its code
+  blocks have run: there the solution must pass, every wrong answer must fail, and neither an empty
+  submission nor the unchanged starter code may pass.
 
-The second half is not optional. A check that returns `pass = TRUE`
+The wrong-answers rule is not optional. A check that returns `pass = TRUE`
 unconditionally passes the first half for every exercise in the course and marks
 every student correct forever. Requiring at least one plausible wrong answer per
 exercise to fail closes that hole.
@@ -314,9 +458,11 @@ exercise to fail closes that hole.
 
 - **Vitest** for the checker contract (tolerance comparison, student-error path,
   broken-check path) and the progress store (including unavailable localStorage).
-- **One Playwright smoke test**: the app loads, webR boots, `1 + 1` runs, and the
-  output pane shows `2`. This catches base-path and worker-loading breakage,
-  which unit tests cannot.
+- **Playwright smoke tests**: the app loads, webR boots and installs packages,
+  the playground reads a course dataset and prints it, a lesson opened by direct
+  URL renders and its simulation responds, and a ggplot2 plot actually draws.
+  These catch base-path, worker-loading and plotting breakage, which unit tests
+  cannot.
 
 ## 9. Progress and state
 
@@ -339,8 +485,9 @@ progress simply is not saved.
 
 ## 10. Scope for the first implementation plan
 
-This specification describes all twelve modules. The **implementation plan
-builds the application shell plus Module 6 (Sampling) complete**, including the
+This specification describes all fourteen modules. The **implementation plan
+builds the application shell plus Module 6 (Sampling) complete**, written in the
+tidyverse style of §7.1, including the
 `clt` simulation, its code blocks, exercises with negative fixtures, quiz, and
 `<Interpret>` block.
 
@@ -349,15 +496,41 @@ the course's flagship simulation, so finishing it proves the whole architecture
 end to end.
 
 Once that vertical slice runs and the content schema is frozen, the remaining
-eleven modules are content work against a stable interface — parallelisable,
+thirteen modules are content work against a stable interface — parallelisable,
 low-risk, and requiring no further architectural decisions.
 
 ## 11. Non-goals
 
 - No instructor dashboard, accounts, or server-side data (§9).
 - No free-text answer grading.
-- No intermediate statistics (multiple regression, mediation, factorial or
-  repeated-measures ANOVA). A natural second phase.
+- No statistics beyond the fourteen modules (for example mediation, moderation
+  beyond two-way interactions, structural equation models, or Bayesian
+  methods). The 2026-09-14 version put multiple regression, factorial designs
+  and repeated measures outside this boundary as "a natural second phase";
+  §7 brings them inside it, and they are no longer deferred.
 - No mobile-first design. The layout is responsive and readable on a tablet, but
   writing code needs a keyboard and the design assumes a laptop.
 - No offline/PWA support.
+
+## 12. Where the code still lags this specification
+
+Recorded here so the gaps are tracked rather than rediscovered. None is a
+change of design; each is work the implementation has not reached.
+
+- **The chooser's names.** The implementation is `src/pages/TestChooser.tsx` at
+  `/which-test`, with the title already reading "Which model should I use?".
+  §4.2 requires the component renamed to `ModelChooser.tsx`, the route moved to
+  `/which-model`, and a redirect left behind. This touches `App.tsx`,
+  `Sidebar.tsx`, the component and its test.
+- **The core package set.** `src/r/session.ts` installs `dplyr` and `ggplot2`
+  only. §3.5's core set adds `tidyr` and `broom`; Module 6 needs neither, so
+  the set grows with the module that first needs it.
+- **Leaf-to-lesson links.** §4.2 says each leaf links to the lesson that
+  teaches it. `ModelChooser`'s `Node` type carries an optional `lessonId` and
+  renders the link, but no leaf sets one yet, because only Module 6 exists.
+  Each module fills in its own leaves as it lands.
+- **Content.** §7 describes fourteen modules; `src/content/manifest.ts` holds
+  Module 6. §10 is the plan for that, and the remaining thirteen modules are
+  content work against the frozen schema.
+- **Datasets.** `wellbeing-population.csv` exists. The workplace study of §7.2
+  is not written yet, so no Part 3 module can be built until it is.
