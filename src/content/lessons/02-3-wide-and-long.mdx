@@ -1,0 +1,89 @@
+Engagement was measured twice, and the file stores the two measurements as two
+columns: `engagement_t1` and `engagement_t2`. That is **wide** format — one row
+per employee, one column per measurement.
+
+<CodeBlock id="wide" code={`library(dplyr)
+library(tidyr)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+wide <- employees %>%
+  select(employee_id, department, engagement_t1, engagement_t2)
+
+head(wide, 4)`} />
+
+Wide is how data arrives from a questionnaire tool, and it is comfortable to
+read. It is also the wrong shape for most of what you are about to do, because
+the thing you want to treat as a variable — *when* the measurement was taken —
+is not a variable at all. It is hidden in two column names.
+
+<Predict
+  id="p-rows"
+  question="The wide table has 480 rows. If you stack the two engagement columns into one, how many rows will the result have?"
+  choices={[
+    { text: '480, because there are still 480 employees', response: 'There are still 480 employees, but each of them now contributes two rows - one per measurement.' },
+    { text: '960, because each employee contributes one row per time point', correct: true, response: 'Yes. In long format a row is one observation, not one person, and each person was observed twice.' },
+    { text: '240, because two columns become one', response: 'Reshaping never throws observations away. Every number in the two columns has to land somewhere.' },
+  ]}
+/>
+
+## pivot_longer()
+
+<CodeBlock id="longer" code={`long <- wide %>%
+  pivot_longer(
+    cols = c(engagement_t1, engagement_t2),
+    names_to = "time",
+    values_to = "engagement"
+  )
+
+head(long, 6)
+nrow(long)`} />
+
+Three arguments, and each answers a question:
+
+- `cols` — which columns hold values that belong in one column.
+- `names_to` — the name of the new column that receives the old column *names*.
+- `values_to` — the name of the new column that receives the old *values*.
+
+Swapping the last two is the mistake everybody makes once. The symptom is a
+column of numbers called `time` and a column of text called `engagement`.
+
+<CodeBlock id="count" code={`long %>% count(time)
+
+long %>% count(employee_id) %>% head(3)`} />
+
+Each time point has 480 rows, and each employee has 2. The identifier columns —
+`employee_id`, `department` — were simply repeated for each of an employee's
+rows, which is exactly what tells a model in Module 13 that those two rows
+belong to the same person.
+
+## Tidy data
+
+The long table is **tidy**: each variable is a column, each observation is a
+row. Three parts of this course insist on it.
+
+1. ggplot2 maps columns to axes and colours. To put time on the x axis, time has
+   to be a column.
+2. `group_by(time)` in Module 3 needs a column to group by.
+3. `lmer(engagement ~ time + (1 | employee_id))` in Module 13 needs one row per
+   observation, with the person identified.
+
+The reverse operation exists, and is useful when a reader wants a table rather
+than a model:
+
+<CodeBlock id="wider" code={`long %>%
+  pivot_wider(names_from = time, values_from = engagement) %>%
+  head(4)`} />
+
+<Exercise id="m2-3-a" />
+
+<Quiz
+  id="q-2-3"
+  question="After pivot_longer(), the time column holds the values engagement_t1 and engagement_t2. Where did those come from?"
+  choices={[
+    { text: 'They are the names of the columns that were stacked', correct: true, response: 'Right. names_to creates a column and fills it with the old column names, one label per row, which is how the information in those names becomes data you can use.' },
+    { text: 'pivot_longer() numbers the rows in each group', response: 'It does not invent labels. Every value in the new name column is the name of a column that existed before.' },
+    { text: 'They are read from the employee_id column', response: 'employee_id says who; the new column says when, and it comes from the names of the stacked columns.' },
+    { text: 'They were already a column in the file', response: 'They were not - that is the whole point. The file stores when as two column names, and pivot_longer() turns that into a column.' },
+  ]}
+/>

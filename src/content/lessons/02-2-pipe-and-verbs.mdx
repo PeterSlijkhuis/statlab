@@ -1,0 +1,93 @@
+Data analysis is a sequence of small changes to a table: keep these rows, drop
+those columns, add this variable, sort by that one. dplyr gives each of those a
+verb, and the pipe strings the verbs together in the order you would say them
+out loud.
+
+<CodeBlock id="setup" code={`library(dplyr)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+dim(employees)`} />
+
+## The pipe
+
+`%>%` takes the thing on its left and passes it to the function on its right as
+the first argument. These two lines do the same work:
+
+<CodeBlock id="pipe" code={`head(employees, 3)
+
+employees %>% head(3)`} />
+
+With one function the second form looks like showing off. With four it is the
+difference between code you can read and code you cannot.
+
+<Predict
+  id="p-pipe"
+  question="Why is the pipe worth learning, given that both forms above do the same thing?"
+  choices={[
+    { text: 'It runs faster', response: 'It does not. The pipe is about the person reading the code, not the machine running it.' },
+    { text: 'It keeps steps in the order they happen, instead of nesting them inside out', correct: true, response: 'Yes. arrange(select(filter(d, ...), ...), ...) has to be read from the middle outwards; the piped version reads top to bottom, like a recipe.' },
+    { text: 'It avoids having to attach dplyr', response: 'The opposite: the pipe comes from the tidyverse packages, so dplyr has to be attached before you can use it.' },
+  ]}
+/>
+
+## filter() keeps rows
+
+<CodeBlock id="filter" code={`employees %>% filter(department == "Engineering") %>% nrow()
+
+employees %>% filter(remote == "Yes", tenure_years > 10) %>% nrow()`} />
+
+Two things to notice. Inside a verb you write `department`, not
+`employees$department` — the verb already knows which table it is in. And `==`
+means "is equal to", where `=` would mean "set this argument".
+
+A comma between conditions means **and**. For **or**, use `|`:
+
+<CodeBlock id="or" code={`employees %>% filter(department == "Sales" | department == "Marketing") %>% nrow()
+
+employees %>% filter(department %in% c("Sales", "Marketing")) %>% nrow()`} />
+
+## select() keeps columns
+
+<CodeBlock id="select" code={`employees %>%
+  select(employee_id, department, wellbeing) %>%
+  head(4)`} />
+
+A minus sign drops instead of keeps: `select(-site)` returns everything except
+`site`.
+
+## mutate() adds a column
+
+<CodeBlock id="mutate" code={`employees %>%
+  mutate(engagement_change = engagement_t2 - engagement_t1) %>%
+  select(employee_id, engagement_t1, engagement_t2, engagement_change) %>%
+  head(4)`} />
+
+`mutate()` does the arithmetic row by row, and the new column is as long as the
+table. Nothing has been saved yet: every block on this page has printed a new
+table and thrown it away. Storing it takes the arrow.
+
+<Exercise id="m2-2-a" />
+
+## arrange() sorts
+
+<CodeBlock id="arrange" code={`employees %>%
+  arrange(desc(wellbeing)) %>%
+  select(employee_id, department, workload, autonomy, wellbeing) %>%
+  head(5)`} />
+
+Look at the five happiest employees. Autonomy is high and workload is not, in
+most of them. That is a hypothesis, not a finding — five rows out of 480 chosen
+for being extreme will always look convincing. Module 9 tests it properly.
+
+<Exercise id="m2-2-b" />
+
+<Quiz
+  id="q-2-2"
+  question="A classmate writes employees %>% mutate(load_ratio = workload / autonomy) and is surprised that employees still has 14 columns. Why?"
+  choices={[
+    { text: 'mutate() only works on numeric columns', response: 'Both columns are numeric, and the calculation ran. The question is where its result went.' },
+    { text: 'The pipeline returned a new table, which was printed and discarded', correct: true, response: 'Right. dplyr verbs never modify their input. To keep the result, assign it: employees <- employees %>% mutate(...).' },
+    { text: 'load_ratio is not a real column name', response: 'You may name a new column whatever you like, as long as it is a legal R name.' },
+    { text: 'mutate() needs an assignment inside the brackets, with the arrow', response: 'Inside mutate() the new column is created with =, not with the arrow. The assignment that is missing is the one around the whole pipeline.' },
+  ]}
+/>

@@ -41,6 +41,22 @@ function wrapCheck(check: string): string {
   .statlab_student_env <- parent.env(environment())
   has_answer <- function(name) exists(name, envir = .statlab_student_env, inherits = FALSE)
   answer <- function(name) get(name, envir = .statlab_student_env, inherits = FALSE)
+  # aggregate(y ~ g, FUN = function(x) c(mean = ..., sd = ...)) returns ONE
+  # column holding a matrix of summaries, so a check that scans a table column
+  # by column has to look inside it or reject a correct base-R answer.
+  numeric_columns <- function(tbl) {
+    out <- list()
+    for (name in names(tbl)) {
+      value <- tbl[[name]]
+      if (!is.numeric(value)) next
+      if (is.matrix(value)) {
+        for (j in seq_len(ncol(value))) out[[length(out) + 1L]] <- as.vector(value[, j])
+      } else {
+        out[[length(out) + 1L]] <- as.vector(value)
+      }
+    }
+    out
+  }
   local({
   .statlab_result <- local({
 ${check}

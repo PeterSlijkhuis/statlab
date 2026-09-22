@@ -1,0 +1,91 @@
+Everything you have used so far is **base R** — the functions that come with the
+language. Almost everything else you will use in this course comes from a
+**package**: a bundle of functions, documentation and sometimes data that
+somebody else wrote and published.
+
+There are two separate steps, and confusing them is the single most common
+first-week frustration.
+
+- `install.packages("dplyr")` downloads the package onto the machine. Once.
+- `library(dplyr)` attaches it to the current session, so its functions become
+  available by name. Every session.
+
+Installing is like buying a book; attaching is like taking it off the shelf and
+opening it. StatLab has already installed the packages this course uses, so you
+will only ever type the second line.
+
+<CodeBlock id="attach" code={`library(dplyr)`} />
+
+That message about objects being masked is not an error. It is R telling you
+that `dplyr::filter` has taken the name `filter` from a base R function of the
+same name. From now on, `filter()` means dplyr's version — which is the one you
+want.
+
+## Something to use it on
+
+Let us make a small data frame by hand. A **data frame** is a table: columns of
+equal length, each with a name, each holding one kind of thing.
+
+<CodeBlock id="team" code={`team <- data.frame(
+  name = c("Ada", "Bram", "Chen", "Dana", "Eva", "Finn"),
+  hours = c(32, 41, 38, 29, 35, 44),
+  stringsAsFactors = TRUE
+)
+
+team`} />
+
+<Predict
+  id="p-library"
+  question="You close R, reopen it tomorrow, and type team %>% filter(hours > 35). What happens?"
+  choices={[
+    { text: 'It works, because dplyr was installed yesterday', response: 'Installing is permanent, but attaching is not. A new session starts with base R only.' },
+    { text: 'R cannot find filter or the pipe, until you attach dplyr again', correct: true, response: 'Right. library(dplyr) belongs at the top of every script, which is why every script you will ever read starts with a block of library() calls.' },
+    { text: 'You have to install dplyr again first', response: 'The package is still on the machine. It simply is not attached to this session yet.' },
+  ]}
+/>
+
+## The pipe
+
+dplyr brings a piece of punctuation with it: `%>%`, the **pipe**. It takes what
+is on its left and hands it to the function on its right as the first argument.
+
+<CodeBlock id="pipe" code={`team %>% filter(hours > 35)
+
+# The same thing, written inside out:
+filter(team, hours > 35)`} />
+
+Both give the same table. The pipe version reads left to right, in the order the
+work happens — take the team, then keep the busy people — and that advantage
+grows with every extra step. Module 2 is built on it.
+
+Notice what `filter()` did **not** need: you wrote `hours`, not `team$hours`. A
+dplyr verb already knows which table it is working inside.
+
+<Exercise id="m1-3-a" />
+
+## A note on the tidyverse
+
+`dplyr` belongs to a family of packages that share a design: `ggplot2` for
+figures, `tidyr` for reshaping, `broom` for reading model output. Together they
+are called the **tidyverse**, and there is a meta-package that attaches the
+whole family in one line:
+
+    library(tidyverse)
+
+You will see that line in almost every tutorial and in most R scripts written in
+the last ten years, and in RStudio it is what you should write. StatLab does not
+use it, for one practical reason: the meta-package pulls in about 34 MB of
+packages this course never touches, and everything here downloads into your
+browser. So each lesson attaches exactly what it needs, by name. The functions
+are identical either way.
+
+<Quiz
+  id="q-1-3"
+  question="A classmate sends you a script that starts with library(ggplot2) and it fails on their machine with 'there is no package called ggplot2'. What do they need to do?"
+  choices={[
+    { text: 'Run library(ggplot2) twice', response: 'Attaching a package that is not installed fails however many times you try it.' },
+    { text: 'Install the package once with install.packages("ggplot2"), then attach it', correct: true, response: 'Right. The error is about the package not being on the machine; library() can only attach what is already there.' },
+    { text: 'Remove the library() line, because the functions are built into R', response: 'ggplot2 is not part of base R. Without attaching it, ggplot() does not exist.' },
+    { text: 'Put install.packages("ggplot2") at the top of the script instead', response: 'That works once, then re-downloads the package every time the script runs. Install in the console, attach in the script.' },
+  ]}
+/>

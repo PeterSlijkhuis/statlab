@@ -1,0 +1,127 @@
+Nobody reads a factorial table and sees the pattern. They see it in a plot with
+two lines, and whether those lines are parallel is the whole question.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(ggplot2)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+d2 <- d %>% mutate(change = engagement_t2 - engagement_t1)
+
+cells <- d2 %>%
+  group_by(training, mentoring) %>%
+  summarise(
+    mean_change = mean(change),
+    sd_change = sd(change),
+    n = n(),
+    se = sd(change) / sqrt(n()),
+    .groups = "drop"
+  )
+
+cells`} />
+
+## The interaction plot
+
+One factor on the x axis, the other as the colour of the lines, the cell means as
+the points.
+
+<CodeBlock id="c-plot" code={`cells %>%
+  ggplot(aes(x = training, y = mean_change, colour = mentoring, group = mentoring)) +
+  geom_point(size = 3) +
+  geom_line() +
+  labs(
+    x = "Training programme",
+    y = "Mean change in engagement",
+    colour = "Mentoring",
+    title = "Training and mentoring together"
+  ) +
+  theme_classic()`} />
+
+**Parallel lines mean no interaction.** The gap between the two lines is the
+effect of mentoring; if that gap is the same at both ends, mentoring is worth the
+same whether or not you were trained, and an additive model would do. Lines that
+converge, diverge or cross say the opposite.
+
+<Predict
+  id="p-lines"
+  question="In the plot above, the line for mentored employees rises more steeply from No training to Yes training than the line for unmentored employees. What does that say?"
+  choices={[
+    { text: 'Mentoring works better than training', response: 'The plot compares slopes, not the overall size of two effects. Steeper means the two combine, not that one beats the other.' },
+    { text: 'Training is worth more to employees who also have a mentor', correct: true, response: 'Exactly what a non-parallel pair of lines means, and exactly what the interaction coefficient measured.' },
+    { text: 'The two interventions cancel each other out', response: 'Cancelling would show as lines crossing, with the gap reversing sign from one end to the other.' },
+    { text: 'There is no interaction, because both lines go up', response: 'Both going up is consistent with an interaction. It is whether they go up in parallel that matters.' },
+  ]}
+/>
+
+## Error bars, so the plot is honest
+
+A plot of four means with no indication of precision invites the reader to see
+patterns in noise.
+
+<CodeBlock id="c-errorbars" code={`cells %>%
+  ggplot(aes(x = training, y = mean_change, colour = mentoring, group = mentoring)) +
+  geom_errorbar(aes(ymin = mean_change - se, ymax = mean_change + se), width = 0.08) +
+  geom_point(size = 3) +
+  geom_line() +
+  labs(
+    x = "Training programme",
+    y = "Mean change in engagement (+/- 1 SE)",
+    colour = "Mentoring",
+    title = "Training and mentoring together"
+  ) +
+  theme_classic()`} />
+
+> **Swap the axes.** Edit the block to put `mentoring` on the x axis and use
+> `training` for the colour. The same four means, the same interaction, a
+> different story to the eye. Which arrangement to publish is a question about
+> your research question, not about the statistics.
+
+## Reporting simple effects
+
+When the interaction is real, the honest report is one effect per level of the
+other factor.
+
+<Exercise id="m12-3-a" />
+
+For the significance tests of those simple effects, `emmeans` — which you met in
+Module 11 — takes a vertical bar:
+`emmeans(model, pairwise ~ training | mentoring, adjust = "tukey")` gives the
+training comparison within each level of mentoring, with the adjustment applied.
+That call needs the `emmeans` package attached, which this lesson deliberately
+does not do; go back to lesson 11-3 to run it there.
+
+## An APA-ready figure
+
+<CodeBlock id="c-apa" code={`cells %>%
+  ggplot(aes(x = training, y = mean_change, shape = mentoring, group = mentoring)) +
+  geom_errorbar(aes(ymin = mean_change - se, ymax = mean_change + se), width = 0.08) +
+  geom_point(size = 3) +
+  geom_line() +
+  scale_y_continuous(limits = c(0, NA)) +
+  labs(x = "Training programme", y = "Mean change in engagement", shape = "Mentoring") +
+  theme_classic()`} />
+
+Shape rather than colour, because journals print in greyscale and readers with
+colour-vision deficiencies exist. A caption states what the error bars are; this
+one would say "Error bars show +/- 1 standard error of the mean."
+
+<Quiz
+  id="q-parallel"
+  question="An interaction plot shows two exactly parallel lines. What follows?"
+  choices={[
+    { text: 'Neither factor has an effect', response: 'Both lines can be steep and both can sit far apart. Parallel says nothing about the size of either effect.' },
+    { text: 'No interaction in this sample: the effect of each factor looks the same at both levels of the other', correct: true, response: 'Correct, and the sample caveat matters - parallel-looking lines are still estimates with error bars.' },
+    { text: 'The interaction is significant', response: 'The opposite. A significant interaction is what makes the lines depart from parallel.' },
+    { text: 'The design is unbalanced', response: 'Balance is about cell sizes and is invisible in a plot of means.' },
+  ]}
+/>
+
+<Interpret
+  id="i-12-3"
+  question="Your cell means for change in engagement are: neither 0.21 (SD = 3.15), training only 1.59 (SD = 3.08), mentoring only 0.93 (SD = 3.22), both 4.47 (SD = 3.11), with the interaction F(1, 476) = 15.28, p < .001. Which write-up is correct?"
+  choices={[
+    { text: 'Training increased engagement by 1.38 points and mentoring by 0.72 points, and both together by 4.26 points.', response: 'The three numbers are right and the framing hides the finding: the combined gain is far more than the two separate gains added together, which is the whole result.' },
+    { text: 'The effect of training on engagement change depended on mentoring, F(1, 476) = 15.28, p < .001. Training was associated with a gain of 1.38 points among employees without a mentor (M = 1.59, SD = 3.08, versus M = 0.21, SD = 3.15) and 3.54 points among mentored employees (M = 4.47, SD = 3.11, versus M = 0.93, SD = 3.22).', correct: true, response: 'Correct: the interaction is stated first, then one simple effect per level of mentoring, each with the cell means and SDs behind it.' },
+    { text: 'Employees who received both interventions had the highest engagement change (M = 4.47, SD = 3.11), so the combination is recommended.', response: 'A recommendation from one cell mean, with no test and no comparison. The interaction is what licenses the claim, and it is missing.' },
+    { text: 'There was a significant interaction, F(1, 476) = 15.28, p < .001, meaning training only works with mentoring.', response: 'Training is associated with a 1.38-point gain without mentoring too. The interaction says the benefit is larger with mentoring, not that it vanishes without it.' },
+  ]}
+/>

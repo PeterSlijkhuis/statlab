@@ -1,0 +1,14 @@
+.leastsquares { border: 1px solid #cbd5e1; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
+.leastsquares-svg { width: 100%; max-width: 420px; height: auto; display: block; margin: 0 auto; border-radius: 4px; touch-action: none; }
+.leastsquares-svg circle { cursor: grab; }
+.leastsquares-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: 0.75rem; }
+.leastsquares-controls label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+.leastsquares-slider input[type="range"] { width: 10rem; }
+.leastsquares-slider span { font-variant-numeric: tabular-nums; min-width: 3rem; }
+.leastsquares-readout { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+.leastsquares-readout th { text-align: left; font-weight: 500; color: #475569; padding: 0.2rem 0.5rem 0.2rem 0; }
+.leastsquares-readout td { padding: 0.2rem 1.25rem 0.2rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.leastsquares-equation { margin: 0.5rem 0 0; font-size: 0.9rem; }
+.leastsquares-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
+.leastsquares-actions button { padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; }
+.leastsquares-note { margin: 0.75rem 0 0; color: #475569; font-size: 0.85rem; }

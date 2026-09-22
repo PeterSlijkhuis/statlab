@@ -1,0 +1,98 @@
+Two questions come up constantly, and they run in opposite directions.
+
+1. *A student scored 85. What proportion of students did better?* You have a
+   score and you want a probability. That is `pnorm()`.
+2. *What score do you need to be in the top 10 per cent?* You have a probability
+   and you want a score. That is `qnorm()`.
+
+They are inverses of each other, and almost every mistake in this material is
+using one where the other was meant.
+
+<CodeBlock id="both" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+mu <- mean(population$exam_score)
+sigma <- sd(population$exam_score)
+
+# Score in, probability out.
+pnorm(85, mean = mu, sd = sigma)
+
+# Probability in, score out.
+qnorm(0.828, mean = mu, sd = sigma)
+
+# Round trip: qnorm undoes pnorm.
+qnorm(pnorm(85, mean = mu, sd = sigma), mean = mu, sd = sigma)`} />
+
+<Predict
+  id="p-cutoff"
+  question="You want the exam score that only the top 10 per cent of students exceed. Which probability do you hand to qnorm()?"
+  choices={[
+    { text: '0.10, because the question says 10 per cent', response: 'qnorm() always works from the area on the LEFT. The area to the left of the top-10% cut-off is 90%, not 10%.' },
+    { text: '0.90', correct: true, response: 'Right. The cut-off has 90 per cent of students below it and 10 per cent above, and qnorm() reads from the left by default.' },
+    { text: '0.05, because the top 10 per cent is split between two tails', response: 'Nothing here is two-tailed. "The top 10 per cent" is one tail, on the right.' },
+  ]}
+/>
+
+<CodeBlock id="cutoff" code={`qnorm(0.90, mean = mu, sd = sigma)
+
+# Same answer, asked from the other side.
+qnorm(0.10, mean = mu, sd = sigma, lower.tail = FALSE)
+
+# Check it against the population the model describes.
+mean(population$exam_score > qnorm(0.90, mean = mu, sd = sigma))`} />
+
+The model puts the distinction cut-off at 89.1, and just under 10 per cent of
+the actual 5000 students clear it. Two numbers — a mean and an SD — were enough
+to answer a question nobody had asked when the data were collected.
+
+<Exercise id="m5-3-a" />
+
+## The middle 95 per cent
+
+One pair of cut-offs is going to follow you through the rest of this course:
+the two that leave 2.5 per cent in each tail and 95 per cent in the middle.
+
+<CodeBlock id="middle" code={`# On the standard normal, in z units.
+qnorm(c(0.025, 0.975))
+
+# On the exam scale.
+qnorm(c(0.025, 0.975), mean = mu, sd = sigma)
+
+# Which is the same as going 1.96 SDs either side of the mean.
+mu + c(-1, 1) * 1.96 * sigma`} />
+
+`qnorm(0.975)` is 1.959964, and it is the reason 1.96 appears in every
+statistics textbook ever printed. It is not a magic constant. It is the point on
+the standard normal curve with 2.5 per cent of the area beyond it, and if you
+wanted the middle 99 per cent instead you would ask for `qnorm(0.995)` and get
+2.58.
+
+Drag the shaded region in the simulation until it holds the middle 95 per cent,
+and read the z values off the axis. They will be about ±1.96 whatever mean and
+SD you set, because in z units the curve is always the same curve.
+
+<Simulation name="distribution" />
+
+<Exercise id="m5-3-b" />
+
+<Quiz
+  id="q-tails"
+  question="You want the two scores that enclose the middle 50 per cent of students. Which call gives them?"
+  choices={[
+    { text: 'qnorm(c(0.25, 0.75), mean = mu, sd = sigma)', correct: true, response: 'Right: 25 per cent of the area is below the first and 25 per cent above the second, leaving half the students between them.' },
+    { text: 'qnorm(c(0.50, 0.50), mean = mu, sd = sigma)', response: 'Both of those are the median. An interval needs two different cut-offs.' },
+    { text: 'pnorm(c(0.25, 0.75), mean = mu, sd = sigma)', response: 'pnorm goes the wrong way: it would treat 0.25 and 0.75 as exam scores and return two probabilities near zero.' },
+    { text: 'qnorm(c(0.025, 0.975), mean = mu, sd = sigma)', response: 'That is the middle 95 per cent. For the middle 50 you want a quarter of the area in each tail.' },
+  ]}
+/>
+
+<Interpret
+  id="i-5-3"
+  question="The exam board asks you to justify a distinction cut-off of 89. Which sentence reports the calculation honestly?"
+  choices={[
+    { text: 'Modelling exam scores as normal (M = 73.31, SD = 12.36), the 90th percentile falls at 89.14; 10% of students would be expected to score above that cut-off.', correct: true, response: 'Correct. It names the model and its parameters, gives the quantile, and states the consequence as an expectation rather than a certainty.' },
+    { text: 'The top 10% of students scored 89.14.', response: 'A cut-off is not a group, and 89.14 is not anyone’s score. It is the boundary above which the top decile falls.' },
+    { text: 'The probability of scoring above 89 was 1.28.', response: '1.28 is qnorm(0.90) on the standard normal — a z-score. Probabilities cannot exceed 1.' },
+    { text: 'Exactly 500 of the 5000 students scored above 89.14, because 10% of 5000 is 500.', response: 'That is what the model predicts, not what the data did. Counting the actual population gives a number close to 500 but not equal to it.' },
+  ]}
+/>

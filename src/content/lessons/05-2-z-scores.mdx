@@ -1,0 +1,115 @@
+A student scored 85 on the exam. Another sleeps 9.1 hours a night. Which of
+those is the more unusual? The numbers cannot be compared as they stand: 85 is a
+score out of 100 and 9.1 is a number of hours, and they have different means and
+different spreads. You need a common currency.
+
+The common currency is the **standard deviation**. Count how many of them a
+value sits from its own mean, and you get a number that no longer carries any
+units at all.
+
+> **z = (value − mean) / SD**
+
+<CodeBlock id="setup" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+population %>%
+  summarise(
+    exam_mu = mean(exam_score), exam_sd = sd(exam_score),
+    sleep_mu = mean(sleep_hours), sleep_sd = sd(sleep_hours)
+  )`} />
+
+<Predict
+  id="p-compare"
+  question="Exam scores average 73.3 with an SD of 12.4; sleep averages 6.85 hours with an SD of 1.13. Which is further from its own mean: an exam score of 85, or 9.1 hours of sleep?"
+  choices={[
+    { text: 'The exam score, because 85 is a much bigger number', response: 'Size on the original scale tells you nothing: 85 out of 100 and 9.1 hours are not comparable quantities until you standardise.' },
+    { text: 'The sleep figure', correct: true, response: 'Yes. 85 is under one SD above the exam mean; 9.1 hours is two SDs above the sleep mean. Run the next block to confirm it.' },
+    { text: 'They are equally unusual, because both are above average', response: 'Being above average is not a quantity. How FAR above average, measured in SDs, is.' },
+  ]}
+/>
+
+<CodeBlock id="z" code={`exam_mu <- mean(population$exam_score)
+exam_sd <- sd(population$exam_score)
+sleep_mu <- mean(population$sleep_hours)
+sleep_sd <- sd(population$sleep_hours)
+
+(85 - exam_mu) / exam_sd
+(9.1 - sleep_mu) / sleep_sd`} />
+
+An exam score of 85 is 0.95 SDs above the mean. Sleeping 9.1 hours is 2.00 SDs
+above the mean. The sleeper is the outlier, and no amount of staring at "85" and
+"9.1" would have told you that.
+
+<Exercise id="m5-2-a" />
+
+## Standardising a whole column
+
+A z-score is not only for single values. Standardise a whole column and you get
+a variable with a mean of 0 and an SD of 1 — the same distribution, relabelled.
+
+<CodeBlock id="standardise" code={`library(ggplot2)
+
+standardised <- population %>%
+  mutate(z_exam = (exam_score - exam_mu) / exam_sd)
+
+standardised %>% summarise(mean_z = mean(z_exam), sd_z = sd(z_exam))
+
+standardised %>%
+  ggplot(aes(x = z_exam)) +
+  geom_histogram(bins = 40) +
+  labs(x = "Exam score (z)", y = "Number of students") +
+  theme_classic()`} />
+
+Compare that histogram with the one in the last lesson. It is the same shape. It
+has simply been slid so its centre is at 0 and squeezed so one SD is one unit.
+Standardising never changes the shape of a distribution — a point worth keeping,
+because students often expect it to "make the data normal". It does not.
+
+## The 68–95–99.7 rule
+
+For a normal distribution, the proportions within one, two and three SDs of the
+mean are fixed. They are worth memorising, because they turn a z-score into an
+intuition immediately.
+
+<CodeBlock id="rule" code={`# What the normal model predicts.
+pnorm(1) - pnorm(-1)
+pnorm(2) - pnorm(-2)
+pnorm(3) - pnorm(-3)
+
+# What this population actually does.
+standardised %>%
+  summarise(
+    within_1 = mean(abs(z_exam) < 1),
+    within_2 = mean(abs(z_exam) < 2),
+    within_3 = mean(abs(z_exam) < 3)
+  )`} />
+
+About 68 per cent within one SD, 95 per cent within two, 99.7 per cent within
+three — and the population agrees to within a percentage point or so. Hold on to
+the middle one. In two modules' time, "95 per cent of the distribution lies
+within about two standard errors of the mean" becomes the confidence interval.
+
+<Quiz
+  id="q-z"
+  question="A student's exam score has z = −1.5. Which statement is correct?"
+  choices={[
+    { text: 'They scored 1.5 points below the mean', response: 'A z-score is not in the original units. −1.5 means 1.5 standard deviations, which here is about 18.5 exam points.' },
+    { text: 'They scored 1.5 standard deviations below the mean, placing them in roughly the bottom 7% of students', correct: true, response: 'Right: pnorm(-1.5) is .067, so about 7 students in 100 score below them.' },
+    { text: 'They scored better than 1.5% of students', response: 'The −1.5 is a distance in SDs, not a percentage. Feed it to pnorm() to get a percentage.' },
+    { text: 'Their score is invalid, because z-scores cannot be negative', response: 'Half of all z-scores are negative — every value below the mean has one.' },
+  ]}
+/>
+
+<Exercise id="m5-2-b" />
+
+<Interpret
+  id="i-5-2"
+  question="A supervisor asks you to describe, in a sentence fit for a report, the student who scored 85. Which one is right?"
+  choices={[
+    { text: 'The student scored 0.95 standard deviations above the population mean (M = 73.31, SD = 12.36, z = 0.95), placing them at approximately the 83rd percentile.', correct: true, response: 'Correct. It gives the parameters the z was computed from and converts the z into a percentile, which is what a reader actually wants.' },
+    { text: 'The student scored better than 95% of their peers (z = 0.95).', response: 'The 0.95 is a distance in standard deviations, not a percentile. pnorm(0.95) = .83, so the figure is 83%, not 95%.' },
+    { text: 'The student scored 95% of the population mean (z = 0.95).', response: 'A z-score is not a ratio to the mean. It is a count of standard deviations away from it.' },
+    { text: 'The student score was significant (z = 0.95, p < .05).', response: 'Nothing has been tested. A z-score describes where one value sits in a distribution; it is not a hypothesis test, and 0.95 would not be significant in any case.' },
+  ]}
+/>

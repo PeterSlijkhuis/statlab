@@ -1,0 +1,91 @@
+Module 3 ended with a puzzle: Engineering has the highest median wellbeing and a
+middling mean, and the numbers alone made that hard to picture. One figure
+settles it.
+
+<CodeBlock id="setup" code={`library(dplyr)
+library(ggplot2)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## The boxplot
+
+Map the grouping variable to x and the number to y.
+
+<CodeBlock id="box" code={`ggplot(employees, aes(x = department, y = wellbeing)) +
+  geom_boxplot()`} />
+
+Each box is one department, and it is built from the summaries you already
+computed:
+
+- the thick line is the **median**;
+- the box spans the **quartiles** — the middle half of the department, so its
+  height is the IQR;
+- the whiskers reach out to the furthest observation within 1.5 IQRs of the box;
+- anything beyond that is drawn as a point, and is worth looking at rather than
+  deleting.
+
+Look at Engineering. Its median line is the highest of the four, its box is
+tall, and it has a run of low points below the whisker. That single picture is
+the whole of lesson 3-3, and it took one line of code.
+
+<Predict
+  id="p-box"
+  question="Two departments have boxes at the same height, but one box is twice as tall as the other. What does that mean?"
+  choices={[
+    { text: 'The taller box has more employees in it', response: 'Box height says nothing about group size - a boxplot of five people and one of five hundred look the same. That is its main weakness.' },
+    { text: 'The taller box has more variable wellbeing: its middle half is spread over twice the range', correct: true, response: 'Right. The height of the box is the interquartile range, so it is about spread, not about numbers of people.' },
+    { text: 'The taller box has more outliers', response: 'Outliers are the points drawn beyond the whiskers, and they do not change the height of the box itself.' },
+  ]}
+/>
+
+A boxplot hides the group sizes, so report them alongside it:
+
+<CodeBlock id="counts" code={`employees %>%
+  group_by(department) %>%
+  summarise(median_wellbeing = median(wellbeing), n = n())`} />
+
+<Exercise id="m4-2-a" />
+
+## Facets: the same plot, once per group
+
+A boxplot compresses each group into five numbers. Sometimes you want the whole
+distribution for each group, and `facet_wrap()` gives you one panel per level of
+a variable, with the axes shared so the panels can be compared.
+
+<CodeBlock id="facets" code={`ggplot(employees, aes(x = wellbeing)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~ department)`} />
+
+The tilde is read as "by": one panel **by** department. The alternative —
+mapping department to `fill` and drawing one histogram — puts four overlapping
+distributions in one panel, and is much harder to read.
+
+<CodeBlock id="fill" code={`ggplot(employees, aes(x = wellbeing, fill = department)) +
+  geom_histogram(bins = 20)`} />
+
+## Filtering before plotting
+
+Facets are drawn for the values that are present in the data, so restricting the
+figure is a dplyr job, not a ggplot2 one.
+
+<CodeBlock id="filter-plot" code={`employees %>%
+  filter(remote == "Yes") %>%
+  ggplot(aes(x = department, y = wellbeing)) +
+  geom_boxplot()`} />
+
+Note the punctuation change halfway through: the pipe carries the data into
+`ggplot()`, and from there layers are added with `+`. Mixing them up is the most
+common ggplot2 error message there is.
+
+<Exercise id="m4-2-b" />
+
+<Quiz
+  id="q-4-2"
+  question="A figure facets by site, and one of the six sites is missing from it entirely. What is the most likely reason?"
+  choices={[
+    { text: 'facet_wrap() shows at most five panels', response: 'It has no such limit; it wraps as many panels as there are values.' },
+    { text: 'No rows with that site survived the filtering that came before the plot', correct: true, response: 'Right. Facets are drawn from the data the plot receives, so a value filtered away has no panel. Check the row counts before blaming the figure.' },
+    { text: 'That site has too few employees to plot', response: 'Even one employee would get a panel with one bar in it.' },
+    { text: 'site is a factor, and factors cannot be facetted', response: 'A factor is exactly what facet_wrap() wants. Its levels become the panels.' },
+  ]}
+/>

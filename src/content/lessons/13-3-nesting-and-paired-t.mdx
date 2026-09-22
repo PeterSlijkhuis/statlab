@@ -1,0 +1,137 @@
+Two loose ends. First, the traditional name for what you fitted in the last
+lesson. Second, the other way dependence enters a dataset: people grouped inside
+places.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+library(lmerTest)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+long_d <- d %>%
+  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+m_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)`} />
+
+## The paired t-test, which you have already run
+
+<CodeBlock id="c-paired" code={`coef(summary(m_time))
+
+t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)`} />
+
+Same *t*, same degrees of freedom, same *p*. With exactly two time points and
+nobody missing a measurement, the random intercept does precisely what a paired
+*t*-test does: it removes each employee's own level before looking at the change.
+
+<CodeBlock id="c-differences" code={`differences <- d$engagement_t2 - d$engagement_t1
+
+c(
+  mean_difference = mean(differences),
+  fixed_effect = as.vector(fixef(m_time)[2])
+)
+
+t.test(differences)$statistic`} />
+
+Three routes, one number. A one-sample *t*-test on the differences, a paired
+*t*-test on the two columns, and the fixed effect of time in the mixed model are
+the same analysis wearing three names.
+
+<Predict
+  id="p-why-lmer"
+  question="If the paired t-test gives the same answer, why learn the mixed model at all?"
+  choices={[
+    { text: 'It does not; the t-test is simpler and should be preferred', response: 'It is simpler, and it stops working the moment the design grows past two measurements.' },
+    { text: 'Because it keeps working with three or more measurements, with missing data, and with other predictors in the model', correct: true, response: 'Exactly. The paired t-test is one special case; the model is the general tool.' },
+    { text: 'Because it gives smaller p values', response: 'It gives the same p value in this special case, which is the whole point of the comparison above.' },
+    { text: 'Because the paired t-test requires normally distributed data and the model does not', response: 'They make the same distributional assumptions - they are the same model.' },
+  ]}
+/>
+
+And the practical consequence, which matters in real thesis data:
+
+<CodeBlock id="c-missing" code={`set.seed(4)
+with_gaps <- long_d %>% slice_sample(prop = 0.9)
+
+nrow(with_gaps)
+length(unique(with_gaps$employee_id))
+
+coef(summary(lmer(engagement ~ time + (1 | employee_id), data = with_gaps)))`} />
+
+Ninety per cent of the rows, and many employees now contributing only one
+measurement. A paired *t*-test would drop every one of those employees entirely.
+The mixed model uses what each person has.
+
+<Exercise id="m13-3-a" />
+
+## Nesting: people inside places
+
+The second kind of dependence has nothing to do with time. The 480 employees work
+at six sites, and site is a grouping in exactly the same sense.
+
+<CodeBlock id="c-site-means" code={`d %>%
+  group_by(site) %>%
+  summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())`} />
+
+<CodeBlock id="c-site-model" code={`m_site <- lmer(wellbeing ~ autonomy + workload + (1 | site), data = d)
+
+summary(m_site)
+
+as.data.frame(VarCorr(m_site))`} />
+
+`(1 | site)` gives each site its own baseline wellbeing, so the autonomy and
+workload coefficients are estimated from comparisons **within** sites rather than
+being partly driven by differences between them. The site SD in the `VarCorr`
+table is how much the six baselines differ.
+
+<CodeBlock id="c-ranef" code={`ranef(m_site)$site`} />
+
+Those six numbers are the estimated site deviations. They are shrunk towards zero
+— a site with few employees is pulled harder towards the average than a large one,
+because the model trusts a small sample less. That shrinkage is a feature, and it
+is one of the things a set of six fixed dummy coefficients would not give you.
+
+## Both at once
+
+When employees are measured repeatedly **and** grouped in sites, the groupings
+nest: a measurement is inside an employee, an employee is inside a site.
+
+<CodeBlock id="c-nested" code={`m_nested <- lmer(engagement ~ time + (1 | site/employee_id), data = long_d)
+
+as.data.frame(VarCorr(m_nested))
+coef(summary(m_nested))`} />
+
+`(1 | site/employee_id)` is shorthand for `(1 | site) + (1 | site:employee_id)`:
+a random intercept for each site, and another for each employee within a site.
+Three variance components now — site, employee, and residual — and the fixed
+effect of time is barely changed, because the time comparison lives inside
+employees and sites cannot affect it.
+
+A rule of thumb worth carrying into your own work: you need a reasonable number
+of groups to estimate how groups vary. Six sites is on the thin side, and the
+site variance will be estimated imprecisely; with two or three groups, make them
+fixed effects instead.
+
+<Quiz
+  id="q-nesting"
+  question="What does (1 | site/employee_id) fit that (1 | employee_id) alone does not?"
+  choices={[
+    { text: 'A separate slope for each site', response: 'That would be a random slope, (1 + time | site). Both of these are intercept-only.' },
+    { text: 'An intercept for each site as well as for each employee, so shared site-level variation is separated from individual differences', correct: true, response: 'Correct, and the output shows it as a third variance component.' },
+    { text: 'An interaction between site and time', response: 'No interaction is fitted. Nesting is about which observations share a level, not about effects differing across levels.' },
+    { text: 'Nothing: employee_id is already unique, so site adds no information', response: 'Employees are unique, but employees at the same site share a baseline. That shared part is what the site intercept captures.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-3"
+  question="Your nested model gives a fixed effect of time b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001, with variance components SD_site = 2.41, SD_employee = 5.32, SD_residual = 3.21, and the paired t-test on the same data gives t(479) = 8.73, p < .001. Which write-up is correct?"
+  choices={[
+    { text: 'Engagement increased over time, t(479) = 8.73, p < .001. A mixed model gave the same result, so the nesting can be ignored.', response: 'It gave the same result for this particular effect because the comparison is within employees. That is a finding about this design, not a licence to ignore nesting in general.' },
+    { text: 'A linear mixed-effects model with random intercepts for site and for employee within site showed that engagement increased from time 1 to time 2, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001 (SD_site = 2.41, SD_employee = 5.32, SD_residual = 3.21). With two time points and complete data this estimate matches a paired-samples t-test, t(479) = 8.73, p < .001.', correct: true, response: 'Correct: the random structure is described, the fixed effect and all three variance components are reported, and the equivalence is stated as the special case it is.' },
+    { text: 'The training programme increased engagement by 1.31 points, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001.', response: 'This model contains no intervention. Every employee was measured twice; a rise over time with no control group cannot be attributed to a programme.' },
+    { text: 'Engagement increased by 1.31 points, and since SD_site was smallest, site had no effect on engagement.', response: 'A variance component is not a test, and "smallest of three" does not mean zero. Sites do differ; they differ less than individuals do.' },
+  ]}
+/>

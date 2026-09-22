@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import RStatus from './components/RStatus';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
 import Lesson from './pages/Lesson';
 import Playground from './pages/Playground';
-import TestChooser from './pages/TestChooser';
+import ModelChooser from './pages/ModelChooser';
 import { fetchDataset, prepareSession } from './r/session';
 import { getWebR } from './r/webrClient';
 import './App.css';
@@ -30,7 +30,11 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/lesson/:lessonId" element={<Lesson />} />
           <Route path="/playground" element={<Playground />} />
-          <Route path="/which-test" element={<TestChooser />} />
+          <Route path="/which-model" element={<ModelChooser />} />
+          {/* The page was called "which test" until the curriculum settled on
+              teaching one model under many names. Kept so links already shared
+              with students, and any bookmark, still land somewhere. */}
+          <Route path="/which-test" element={<Navigate to="/which-model" replace />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

@@ -1,0 +1,102 @@
+From here to the end of the course you will work with one dataset: a fictional
+workplace study of 480 employees at a company with six sites. It was designed so
+that every question this course teaches you to ask has an honest answer in it.
+
+Here is the codebook. Come back to it whenever a column name means nothing to
+you.
+
+| Column | What it holds |
+|---|---|
+| `employee_id` | a number identifying the employee |
+| `department` | Sales, Engineering, Support or Marketing |
+| `site` | one of six office locations |
+| `remote` | No or Yes |
+| `tenure_years` | years at the company |
+| `workload` | self-reported workload, 1 to 10 |
+| `autonomy` | self-reported autonomy, 1 to 10 |
+| `training` | took the training programme: No or Yes |
+| `mentoring` | had a mentor: No or Yes |
+| `wellbeing` | wellbeing score, 0 to 100 |
+| `engagement_t1` | engagement at the start of the year |
+| `engagement_t2` | engagement at the end of the year |
+| `performance` | manager rating, 0 to 100 |
+| `left_company` | 0 if still employed, 1 if left |
+
+## Reading the file
+
+`read.csv()` reads a comma-separated file into a **data frame** — R's word for a
+table with named columns.
+
+<CodeBlock id="read" code={`employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+nrow(employees)
+ncol(employees)
+names(employees)`} />
+
+`nrow()` counts employees, because each row is one employee. `ncol()` counts
+columns, which is a fact about the codebook and not about the company.
+
+<CodeBlock id="head" code={`head(employees)`} />
+
+## What str() tells you that head() does not
+
+<CodeBlock id="structure" code={`str(employees)`} />
+
+Read the type at the start of each line. `num` is a number. `int` is a whole
+number. `Factor w/ 4 levels` is something new, and it is there because of the
+`stringsAsFactors = TRUE` you typed.
+
+<Predict
+  id="p-factor"
+  question="The department column holds words. Why would R want to store it as a factor rather than as text?"
+  choices={[
+    { text: 'Because factors take less memory', response: 'They historically did, but that is not the reason the course cares. Think about what R needs to know to fit a model or draw four boxes.' },
+    { text: 'Because a factor records the full set of possible values, in a fixed order', correct: true, response: 'Exactly. The four department names are the levels. R keeps them even for a subset that contains none of a given department, and every table, plot and model uses that same order.' },
+    { text: 'Because text cannot be stored in a data frame', response: 'It can. Without stringsAsFactors = TRUE these columns would be plain character, and everything would still read.' },
+  ]}
+/>
+
+## Levels
+
+<CodeBlock id="levels" code={`levels(employees$department)
+nlevels(employees$department)
+
+levels(employees$remote)`} />
+
+The `$` picks one column out of a data frame, and what comes back is a plain
+vector of the kind you met in Module 1.
+
+Notice the order of the levels of `remote`: **No** then **Yes**. Levels are
+alphabetical unless you say otherwise, and they are not in the order the column
+happens to appear in the file. That alphabetical order will matter again in
+Module 11, where the first level becomes the group every other group is compared
+against.
+
+## Counting and summarising
+
+<CodeBlock id="table" code={`table(employees$department)
+
+table(employees$department, employees$remote)`} />
+
+`table()` counts each level; given two factors it counts every combination. And
+`summary()` adapts to what it is given — counts for a factor, five numbers for a
+numeric column.
+
+<CodeBlock id="summary" code={`summary(employees$department)
+
+summary(employees$wellbeing)`} />
+
+<Exercise id="m2-1-a" />
+
+<Exercise id="m2-1-b" />
+
+<Quiz
+  id="q-2-1"
+  question="You read the file without stringsAsFactors = TRUE and then run nlevels(employees$department). What comes back?"
+  choices={[
+    { text: '4, because there are four departments in the column', response: 'R does not look at the values. Without the factor conversion the column is plain text, and text has no levels.' },
+    { text: '0, because a character column has no levels', correct: true, response: 'Right, and it is a quiet failure: no error, just a zero, which is why the argument is worth typing every time.' },
+    { text: 'An error, because nlevels() needs a factor', response: 'nlevels() accepts anything and returns 0 for a non-factor. Nothing warns you.' },
+    { text: '480, one level per employee', response: 'That would be length(), which counts the entries in the column rather than the values it can take.' },
+  ]}
+/>
