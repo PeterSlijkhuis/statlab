@@ -1,0 +1,108 @@
+R is a calculator that remembers things. Everything in this course — every
+figure, every model — is built out of the two ideas in this lesson: you compute
+something, and you give the result a name.
+
+Start with the calculator half. Press **Run**.
+
+<CodeBlock id="calculator" code={`3 + 4
+12 / 5
+sqrt(81)`} />
+
+Each line was evaluated and its answer printed. Nothing was kept. Ask R for
+`3 + 4` again and it will do the arithmetic again, from scratch.
+
+## Giving a result a name
+
+The arrow `<-` stores a result under a name. What you have stored is called an
+**object**, and R keeps it for the rest of your session.
+
+<CodeBlock id="assign" code={`hours <- 38
+rate <- 24.5
+
+hours * rate`} />
+
+Two things are worth noticing. The first two lines printed nothing — storing a
+value is a quiet act. And the third line used both objects by name, without
+repeating either number.
+
+> **Try it.** Change `hours` to 40 and run the block again. Nothing else in the
+> block mentions 38, so the whole calculation follows on its own. That is the
+> entire reason to name things.
+
+Names are case sensitive: `hours` and `Hours` are two different objects, and
+asking for one when you stored the other is the first error almost everyone
+meets. A name may not start with a number and may not contain a space, which is
+why R code is full of `mean_score` and `engagement_t1`.
+
+## Comments
+
+Everything after a `#` on a line is ignored by R. It is written for the human
+reading the script — most often you, three weeks later, wondering what you were
+doing.
+
+<CodeBlock id="comment" code={`# Weekly pay, before tax.
+weekly_pay <- hours * rate
+weekly_pay`} />
+
+<Predict
+  id="p-vector"
+  question="You have five exam marks to store. How many objects do you need?"
+  choices={[
+    { text: 'Five, one per mark', response: 'You could, and then every calculation would have to name all five by hand. R has something much better.' },
+    { text: 'One, holding all five marks', correct: true, response: 'Yes. A vector is a single object holding many values of the same kind, and it is the workhorse of the language.' },
+    { text: 'None, because R stores only one number at a time', response: 'The opposite is true. In R even a single number is really a vector that happens to have one element.' },
+  ]}
+/>
+
+## Vectors
+
+`c()` combines values into a **vector** — c for combine.
+
+<CodeBlock id="vector" code={`marks <- c(68, 74, 59, 81, 77)
+
+marks
+length(marks)`} />
+
+Functions that summarise take the whole vector at once. You never ask for the
+values one at a time.
+
+<CodeBlock id="summaries" code={`mean(marks)
+min(marks)
+max(marks)
+sum(marks)`} />
+
+## Arithmetic happens to every element
+
+Here is the part that surprises people who have written other languages. An
+operation on a vector is applied to every value in it, with no loop anywhere.
+
+<CodeBlock id="vectorised" code={`marks + 2
+
+marks / 90 * 100`} />
+
+The first line gave all five students two marks of grace. The second turned
+marks out of 90 into percentages. Comparisons behave the same way, except that
+they produce TRUE and FALSE instead of numbers.
+
+<CodeBlock id="logical" code={`marks > 70
+
+sum(marks > 70)`} />
+
+`sum()` of TRUE and FALSE counts the TRUEs, because R stores TRUE as 1 and FALSE
+as 0. Compare, then sum: that idiom is how you count anything in R, and you will
+use it in every module from here to the end of the course.
+
+<Exercise id="m1-1-a" />
+
+<Exercise id="m1-1-b" />
+
+<Quiz
+  id="q-1-1"
+  question="You run scores <- c(4, 8, 15) and then scores * 2. What does scores contain afterwards?"
+  choices={[
+    { text: 'c(8, 16, 30)', response: 'Only if you had stored the result. scores * 2 computed a new vector, printed it, and let it go.' },
+    { text: 'c(4, 8, 15)', correct: true, response: 'Right. An object changes only when you assign to it. Printing a calculation does not change its inputs.' },
+    { text: 'An error, because a vector cannot be multiplied', response: 'Multiplying a vector by a number is exactly what R is built for: it multiplies every element.' },
+    { text: 'c(4, 8, 15, 8, 16, 30)', response: 'R never appends a result to the object it came from. The original is untouched.' },
+  ]}
+/>

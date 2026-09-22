@@ -1,0 +1,132 @@
+A hypothesis test makes a decision, and a decision can be wrong in two
+directions. Both have names, and only one of them gets talked about.
+
+- The null is **true** and you **reject** it — a **Type I error**. You announce
+  an effect that is not there. Its long-run rate is exactly α, because that is
+  what α was defined to be.
+- The null is **false** and you **fail to reject** it — a **Type II error**. You
+  miss a real effect. Its rate is called β.
+- The null is **false** and you **do** reject it — a hit. Its rate, `1 − β`, is
+  the study's **power**.
+- The null is **true** and you fail to reject it — the fourth cell, which needs
+  no name because nothing happened.
+
+The first is the error the whole apparatus is built to control. The second is
+the one that quietly wrecks literatures, because nobody publishes it and nobody
+counts it.
+
+## Type I: the null really is true
+
+In this population, `programme` has no relationship with `exam_score` at all —
+Psychology and Business average within a tenth of a point of each other. So run
+a thousand studies comparing them and count how often the test cries wolf.
+
+<CodeBlock id="typeone" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+set.seed(801)
+false_alarms <- replicate(1000, {
+  s <- population[sample(nrow(population), 120), ]
+  t.test(exam_score ~ programme, data = s, var.equal = TRUE)$p.value < 0.05
+})
+
+mean(false_alarms)`} />
+
+About .05. Not approximately for some reason, and not by luck: α *is* the Type I
+error rate. Setting it at .05 is a decision to publish a false positive one
+study in twenty, and nothing about a single significant result tells you which
+kind you are holding.
+
+<Predict
+  id="p-power"
+  question="Now the null is false: mean exam score is really 73.3, and we will test it against 70. Out of 1000 studies of 100 students each at alpha = .05, how many do you expect to come out significant?"
+  choices={[
+    { text: 'All 1000, because the effect is real', response: 'A real effect does not guarantee detection. With this much noise and 100 students, a good fraction of studies will miss it.' },
+    { text: 'About 750', correct: true, response: 'Close to right. The design has about 76% power here - which means roughly one study in four fails to find an effect that is genuinely present.' },
+    { text: 'About 50, matching alpha', response: 'That is the rate when the null is TRUE. When it is false the rejection rate is power, and power is far higher than alpha for a detectable effect.' },
+  ]}
+/>
+
+<CodeBlock id="power" code={`set.seed(83)
+p_values <- replicate(1000, {
+  s <- sample(population$exam_score, 100)
+  t.test(s, mu = 70)$p.value
+})
+
+mean(p_values < 0.05)`} />
+
+Roughly three quarters. Which means roughly a quarter of these studies —
+correctly run, correctly analysed, with a genuine effect present — report
+nothing. Had one of them been your thesis, you would have concluded there was no
+effect, and you would have been wrong.
+
+## Power is a property of the design
+
+Three things move it, and only one of them is usually under your control.
+
+<CodeBlock id="curve" code={`library(ggplot2)
+
+set.seed(84)
+power_at <- function(n) {
+  mean(replicate(400, t.test(sample(population$exam_score, n), mu = 70)$p.value < 0.05))
+}
+
+sizes <- c(20, 40, 60, 100, 150, 200)
+curve_data <- tibble(n = sizes, power = vapply(sizes, power_at, numeric(1)))
+
+curve_data
+
+curve_data %>%
+  ggplot(aes(x = n, y = power)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 0.8, linetype = "dashed") +
+  labs(x = "Students per study", y = "Power") +
+  theme_classic()`} />
+
+- **Sample size.** The one you control. Power climbs steeply and then flattens;
+  the conventional target of .80 needs about 120 students here.
+- **Effect size.** Set by the world. A bigger gap is easier to see, and this one
+  is modest.
+- **α.** Lowering it to .01 to be safer about false positives lowers power at
+  the same time. The two errors trade against each other; you cannot reduce both
+  without more data.
+
+Slide α in the simulation and watch both tails move at once — the shaded
+rejection region grows and shrinks, and so does the chance of missing a real
+effect.
+
+<Simulation name="pvalue" />
+
+<Exercise id="m8-3-a" />
+
+## What to do with a non-significant result
+
+Say what it is. "We did not detect an effect" is honest; "there is no effect" is
+not, unless the study had the power to have seen one. A non-significant result
+from an underpowered study is uninformative, and a confidence interval says so
+much better than a p-value does — a wide interval that includes zero tells the
+reader plainly that the study could not distinguish "nothing" from "quite a lot".
+
+<Quiz
+  id="q-power"
+  question="A study with 20 people per group reports p = .21 for an effect that later meta-analyses put at d = 0.5. What went wrong?"
+  choices={[
+    { text: 'Nothing went wrong; the study simply had about 30% power and this was one of the 70%', correct: true, response: 'Right. With n = 20 per group and d = 0.5, most correctly-run studies miss the effect. The result is uninformative, not mistaken.' },
+    { text: 'The analysis must have been done incorrectly', response: 'No error is needed. Underpowered studies miss real effects most of the time, by design.' },
+    { text: 'The effect does not exist, and the meta-analysis is wrong', response: 'One small non-significant study is very weak evidence against a pooled estimate from many.' },
+    { text: 'The alpha level should have been raised to .20 so the result would be significant', response: 'Choosing alpha after seeing p abandons the error control that alpha exists to provide.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-3"
+  question="Your study of 20 students per group found a 5.7-point difference, t(38) = 1.31, p = .198, 95% CI [-3.1, 14.5], and a power analysis puts the design at about 30% power for an effect this size. What goes in the paper?"
+  choices={[
+    { text: 'The difference was not statistically significant, t(38) = 1.31, p = .198, 95% CI [-3.1, 14.5]. With approximately 30% power for an effect of this size, the study cannot distinguish a null effect from a substantial one, and the result should be treated as inconclusive.', correct: true, response: 'Correct. It reports the test in APA form, gives the interval, and reads the non-significant result against the power the design actually had.' },
+    { text: 'There was no effect of sleep on exam scores, p = .198.', response: 'A p above .05 does not prove there is no effect. The confidence interval here runs up to 14.5 points, so the data are perfectly compatible with a large effect.' },
+    { text: 'There is a 19.8% probability that the null hypothesis is true, p = .198.', response: 'The p-value is computed assuming the null is true. It is never the probability that the null is true, whether it is large or small.' },
+    { text: 'The difference approached significance, t(38) = 1.31, p = .198, and would likely reach it with a larger sample.', response: '"Approached significance" at p = .198 is wishful. And while a larger sample would indeed have more power, promising that it would reach significance assumes the effect you have not yet demonstrated.' },
+  ]}
+/>

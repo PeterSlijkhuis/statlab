@@ -1,0 +1,105 @@
+Every model so far has assumed that an effect is an effect: workload costs the
+same number of wellbeing points whoever you are, training helps everyone equally.
+That assumption is often wrong, and this module is about what to do when it is.
+
+The workplace study ran two interventions. Half the employees got a training
+programme; independently, half got a mentor. The outcome is the **change** in
+engagement between the two measurements.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d2 <- d %>% mutate(change = engagement_t2 - engagement_t1)
+
+d2 %>%
+  group_by(training, mentoring) %>%
+  summarise(mean_change = mean(change), sd_change = sd(change), n = n(), .groups = "drop")`} />
+
+Four cells, four means. Read them before you read anything else, because
+everything in this module is those four numbers in different arrangements.
+
+<Predict
+  id="p-additive"
+  question="Suppose training on its own adds about 1.4 points of engagement and mentoring on its own about 0.7. If the two effects simply stacked, what would employees with both gain relative to those with neither?"
+  choices={[
+    { text: 'About 2.1 points - the two added together', correct: true, response: 'That is the additive prediction. Compare it with the both-interventions cell above: the real gain is larger, and the excess is the interaction.' },
+    { text: 'About 1.4 points - whichever is bigger wins', response: 'Effects do not compete for the outcome. Under a plus-sign model they add.' },
+    { text: 'About 0.98 points - they multiply', response: 'Effects on a raw score add. Multiplication comes in for odds ratios in Module 14.' },
+    { text: 'Nothing predictable', response: 'An additive model makes a perfectly definite prediction, which is what makes it testable.' },
+  ]}
+/>
+
+## Additive, and not
+
+Fit the additive model first, the one with a plus sign. It is forced to say that
+the training effect is the same whether or not you were mentored.
+
+<CodeBlock id="c-additive" code={`model_add <- lm(change ~ training + mentoring, data = d2)
+
+model_add %>% tidy()`} />
+
+Now free it. A `*` fits both main effects **and** the term that lets them differ.
+
+<CodeBlock id="c-interaction" code={`model_int <- lm(change ~ training * mentoring, data = d2)
+
+model_int %>% tidy()`} />
+
+Four coefficients now, and in this coding each one has a precise meaning:
+
+- **`(Intercept)`** — mean change with neither intervention.
+- **`trainingYes`** — the training effect **among employees with no mentoring**.
+- **`mentoringYes`** — the mentoring effect **among employees with no training**.
+- **`trainingYes:mentoringYes`** — how much more training is worth when mentoring
+  is also present. Equivalently, how much more mentoring is worth with training.
+
+That third bullet is the one that catches people. With an interaction in the
+model and treatment coding, `trainingYes` is **not** the overall training effect.
+It is a simple effect at one level of the other factor.
+
+## `*` and `:`
+
+<CodeBlock id="c-star-colon" code={`names(coef(lm(change ~ training + mentoring, data = d2)))
+names(coef(lm(change ~ training : mentoring, data = d2)))
+names(coef(lm(change ~ training * mentoring, data = d2)))`} />
+
+`a * b` expands to `a + b + a:b`. A colon on its own gives the interaction term
+with no main effects, which produces a model whose coefficients almost nobody can
+interpret. Use the star.
+
+<Exercise id="m12-1-a" />
+
+## Is the interaction worth keeping?
+
+The two models are nested — the additive one is the interaction one with that
+term set to zero — so Module 10's comparison applies.
+
+<CodeBlock id="c-anova" code={`anova(model_add, model_int) %>% tidy()
+
+bind_rows(
+  model_add %>% glance() %>% mutate(model = "additive"),
+  model_int %>% glance() %>% mutate(model = "with interaction")
+) %>% select(model, r.squared, adj.r.squared, sigma)`} />
+
+<Quiz
+  id="q-star"
+  question="What is the difference between change ~ training + mentoring and change ~ training * mentoring?"
+  choices={[
+    { text: 'The star multiplies the two variables together into a single predictor', response: 'It adds a product term to a model that still contains both main effects. It does not replace them.' },
+    { text: 'The star adds a term allowing the effect of each factor to differ across the levels of the other; the plus forces them to be the same', correct: true, response: 'Correct - and that is why an additive model can fit badly even when both main effects are real.' },
+    { text: 'They fit the same model, written differently', response: 'The additive model has three coefficients, the interaction model four. Compare names(coef(...)) for each.' },
+    { text: 'The star is only valid for two-level factors', response: 'It works for factors of any size and for continuous predictors too, though the coefficient count grows quickly.' },
+  ]}
+/>
+
+<Interpret
+  id="i-12-1"
+  question="Your interaction model gives trainingYes b = 1.38, SE = 0.41, t(476) = 3.37, p < .001 and trainingYes:mentoringYes b = 2.27, SE = 0.58, t(476) = 3.91, p < .001. Which reading is right?"
+  choices={[
+    { text: 'Training raised engagement by 1.38 points overall, and mentoring added 2.27 on top.', response: 'Neither half is right. 1.38 applies only to unmentored employees, and 2.27 is not the mentoring effect - it is the extra value of training when mentoring is present.' },
+    { text: 'Among employees without mentoring, training was associated with a 1.38-point larger gain in engagement, b = 1.38, SE = 0.41, t(476) = 3.37, p < .001; the benefit of training was a further 2.27 points larger among mentored employees, b = 2.27, SE = 0.58, t(476) = 3.91, p < .001.', correct: true, response: 'Correct. Each coefficient is reported at the level of the other factor where it actually applies.' },
+    { text: 'Training and mentoring both had significant main effects.', response: 'With treatment coding and an interaction in the model, neither of those coefficients is a main effect. They are simple effects at the reference level of the other factor.' },
+    { text: 'The interaction was significant, so the main effects cannot be interpreted at all.', response: 'Too strong. They can be interpreted - as simple effects at one level of the other factor, which is exactly what they are.' },
+  ]}
+/>

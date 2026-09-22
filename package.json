@@ -8,7 +8,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "vitest run src/content/content.test.ts src/content/exercises/index.test.ts src/content/exercises/validate.itest.ts",
+    "data": "node scripts/generate-datasets.mjs",
+    "check:data": "node scripts/check-workplace-effects.mjs",
+    "validate:static": "vitest run src/content/content.test.ts src/content/exercises/index.test.ts",
+    "validate:r": "vitest run src/content/exercises/validate.itest.ts",
+    "validate": "npm run check:data && npm run validate:static && npm run validate:r",
     "e2e": "playwright test",
     "postinstall": "patch-package"
   },

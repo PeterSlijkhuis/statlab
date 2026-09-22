@@ -1,0 +1,119 @@
+Module 6 will ask what happens when you take a sample. Before that, it is worth
+being precise about the thing you are sampling *from*. Populations are messy,
+but a great many of them are close enough to one particular shape that we can
+describe the whole thing with two numbers and then answer questions about it
+with arithmetic.
+
+Our population of 5000 students has an exam score for everyone. Look at it.
+
+<CodeBlock id="load" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+population %>% summarise(mu = mean(exam_score), sigma = sd(exam_score), n = n())`} />
+
+Two numbers: a mean of about 73.3 and a standard deviation of about 12.4. The
+claim of this lesson is that those two numbers are almost the whole story.
+
+<CodeBlock id="hist" code={`library(ggplot2)
+
+population %>%
+  ggplot(aes(x = exam_score)) +
+  geom_histogram(bins = 40) +
+  labs(x = "Exam score", y = "Number of students") +
+  theme_classic()`} />
+
+## A curve instead of bars
+
+A histogram depends on how you chose the bins. Make them narrower and the bars
+get shorter; make them wider and it gets lumpier. A **density curve** is what a
+histogram settles down to when the bins get very narrow and the vertical axis is
+rescaled so that the total area under it is exactly 1.
+
+`dnorm()` gives the height of the normal density curve at any point. We can draw
+it on top of the data — rescaling the histogram to density so the two are on the
+same vertical axis.
+
+<CodeBlock id="curve" code={`mu <- mean(population$exam_score)
+sigma <- sd(population$exam_score)
+
+population %>%
+  ggplot(aes(x = exam_score)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40) +
+  stat_function(fun = dnorm, args = list(mean = mu, sd = sigma), linewidth = 1) +
+  labs(x = "Exam score", y = "Density") +
+  theme_classic()`} />
+
+The curve is not the data. It is a *model* of the data: a smooth idealisation
+with exactly two parameters. It fits here well enough to be useful, and the
+rest of this module treats it as if it were the truth.
+
+<Predict
+  id="p-height"
+  question="dnorm(73.3, mean = 73.3, sd = 12.4) returns 0.0323. What does that number tell you?"
+  choices={[
+    { text: 'About 3.2% of students score exactly 73.3', response: 'No student scores *exactly* 73.3 in any meaningful sense, and a density is not a percentage. Read on — this is the confusion the lesson exists to clear up.' },
+    { text: 'The height of the curve at 73.3, which only becomes a probability once you multiply it by a width', correct: true, response: 'Exactly. A density is a height. Probability is height times width, which is to say area.' },
+    { text: 'About 3.2% of students score below 73.3', response: 'That is what pnorm() would tell you, and the answer would be close to 50%, not 3.2%.' },
+  ]}
+/>
+
+## Probability is area
+
+This is the single idea of the lesson, and it is worth stating on its own line:
+
+> Under a density curve, **probability is area** — never height.
+
+The whole area under the curve is 1, because every student is somewhere. The
+area to the left of a score is the proportion of students below it, and that is
+what `pnorm()` returns.
+
+<CodeBlock id="area" code={`pnorm(60, mean = mu, sd = sigma)    # proportion below 60
+pnorm(85, mean = mu, sd = sigma)    # proportion below 85
+
+# An area between two scores is one area minus the other.
+pnorm(85, mean = mu, sd = sigma) - pnorm(65, mean = mu, sd = sigma)
+
+# And the model can be checked against the population it describes.
+mean(population$exam_score < 60)`} />
+
+The last two lines matter. The model says about 14 per cent of students score
+below 60; the population itself says about 15 per cent. Close, not identical —
+which is what "the data are approximately normal" means in practice.
+
+Notice also what the area of a single point must be. A point has no width, so
+`pnorm(73.3) - pnorm(73.3)` is exactly zero: the probability of scoring
+*exactly* 73.3 is zero under a continuous model. That is not a paradox. It is
+the price of modelling a score as a real number rather than as a count.
+
+## See it move
+
+Drag the mean and the standard deviation and watch the shaded area respond. A
+larger SD flattens the curve — the peak drops, because the total area must stay
+at 1 however wide the curve spreads.
+
+<Simulation name="distribution" />
+
+<Quiz
+  id="q-density"
+  question="You double the standard deviation of a normal curve and leave the mean alone. What happens to the height of the curve at its peak?"
+  choices={[
+    { text: 'It doubles', response: 'The curve gets wider, and a wider curve with the same total area must be shorter, not taller.' },
+    { text: 'It halves', correct: true, response: 'Right. The area under the curve is fixed at 1, so spreading it over twice the width halves the height everywhere near the middle.' },
+    { text: 'It is unchanged', response: 'Then the total area would double, and the total area under a density curve is always exactly 1.' },
+    { text: 'It depends on the mean', response: 'Shifting the mean slides the curve sideways without changing its shape at all.' },
+  ]}
+/>
+
+<Exercise id="m5-1-a" />
+
+<Interpret
+  id="i-5-1"
+  question="You are writing up the distribution of exam scores for a methods report. Which sentence reports what you have actually computed?"
+  choices={[
+    { text: 'Exam scores were approximately normally distributed (M = 73.31, SD = 12.36). Under this model, 14% of students are expected to score below 60.', correct: true, response: 'Correct. It names the model, gives the two parameters in APA form, and reports the tail area as an expected proportion rather than as a claim about any one student.' },
+    { text: 'The density of exam scores at 60 was .018, so 1.8% of students scored 60.', response: 'That is dnorm(60), a height. Heights are not probabilities, and no student scores exactly 60 under a continuous model.' },
+    { text: 'The probability that a student scored exactly 60 was .14.', response: '.14 is the area to the LEFT of 60, covering every score below it. The probability of any exact score under a continuous model is zero.' },
+    { text: 'Exam scores were normally distributed (M = 73.31, SD = 12.36), so 14% of students scored below 60.', response: 'Two problems. "Were normally distributed" overstates it — the fit is close, not exact — and the 14% is what the model expects, while the population itself holds about 15%.' },
+  ]}
+/>

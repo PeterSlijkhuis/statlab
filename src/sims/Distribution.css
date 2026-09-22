@@ -1,0 +1,12 @@
+.distribution { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.1rem; margin: 2rem 0; background: var(--surface); box-shadow: var(--shadow); }
+.distribution-controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
+.distribution-controls label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+.distribution-slider input[type="range"] { width: 9rem; }
+.distribution-slider span { font-variant-numeric: tabular-nums; min-width: 2.5rem; }
+.distribution-svg { width: 100%; height: auto; background: #f8fafc; border-radius: 4px; }
+.distribution-axis { font-size: 11px; fill: #475569; }
+.distribution-readout { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+.distribution-readout th { text-align: left; font-weight: 500; color: #475569; padding: 0.2rem 0.5rem 0.2rem 0; }
+.distribution-readout td { padding: 0.2rem 1.25rem 0.2rem 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.distribution-note { margin: 0.5rem 0 0; color: #475569; font-size: 0.85rem; }
+

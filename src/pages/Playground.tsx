@@ -1,9 +1,15 @@
 import CodeBlock from '../components/CodeBlock';
 import { LessonProvider } from '../content/LessonContext';
-import { useLessonSession } from '../r/useLessonSession';
+import { useLessonSession, type SessionLesson } from '../r/useLessonSession';
+
+/** Module-level so its identity is stable across renders. */
+const PLAYGROUND: SessionLesson = { id: 'playground' };
 
 export default function Playground() {
-  const { webR, env } = useLessonSession('playground');
+  // No packages: the playground gets the core set from prepareSession and
+  // nothing more. A student experimenting here has not opened a lesson that
+  // justifies a 20 MB modelling-package download.
+  const { webR, env } = useLessonSession(PLAYGROUND);
 
   return (
     <LessonProvider value={{ lessonId: 'playground', webR, env, ready: Boolean(webR && env) }}>
