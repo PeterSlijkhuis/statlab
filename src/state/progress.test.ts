@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import {
+  currentStreak,
   exportProgress,
   getDraft,
   getProgress,
   hasStorageFailed,
   importProgress,
   lastVisitedLesson,
+  localDay,
   markExercise,
   markQuiz,
   saveDraft,
@@ -138,5 +140,36 @@ describe('progress store', () => {
 
     offA();
     offB();
+  });
+});
+
+describe('streak', () => {
+  test('counts consecutive active days ending today', () => {
+    const progress = { version: 1 as const, lessons: {}, activity: ['2026-09-19', '2026-09-20', '2026-09-21', '2026-09-22'] };
+    expect(currentStreak(progress, new Date(2026, 8, 22, 20))).toBe(4);
+  });
+
+  test('is still alive the morning after, before the student has started', () => {
+    const progress = { version: 1 as const, lessons: {}, activity: ['2026-09-20', '2026-09-21'] };
+    expect(currentStreak(progress, new Date(2026, 8, 22, 8))).toBe(2);
+  });
+
+  test('breaks after a missed day', () => {
+    const progress = { version: 1 as const, lessons: {}, activity: ['2026-09-18', '2026-09-20'] };
+    expect(currentStreak(progress, new Date(2026, 8, 22, 8))).toBe(0);
+  });
+
+  test('any saved activity marks today, once', () => {
+    markQuiz('06-1', 'q1', true);
+    saveDraft('06-1', 'b1', 'x');
+    expect(getProgress().activity).toEqual([localDay()]);
+  });
+
+  test('a file exported before streaks existed still imports', () => {
+    expect(importProgress(JSON.stringify({ version: 1, lessons: {} }))).toBe(true);
+  });
+
+  test('rejects an activity list that is not a list of days', () => {
+    expect(importProgress(JSON.stringify({ version: 1, lessons: {}, activity: [3] }))).toBe(false);
   });
 });
