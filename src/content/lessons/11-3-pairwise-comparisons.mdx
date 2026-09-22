@@ -6,7 +6,8 @@ with Engineering. Marketing against Sales is nowhere in the output.
 > while it downloads; the status pill at the top of the page shows what is
 > happening. It is cached afterwards.
 
-<CodeBlock id="c-load" code={`library(broom)
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
 library(emmeans)
 
 d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)

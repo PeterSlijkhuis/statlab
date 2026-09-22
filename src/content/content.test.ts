@@ -199,6 +199,36 @@ describe('lesson content', () => {
     }
   });
 
+  test('a lesson attaches the packages its pipes and verbs come from before it uses them', () => {
+    // Nothing else a lesson loads re-exports %>%: broom, car, emmeans, lme4 and
+    // lmerTest all leave it undefined. A block that pipes before dplyr or tidyr
+    // is attached fails the moment a student opens that lesson on a fresh R
+    // session, and the lesson's own earlier blocks are the only thing that can
+    // have attached it.
+    const PIPE = ['dplyr', 'tidyr', 'magrittr'];
+    const VERB = /\b(select|mutate|summarise|summarize|group_by|arrange|pull|slice|rename|bind_rows|n_distinct|ntile)\(/;
+    for (const module of MODULES) {
+      for (const lesson of module.lessons) {
+        const attached = new Set<string>();
+        for (const line of lessonCode(sources[`./lessons/${lesson.file}.mdx`] ?? '').split('\n')) {
+          const library = line.match(/library\((\w+)\)/);
+          if (library) attached.add(library[1]);
+          if (line.trimStart().startsWith('#')) continue;
+          const where = `${lesson.id}: ${line.trim()}`;
+          if (/%>%/.test(line)) {
+            expect(
+              PIPE.some((name) => attached.has(name)),
+              `${where} — pipes before attaching dplyr or tidyr`,
+            ).toBe(true);
+          }
+          if (VERB.test(line)) {
+            expect(attached.has('dplyr'), `${where} — uses a dplyr verb before attaching dplyr`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
   test('every defined exercise is referenced by some lesson', () => {
     // An orphaned exercise is never seen by a student, is never opened in
     // review, and passes every other check in this file.
