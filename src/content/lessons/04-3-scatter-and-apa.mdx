@@ -1,0 +1,102 @@
+So far every figure has described one column, or one column within groups. The
+last one puts two numbers together, which is the shape of every question in Part
+3 of this course: does wellbeing go with autonomy, and by how much?
+
+<CodeBlock id="setup" code={`library(ggplot2)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## The scatterplot
+
+Two numeric columns, one on each axis, one point per employee.
+
+<CodeBlock id="scatter" code={`ggplot(employees, aes(x = autonomy, y = wellbeing)) +
+  geom_point()`} />
+
+Which variable goes where is a claim, not a convention: the thing you think is
+being affected — the **outcome** — goes on y, and the thing you think is doing
+the affecting goes on x. Module 9 writes the same claim as
+`lm(wellbeing ~ autonomy)`, in the same order.
+
+With 480 points, many land on top of each other. Making them partly transparent
+shows where the crowd is.
+
+<CodeBlock id="alpha" code={`ggplot(employees, aes(x = autonomy, y = wellbeing)) +
+  geom_point(alpha = 0.4)`} />
+
+`alpha` is set to a fixed value here, outside `aes()`. Inside `aes()` it would
+mean "vary the transparency according to a column", which is not what you want.
+That distinction — constants outside `aes()`, mappings inside — catches everyone
+once.
+
+<Predict
+  id="p-smooth"
+  question="You add geom_smooth() with no arguments to this plot. What line do you get?"
+  choices={[
+    { text: 'A straight line, the regression line', response: 'That is what most people expect and it is not the default. geom_smooth() chooses a method based on the sample size.' },
+    { text: 'A curve that follows the local trend, with a shaded band around it', correct: true, response: 'Yes: with fewer than a thousand rows it fits a loess curve. It is excellent for looking at a relationship and useless for reporting one, because it has no slope to quote.' },
+    { text: 'Nothing, because the method argument is required', response: 'It runs happily, tells you in a message which formula it used, and draws a curve.' },
+  ]}
+/>
+
+<CodeBlock id="loess" code={`ggplot(employees, aes(x = autonomy, y = wellbeing)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth()`} />
+
+## Ask for the model you mean
+
+<CodeBlock id="lm" code={`ggplot(employees, aes(x = autonomy, y = wellbeing)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = lm)`} />
+
+That straight line is the fitted linear model — the same line `lm()` produces in
+Module 9, drawn before you have learned to fit it. The grey band is a confidence
+interval for the line, which Module 7 explains.
+
+## Making it APA-ready
+
+The figure is now correct and still unpublishable. Two changes fix that.
+
+<CodeBlock id="apa" code={`ggplot(employees, aes(x = autonomy, y = wellbeing)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = lm) +
+  labs(
+    x = "Autonomy (self-reported, 1 to 10)",
+    y = "Wellbeing (0 to 100)"
+  ) +
+  theme_classic()`} />
+
+- `labs()` replaces the column names. A reader has never seen your data frame,
+  and `autonomy` does not tell them the scale or what was asked.
+- `theme_classic()` removes the grey panel and the grid lines, leaving two axis
+  lines on white. APA figures carry no decoration that does not carry
+  information.
+
+Two more rules that live outside the code. The caption goes below the figure and
+says what it shows, not what you concluded from it. And nothing that matters may
+depend on colour alone, because the journal may print in greyscale and some of
+your readers cannot distinguish red from green.
+
+<Exercise id="m4-3-a" />
+
+<Interpret
+  id="i-4-3"
+  question="Which caption belongs under the figure you just built?"
+  choices={[
+    { text: 'Figure 1. Autonomy causes higher wellbeing among employees.', response: 'The figure shows an association in observational data. Nothing here rules out the possibility that content employees report more autonomy, or that a third variable drives both.' },
+    { text: 'Figure 1. Wellbeing as a function of self-reported autonomy in 480 employees, with a fitted linear regression line and 95% confidence band.', correct: true, response: 'Correct. It says what is plotted, for how many people, and what the line is - everything a reader needs to interpret the figure without the surrounding text.' },
+    { text: 'Figure 1. Scatterplot.', response: 'True and useless. A caption has to work when the figure is read on its own, which is how figures are usually read.' },
+    { text: 'Figure 1. The relationship between autonomy and wellbeing was significant.', response: 'A caption describes the figure; significance belongs in the text, and nothing in this figure reports a test.' },
+  ]}
+/>
+
+<Quiz
+  id="q-4-3"
+  question="In geom_point(alpha = 0.4), why is alpha outside the aes() brackets?"
+  choices={[
+    { text: 'Because alpha is not a real aesthetic', response: 'It is a genuine aesthetic - you could map a column to it. The question is whether you want to.' },
+    { text: 'Because it is a fixed setting for every point, not a mapping from a column', correct: true, response: 'Right. Inside aes() a value means "take this from the data"; outside it means "use this constant". aes(alpha = 0.4) would invent a column containing 0.4 and add a legend for it.' },
+    { text: 'Because aes() accepts only x and y', response: 'aes() accepts colour, fill, shape, size, alpha and more - as mappings from columns.' },
+    { text: 'Because transparency is set by the theme', response: 'Themes control the non-data parts of the figure: panels, grids, fonts. The ink that represents data is set by the layer.' },
+  ]}
+/>
