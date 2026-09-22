@@ -1,14 +1,34 @@
-import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { MODULES, type LessonMeta } from '../content/manifest';
 import { getProgress, subscribeProgress } from '../state/progress';
 
-export default function Sidebar() {
+type Props = {
+  /** Whether the drawer is showing, on screens narrow enough to have one. */
+  open?: boolean;
+};
+
+export default function Sidebar({ open = false }: Props) {
   const [, setTick] = useState(0);
+  const nav = useRef<HTMLElement | null>(null);
+  const { pathname } = useLocation();
   // getProgress() returns a fresh object on every call, so it cannot serve as a
   // useSyncExternalStore snapshot; a counter re-renders on each store write.
   useEffect(() => subscribeProgress(() => setTick((tick) => tick + 1)), []);
   const progress = getProgress();
+
+  // The list is 42 lessons long, so it scrolls on its own. Bring the current
+  // lesson into view whenever the page changes or the drawer opens, without
+  // scrolling the page itself, which scrollIntoView would also do.
+  useEffect(() => {
+    const list = nav.current;
+    const active = list?.querySelector<HTMLElement>('.sidebar-lesson.active');
+    if (!list || !active) return;
+    const top = active.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    if (top < list.scrollTop || top + active.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = Math.max(0, top - list.clientHeight / 3);
+    }
+  }, [pathname, open]);
 
   function statusClass(lesson: LessonMeta): string {
     const record = progress.lessons[lesson.id];
@@ -24,7 +44,7 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="sidebar" aria-label="Course navigation">
+    <nav ref={nav} id="course-nav" className={open ? 'sidebar open' : 'sidebar'} aria-label="Course navigation">
       <NavLink to="/" className="sidebar-home">StatLab</NavLink>
       {MODULES.map((module) => (
         <section key={module.id}>
