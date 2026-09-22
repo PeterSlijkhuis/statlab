@@ -9,6 +9,36 @@ implementation plan deliberately left out. It carries the shared conventions,
 the build order, and the decisions that each of the five plans below depends on.
 Read it once before starting any of them.
 
+**Status (2026-09-22):** Implemented. Every plan indexed here was built in PR #4, merged to `main` and deployed: fourteen modules, 42 lessons, 58 checked exercises, six simulations, both datasets, and the chooser renamed and linked to its lessons. CI is green, including all 58 exercises graded in real R.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## What exists today
 
 `docs/plans/2026-09-14-statlab-shell-and-module-06.md` built, and
@@ -210,12 +240,12 @@ Recorded here because a reviewer will want the list in one place.
    with a visible progress state; if it proves too slow on campus wifi, the
    fallback is to self-host the webR binary repository, which §3.1 already
    anticipates as a one-line change.
-3. **`lme4`/`lmerTest` under webR.** Module 13 depends on them being installable
-   from the webR binary repository at v0.6.0. Task P1 step 2 verifies this
-   before any Module 13 content is written; if they are unavailable, Module 13
-   falls back to teaching the paired *t*-test and the long-format reshape only,
-   and the "Which model should I use?" chooser's mixed-model leaf becomes
-   reference material rather than a link to a lesson.
+3. **Settled: `lme4`/`lmerTest` under webR.** Module 13 depended on them being
+   installable from the webR binary repository at v0.6.0, and the fallback was
+   to teach the paired *t*-test and the long-format reshape only. PR #4's CI run
+   installed `lme4`, `lmerTest`, `emmeans` and `car` under webR 0.6.0 and ran
+   every Module 13 exercise against them, so Module 13 keeps the shape the spec
+   gives it and the fallback is not needed.
 
 ## Self-review
 

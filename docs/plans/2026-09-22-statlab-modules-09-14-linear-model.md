@@ -8,6 +8,36 @@
 
 **Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22; `content-platform` tasks P1–P4 complete (packages, `workplace.csv`, the fourteen-module manifest, the validator rules); `simulations` tasks S4 (`correlation`) and S5 (`leastsquares`), which Module 9 embeds.
 
+**Status (2026-09-22):** Implemented and merged in PR #4. All eighteen lessons and twenty-six exercises are live, and the chooser is renamed to `ModelChooser.tsx` at `/which-model` with all eight leaves linked. Every step is ticked except the seven browser checks.
+
+**Where this plan was wrong.** PR #4's description is the authoritative list of
+the eleven places the plans did not survive contact with running code. The ones
+that matter most to a reader of these documents:
+
+1. The Module 3 "Engineering's mean is mid-table, its median highest" surprise
+   was **not** achievable from the generator this plan specifies. Wellbeing was
+   linear with symmetric noise, so every department's median tracked its mean
+   and no seed could separate them. Engineering now carries an unmeasured
+   on-call rotation borne by about one engineer in five, which also forced
+   Marketing's profile and the residual SD to change.
+2. `normalCdf` and `tQuantile` as specified both missed their own stated
+   tolerances. Hart's rational approximation replaced Numerical Recipes' erfc,
+   and the Cornish-Fisher expansion gained a fifth term.
+3. The `pvalue` simulation had no usable scale: with standard-normal groups
+   every setting of the observed-difference slider read p = 0.000.
+4. Four of the Modules 9 to 14 test assertions were themselves buggy, including
+   one regex that stopped at the first nested close paren and would have passed
+   vacuously.
+5. The validator installed only the core packages, so every lesson needing
+   `emmeans`, `car`, `lme4` or `lmerTest` failed to run: 45 of 49 CI failures
+   from one cause.
+6. Lessons 11-3 and 12-2 piped before attaching `dplyr`, and died on their first
+   block in a fresh session. A content test now walks each lesson's blocks in
+   order and catches it.
+
+**Open question 3 is settled.** `lme4`, `lmerTest`, `emmeans` and `car` all
+install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
+
 ## Global Constraints
 
 The shell plan's Global Constraints and the overview's content constraints apply in full and are not repeated. These six modules are where spec §7.1 stops being a style note and starts deciding what each lesson contains, so its rules are restated here in the operational form this plan needs.
@@ -78,7 +108,7 @@ src/
 
 Module 9 is where Part 3 starts, and it carries a load the later modules do not: it has to make "a model" mean something concrete before any of the extensions land. So the arc is see it (a scatterplot and a correlation), fit it (`lm`, one predictor, a fitted line), read it (`tidy`, `glance`, and the six-step chain from spec §4.2 named explicitly for the first time).
 
-- [ ] **Step 1: Add the Module 9 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 9 entry to `PLANNED_MODULES`**
 
 In `src/content/manifest.ts`, the Module 9 entry of `PLANNED_MODULES` must read exactly this. Content-platform task P3 declared all fourteen modules from the same table, so for a worker following the recommended sequence this step is a verification rather than an edit — but verify it character for character, because a wrong `file` silently keeps the module out of `MODULES` and a wrong exercise id fails `content.test.ts` with a message about the MDX rather than about the manifest. The same applies to step 1 of tasks M10 through M14.
 
@@ -113,7 +143,7 @@ In `src/content/manifest.ts`, the Module 9 entry of `PLANNED_MODULES` must read 
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-09.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-09.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -432,7 +462,7 @@ export const module09: ExerciseDef[] = [
 
 Every wrong answer here is a mistake a student actually makes — the formula reversed, the intercept read as the slope, `abs()` applied to a correlation, adjusted *R²* handed in as *R²*, the thirds taken on the outcome — and every one of them runs without error, so the validator's negative fixtures test what it is supposed to test.
 
-- [ ] **Step 3: Write `src/content/lessons/09-1-seeing-association.mdx`**
+- [x] **Step 3: Write `src/content/lessons/09-1-seeing-association.mdx`**
 
 ````mdx
 Part 3 of this course is about one idea with several names. Regression, the
@@ -566,7 +596,7 @@ ones, and the only cure is practice.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/09-2-fitting-a-line.mdx`**
+- [x] **Step 4: Write `src/content/lessons/09-2-fitting-a-line.mdx`**
 
 ````mdx
 A correlation says how tightly the points follow a line. It does not say which
@@ -680,7 +710,7 @@ it.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/09-3-reading-model-output.mdx`**
+- [x] **Step 5: Write `src/content/lessons/09-3-reading-model-output.mdx`**
 
 ````mdx
 You can fit a model. Now read one — and report it, which is a separate skill and
@@ -810,7 +840,7 @@ coefficient: *F*(1, 478), *R*², then *b* with its *SE*, *t* and *p*. Never a
 />
 ````
 
-- [ ] **Step 6: Add Module 9 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 9 assertions to `src/content/exercises/index.test.ts`**
 
 Append a `describe` block of its own, so the six module tasks append to this file without colliding.
 
@@ -852,13 +882,13 @@ describe('Module 9', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 
 Expected: PASS. In particular `every planned lesson has a unique id and file`, `every referenced exercise is defined`, `each lesson lists exactly the exercises its MDX contains`, `block ids are unique within each lesson`, `every referenced simulation is registered` (this is where a missing `correlation` or `leastsquares` simulation shows up), `every inferential lesson closes with an Interpret block`, and `every declared package is one the course knows how to install` must all be green. `MODULES` now contains Module 6 and Module 9.
 
-- [ ] **Step 8: Run the R validator over Module 9**
+- [x] **Step 8: Run the R validator over Module 9**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m9-"`
 
@@ -872,7 +902,7 @@ Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/09-1`.
 
 Expected: the sidebar lists Module 9 with its three lessons; R boots and the status pill reports the core install; `glimpse(d)` prints 480 rows and 14 columns; both scatterplots draw with a fitted line; the `correlation` simulation responds to its slider; `09-2` draws the `leastsquares` simulation and `augment()` prints `.fitted` and `.resid`; every `<Exercise>` runs, shows its hints one at a time, and reports a teaching message on a deliberately wrong answer; every `<Interpret>` records an answer. Navigate `09-1 → 09-2 → 09-3` with the next-lesson control and confirm objects from earlier blocks are still alive within a lesson and gone between lessons.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-09.ts src/content/exercises/index.test.ts src/content/lessons/09-1-seeing-association.mdx src/content/lessons/09-2-fitting-a-line.mdx src/content/lessons/09-3-reading-model-output.mdx
@@ -894,7 +924,7 @@ git commit -m "feat: Module 9, correlation and simple regression"
 
 The whole module turns on one phrase and its limits: **holding the others constant**. That phrase is what makes a *b* in a multiple regression different from the same *b* fitted alone, and misreading it as a causal control is the single most common error in student theses. The module earns the phrase in `10-2` by fitting both models and showing the coefficient move, and then spends the `<Interpret>` blocks taking the causal reading away again.
 
-- [ ] **Step 1: Add the Module 10 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 10 entry to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -927,7 +957,7 @@ The whole module turns on one phrase and its limits: **holding the others consta
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-10.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-10.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -1196,7 +1226,7 @@ export const module10: ExerciseDef[] = [
 
 > The `f_value` check uses `abs(f_value) < 30` as a second guard rather than an exact comparison with a particular *t*. Any of the three coefficient *t*s is a plausible wrong answer, they change if the dataset is regenerated, and every one of them is far smaller than this model's *F*. The guard names the mistake instead of only reporting a mismatch.
 
-- [ ] **Step 3: Write `src/content/lessons/10-1-two-predictors.mdx`**
+- [x] **Step 3: Write `src/content/lessons/10-1-two-predictors.mdx`**
 
 ````mdx
 Module 9 ended with a model that accounted for about a fifth of the variance in
@@ -1309,7 +1339,7 @@ predictors that bought you nothing.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/10-2-holding-constant.mdx`**
+- [x] **Step 4: Write `src/content/lessons/10-2-holding-constant.mdx`**
 
 ````mdx
 "Holding the others constant" is the phrase that makes multiple regression
@@ -1418,7 +1448,7 @@ you prefer.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/10-3-model-fit-and-reporting.mdx`**
+- [x] **Step 5: Write `src/content/lessons/10-3-model-fit-and-reporting.mdx`**
 
 ````mdx
 Two models, two questions. Does the set of predictors, taken together, do better
@@ -1522,7 +1552,7 @@ means in the units of the study. Conventions worth getting right the first time:
 />
 ````
 
-- [ ] **Step 6: Add Module 10 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 10 assertions to `src/content/exercises/index.test.ts`**
 
 ```ts
 describe('Module 10', () => {
@@ -1550,12 +1580,12 @@ describe('Module 10', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 Expected: PASS, with `MODULES` now containing Modules 6, 9 and 10, and `10-1`, `10-2`, `10-3` each carrying an `<Interpret>`.
 
-- [ ] **Step 8: Run the R validator over Module 10**
+- [x] **Step 8: Run the R validator over Module 10**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m10-"`
 Expected: four solutions pass, fifteen wrong answers all reported as `fail` (never `student-error`), nine alternate solutions pass.
@@ -1567,7 +1597,7 @@ Then: `npx vitest run src/content/exercises/validate.itest.ts -t "10-"` for the 
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/10-2`.
 Expected: `coef(lm(resid_wellbeing ~ resid_workload))[2]` and `coef(model3)["workload"]` print the same number to every digit shown — this is the block that makes "holding constant" concrete and it is worth watching run. `tidy(conf.int = TRUE)` in `10-3` prints `conf.low` and `conf.high` without a warning. All four exercises accept their solution and reject a deliberately wrong answer with a message that names the mistake.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-10.ts src/content/exercises/index.test.ts src/content/lessons/10-1-two-predictors.mdx src/content/lessons/10-2-holding-constant.mdx src/content/lessons/10-3-model-fit-and-reporting.mdx
@@ -1591,7 +1621,7 @@ This is the module spec §7.1 is aimed at. A student who has been taught the *t*
 
 The reference level is alphabetical. `remote` has levels `No`, `Yes`, so the coefficient is `remoteYes`. `department` has levels `Engineering`, `Marketing`, `Sales`, `Support`, so **Engineering is the reference** and there is no `departmentEngineering` coefficient at all. Checks derive this with `levels(d$department)[1]` rather than assuming it.
 
-- [ ] **Step 1: Add the Module 11 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 11 entry to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -1624,7 +1654,7 @@ The reference level is alphabetical. `remote` has levels `No`, `Yes`, so the coe
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-11.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-11.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -1953,7 +1983,7 @@ export const module11: ExerciseDef[] = [
 
 > **`m11-2-b`'s first wrong answer depends on the dataset.** It sorts by the mean and must therefore land on a different department from the median. Content-platform task P2 step 4 verifies exactly that ("Engineering's mean wellbeing is neither highest nor lowest while its median is highest") before `workplace.csv` is committed. If the generator is ever reseeded and that property is lost, this fixture stops being a wrong answer and the validator will say so by passing it — investigate the dataset, not the check.
 
-- [ ] **Step 3: Write `src/content/lessons/11-1-two-groups.mdx`**
+- [x] **Step 3: Write `src/content/lessons/11-1-two-groups.mdx`**
 
 ````mdx
 You have almost certainly been taught the independent-samples *t*-test as its own
@@ -2061,7 +2091,7 @@ alternative is the Mann-Whitney test, `wilcox.test(wellbeing ~ remote, data = d)
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/11-2-dummy-coding.mdx`**
+- [x] **Step 4: Write `src/content/lessons/11-2-dummy-coding.mdx`**
 
 ````mdx
 Two groups needed one dummy variable. Four groups need three, and understanding
@@ -2172,7 +2202,7 @@ the means whenever they disagree, and say which one your conclusion rests on.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/11-3-pairwise-comparisons.mdx`**
+- [x] **Step 5: Write `src/content/lessons/11-3-pairwise-comparisons.mdx`**
 
 ````mdx
 The overall *F* said that wellbeing differs somewhere among the four departments.
@@ -2272,7 +2302,7 @@ completely different scientific ones. Report the interval.
 />
 ````
 
-- [ ] **Step 6: Add Module 11 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 11 assertions to `src/content/exercises/index.test.ts`**
 
 ```ts
 describe('Module 11', () => {
@@ -2307,12 +2337,12 @@ describe('Module 11', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 Expected: PASS. The rule that matters most here is `a live lesson attaches no package it did not declare` — `11-3` is the only Module 11 lesson allowed to call `library(emmeans)`, and if `11-1` or `11-2` picks it up by copy-paste this is the test that says so.
 
-- [ ] **Step 8: Run the R validator over Module 11**
+- [x] **Step 8: Run the R validator over Module 11**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m11-"`
 Expected: five solutions pass, twenty wrong answers all `fail`, ten alternate solutions pass. `m11-3-a` is the slowest: its check fits the model and runs `emmeans` twice, and `emmeans` has to be installed in the validator's webR instance first.
@@ -2326,7 +2356,7 @@ Then: `npx vitest run src/content/exercises/validate.itest.ts -t "11-"`. Expecte
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/11-1`.
 Expected: the `t.test` block and the `tidy()` block print *t*s equal in size and opposite in sign, and the lesson prose says so before the student notices it as a bug. On `11-3`, the status pill reads "Installing emmeans" and then clears, the first code block runs afterwards rather than erroring, and navigating away to `11-2` and back does not re-download it. `confint(comparisons$contrasts)` prints six intervals.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-11.ts src/content/exercises/index.test.ts src/content/exercises/validate.itest.ts src/content/lessons/11-1-two-groups.mdx src/content/lessons/11-2-dummy-coding.mdx src/content/lessons/11-3-pairwise-comparisons.mdx
@@ -2350,7 +2380,7 @@ The outcome for the whole module is the **change** in engagement, `engagement_t2
 
 **The `contr.sum` rule is the load-bearing detail of this module.** `car::Anova(model, type = "III")` under R's default treatment contrasts does not test the main effects that anyone means by "main effect": it tests each factor at the other factor's reference level. The correct call passes `contrasts = list(training = contr.sum, mentoring = contr.sum)` to `lm()`. Lesson `12-2` says this explicitly, shows both tables side by side, and exercise `m12-2-b` has the uncorrected fit as a negative fixture. Note also what does **not** change: the type III test of the *interaction* is identical under either coding, so only a main-effect row can serve as the fixture.
 
-- [ ] **Step 1: Add the Module 12 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 12 entry to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -2383,7 +2413,7 @@ The outcome for the whole module is the **change** in engagement, `engagement_t2
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-12.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-12.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -2656,7 +2686,7 @@ export const module12: ExerciseDef[] = [
 
 > **Why no `emmeans` in Module 12.** The P3 package table gives `12-2` `broom` and `car`, and `12-3` `dplyr` and `ggplot2`. Simple effects are therefore computed from the cell means rather than with `emmeans(model, pairwise ~ training | mentoring)`, which would be the natural call and is what the chooser's factorial leaf shows. Lesson `12-3` names `emmeans` in prose and points at Module 11 for it; adding it to the package list is a change to the content-platform plan's frozen table, not something this task may do on its own.
 
-- [ ] **Step 3: Write `src/content/lessons/12-1-what-an-interaction-is.mdx`**
+- [x] **Step 3: Write `src/content/lessons/12-1-what-an-interaction-is.mdx`**
 
 ````mdx
 Every model so far has assumed that an effect is an effect: workload costs the
@@ -2766,7 +2796,7 @@ bind_rows(
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/12-2-factorial-and-type-iii.mdx`**
+- [x] **Step 4: Write `src/content/lessons/12-2-factorial-and-type-iii.mdx`**
 
 ````mdx
 A supervisor who asks for "a two-way ANOVA" is asking for an *F* test of each
@@ -2880,7 +2910,7 @@ conditions that behave differently.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/12-3-interaction-plots.mdx`**
+- [x] **Step 5: Write `src/content/lessons/12-3-interaction-plots.mdx`**
 
 ````mdx
 Nobody reads a factorial table and sees the pattern. They see it in a plot with
@@ -3012,7 +3042,7 @@ one would say "Error bars show +/- 1 standard error of the mean."
 />
 ````
 
-- [ ] **Step 6: Add Module 12 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 12 assertions to `src/content/exercises/index.test.ts`**
 
 ```ts
 describe('Module 12', () => {
@@ -3049,12 +3079,12 @@ describe('Module 12', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 Expected: PASS. `12-2` is the only Module 12 lesson permitted `library(car)`; `12-3` declares `dplyr` and `ggplot2` only and must not attach `emmeans`, which it names in prose but never calls.
 
-- [ ] **Step 8: Run the R validator over Module 12**
+- [x] **Step 8: Run the R validator over Module 12**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m12-"`
 Expected: four solutions pass, seventeen wrong answers all `fail`, nine alternate solutions pass. `m12-2-b`'s check fits three models and builds three `car::Anova` tables, so it is the slowest check in the course so far — expect several seconds per fixture.
@@ -3066,7 +3096,7 @@ Then: `npx vitest run src/content/exercises/validate.itest.ts -t "12-"`. Expecte
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/12-2`.
 Expected: the two `Anova()` tables print one after the other, their `training` and `mentoring` rows differ and their `training:mentoring` rows agree to every printed digit — this is the comparison the lesson is built on, so read it rather than assuming it. `max_difference_in_fitted` prints a number at machine-precision scale. On `12-3` both interaction plots draw, the error bars render, and the shape-coded figure is legible in greyscale.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-12.ts src/content/exercises/index.test.ts src/content/lessons/12-1-what-an-interaction-is.mdx src/content/lessons/12-2-factorial-and-type-iii.mdx src/content/lessons/12-3-interaction-plots.mdx
@@ -3090,7 +3120,7 @@ The two engagement columns are the only repeated measure in the dataset, and `si
 
 **A naming decision that everything downstream depends on:** `pivot_longer` puts the original column names into the new `time` column, so its levels would be `engagement_t1` and `engagement_t2` and the fixed effect would be called `timeengagement_t2`. Every lesson and every exercise here relabels them to `t1` and `t2` in the same `mutate`, so the coefficient is `timet2`. Checks still locate the fixed effect by position and by a `time` prefix rather than by that exact string, so a student who keeps the long names still passes.
 
-- [ ] **Step 1: Add the Module 13 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 13 entry to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -3123,7 +3153,7 @@ The two engagement columns are the only repeated measure in the dataset, and `si
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-13.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-13.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -3413,7 +3443,7 @@ export const module13: ExerciseDef[] = [
 
 > **Why the looser tolerances in this module.** `m13-2-b` compares variance components and `m13-3-a` compares a mixed-model *t* with a paired *t* at `tolerance = 1e-4` and `1e-3` respectively, not `1e-6`. `lmer` estimates its variance components by numerical optimisation under REML, so two fits of the same model agree to many decimals rather than to machine precision, and the algebraic equivalence with the paired *t*-test survives only to about the same depth. Both comparisons carry that reason as a comment at the call, per spec §5.2.
 
-- [ ] **Step 3: Write `src/content/lessons/13-1-why-independence-breaks.mdx`**
+- [x] **Step 3: Write `src/content/lessons/13-1-why-independence-breaks.mdx`**
 
 ````mdx
 Every model in Modules 9 to 12 assumed that the rows of your data are independent
@@ -3532,7 +3562,7 @@ cloud of heights, which is exactly what the next lesson fixes.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/13-2-random-intercepts.mdx`**
+- [x] **Step 4: Write `src/content/lessons/13-2-random-intercepts.mdx`**
 
 ````mdx
 The spaghetti plot showed two kinds of variation at once: employees sitting at
@@ -3650,7 +3680,7 @@ as such: *t*(478.0) or *t*(942.7), rounded to one decimal.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/13-3-nesting-and-paired-t.mdx`**
+- [x] **Step 5: Write `src/content/lessons/13-3-nesting-and-paired-t.mdx`**
 
 ````mdx
 Two loose ends. First, the traditional name for what you fitted in the last
@@ -3792,7 +3822,7 @@ fixed effects instead.
 />
 ````
 
-- [ ] **Step 6: Add Module 13 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 13 assertions to `src/content/exercises/index.test.ts`**
 
 ```ts
 describe('Module 13', () => {
@@ -3833,14 +3863,14 @@ describe('Module 13', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 Expected: PASS. `13-1` declares `dplyr` and `tidyr` and must not attach `lmerTest`; `13-2` and `13-3` are the only lessons in the course that may.
 
 > `13-1`'s spaghetti plot calls `library(ggplot2)`, which the lesson does not declare. `ggplot2` is in `CORE_PACKAGES`, so the validator's `declared` set already contains it and the test passes — this is the same allowance every lesson in this plan relies on for `dplyr`.
 
-- [ ] **Step 8: Run the R validator over Module 13**
+- [x] **Step 8: Run the R validator over Module 13**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m13-"`
 Expected: four solutions pass, seventeen wrong answers all `fail`, eight alternate solutions pass. This is by far the slowest module: every check refits an `lmer`, each fixture fits at least one more, and the validator's `beforeAll` has to install `lme4` and `lmerTest` first. Budget several minutes and raise the per-test timeout in `validate.itest.ts` if `m13-2-b` or `m13-3-a` times out at 120 s.
@@ -3852,7 +3882,7 @@ Then: `npx vitest run src/content/exercises/validate.itest.ts -t "13-"`. Expecte
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/13-2`.
 Expected: the status pill reads "Installing lmerTest" for noticeably longer than `emmeans` did, then clears; `summary(m_time)` prints a `Pr(>|t|)` column — if it does not, `lme4` was attached instead of `lmerTest` and the *p* values are missing. On `13-3`, the `coef(summary(m_time))` and `t.test(..., paired = TRUE)` blocks print the same *t* to at least three decimals, `ranef(m_site)$site` prints six numbers, and the nested model prints three variance components.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-13.ts src/content/exercises/index.test.ts src/content/lessons/13-1-why-independence-breaks.mdx src/content/lessons/13-2-random-intercepts.mdx src/content/lessons/13-3-nesting-and-paired-t.mdx
@@ -3874,7 +3904,7 @@ git commit -m "feat: Module 13, repeated measures and nested data"
 
 **One dependency worth checking before writing a line of `14-3`.** `confint()` on a `glm` computes profile-likelihood intervals. That method lived in `MASS` for twenty years and moved into `stats` in R 4.4.0; webR 0.6.0 runs R 4.6.0, so it is present without `MASS`. Verify it in the playground first (step 0 below) — if it is missing, the whole module falls back to `confint.default()` Wald intervals, which is a one-word change in three places and a sentence of prose, not a redesign.
 
-- [ ] **Step 0: Confirm `confint()` works on a glm without MASS**
+- [x] **Step 0: Confirm `confint()` works on a glm without MASS**
 
 In the playground, or in the validator's R session:
 
@@ -3887,7 +3917,7 @@ confint(m)
 
 Expected: `FALSE`, then a 3 x 2 matrix of profile-likelihood bounds, possibly preceded by a `Waiting for profiling to be done...` message (a message, not an error). If `confint(m)` errors, use `confint.default(m)` throughout this module and say in `14-3` that the intervals are Wald intervals.
 
-- [ ] **Step 1: Add the Module 14 entry to `PLANNED_MODULES`**
+- [x] **Step 1: Add the Module 14 entry to `PLANNED_MODULES`**
 
 ```ts
   {
@@ -3920,7 +3950,7 @@ Expected: `FALSE`, then a 3 x 2 matrix of profile-likelihood bounds, possibly pr
   },
 ```
 
-- [ ] **Step 2: Write `src/content/exercises/module-14.ts`**
+- [x] **Step 2: Write `src/content/exercises/module-14.ts`**
 
 ```ts
 import type { ExerciseDef } from '../../r/checker';
@@ -4212,7 +4242,7 @@ export const module14: ExerciseDef[] = [
 
 > **Why `m14-3-a`'s check searches the columns rather than indexing them.** `exp(cbind(OR = coef(m), confint(m)))` gives a matrix whose second and third columns are named `2.5 %` and `97.5 %`; `tidy(exponentiate = TRUE, conf.int = TRUE)` gives a data frame with `conf.low` and `conf.high` and a `term` column of text. Both are correct answers to the prompt, and a check that indexed by name or position would reject one of them. It also accepts Wald bounds alongside profile bounds, and the passing message names which kind the student produced — because "which interval did you report" is a real question in a results section.
 
-- [ ] **Step 3: Write `src/content/lessons/14-1-why-not-a-linear-model.mdx`**
+- [x] **Step 3: Write `src/content/lessons/14-1-why-not-a-linear-model.mdx`**
 
 ````mdx
 Five modules of linear models, and one kind of outcome they cannot handle. Did
@@ -4325,7 +4355,7 @@ fits it.
 />
 ````
 
-- [ ] **Step 4: Write `src/content/lessons/14-2-glm-and-log-odds.mdx`**
+- [x] **Step 4: Write `src/content/lessons/14-2-glm-and-log-odds.mdx`**
 
 ````mdx
 `glm` stands for generalised linear model, and the generalisation is one idea: put
@@ -4446,7 +4476,7 @@ asks whether the predictors together explain more than chance.
 />
 ````
 
-- [ ] **Step 5: Write `src/content/lessons/14-3-odds-ratios-and-reporting.mdx`**
+- [x] **Step 5: Write `src/content/lessons/14-3-odds-ratios-and-reporting.mdx`**
 
 ````mdx
 Log odds are the right scale for fitting and the wrong scale for writing. Nobody
@@ -4589,7 +4619,7 @@ an odds ratio with no interval is an estimate with no error bar.
 />
 ````
 
-- [ ] **Step 6: Add Module 14 assertions to `src/content/exercises/index.test.ts`**
+- [x] **Step 6: Add Module 14 assertions to `src/content/exercises/index.test.ts`**
 
 ```ts
 describe('Module 14', () => {
@@ -4629,12 +4659,12 @@ describe('Module 14', () => {
 });
 ```
 
-- [ ] **Step 7: Run the static content tests**
+- [x] **Step 7: Run the static content tests**
 
 Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
 Expected: PASS, and `MODULES` now contains Modules 6 and 9 through 14. This is the run that first exercises `every planned exercise id is unique across the course` against all twenty-six ids in this plan.
 
-- [ ] **Step 8: Run the R validator over Module 14**
+- [x] **Step 8: Run the R validator over Module 14**
 
 Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m14-"`
 Expected: four solutions pass, seventeen wrong answers all `fail`, eight alternate solutions pass. `m14-3-a`'s check calls `confint()` twice, each of which profiles the likelihood, so allow it time.
@@ -4646,7 +4676,7 @@ Then: `npx vitest run src/content/exercises/validate.itest.ts -t "14-"`. Expecte
 Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/14-1`.
 Expected: the linear-probability plot draws with the fitted line crossing both dashed limits, and `impossible` prints a non-zero count. On `14-2`, `family(no_family)$family` prints `gaussian` beside `binomial` — that contrast is the lesson's point and must actually render. On `14-3`, `confint()` shows its profiling message in the output pane styled as a message rather than an error, `round(or_table, 3)` prints a 3 x 3 table, and `predict(..., type = "response")` returns three probabilities that are unevenly spaced.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/content/manifest.ts src/content/exercises/module-14.ts src/content/exercises/index.test.ts src/content/lessons/14-1-why-not-a-linear-model.mdx src/content/lessons/14-2-glm-and-log-odds.mdx src/content/lessons/14-3-odds-ratios-and-reporting.mdx
@@ -4682,7 +4712,7 @@ Spec §4.2 requires the chooser to "link each leaf to the lesson that teaches it
 | Linear mixed-effects model with a grouping factor | `13-3` | Where `(1 \| site)` and nesting are taught |
 | Logistic regression | `14-2` | Where `glm(..., family = binomial)` is fitted; `14-3` follows for the odds-ratio table |
 
-- [ ] **Step 1: Add `lessonId` to all eight leaves**
+- [x] **Step 1: Add `lessonId` to all eight leaves**
 
 In `src/pages/TestChooser.tsx`, add one property to each answer node. Nothing else in `TREE` changes — the `rCode`, `check`, `traditional` and `note` strings were written against this curriculum and are already correct.
 
@@ -4722,7 +4752,7 @@ In `src/pages/TestChooser.tsx`, add one property to each answer node. Nothing el
 
 > **If content-platform P1 step 8 found `lme4`/`lmerTest` unavailable**, leave `lessonId` off the two mixed-effects leaves — they stay as reference material with no link, exactly as overview open question 3 says — and drop those two rows from the test table in step 3.
 
-- [ ] **Step 2: Make the link name its lesson**
+- [x] **Step 2: Make the link name its lesson**
 
 A link reading "Go to the lesson" tells the student nothing about where they are about to land. Pull the title out of the manifest. In `src/pages/TestChooser.tsx`:
 
@@ -4755,7 +4785,7 @@ and replace the bare link in the answer branch:
           {node.lessonId && <LessonLink lessonId={node.lessonId} />}
 ```
 
-- [ ] **Step 3: Extend the chooser tests**
+- [x] **Step 3: Extend the chooser tests**
 
 In `src/pages/TestChooser.test.tsx`, add `lessonId` to each entry of the existing hand-written `PATHS` table — it is deliberately not derived from `TREE`, so a leaf that silently loses its link fails here:
 
@@ -4829,12 +4859,12 @@ The existing `every node in the tree is well formed` test already asserts that a
 defined `lessonId` resolves; it now has eight of them to check rather than none,
 and it stays as the guard against a typo in an id.
 
-- [ ] **Step 4: Run the chooser tests**
+- [x] **Step 4: Run the chooser tests**
 
 Run: `npx vitest run src/pages/TestChooser.test.tsx`
 Expected: PASS, including the eight new per-path link assertions. A failure of `every lessonId resolves to a lesson a student can open` means one of Modules 9–14 is not yet live in `MODULES` — find the module whose lesson files are missing rather than deleting the `lessonId`.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 Run: `npx tsc --noEmit && npx vitest run`
 Expected: PASS. Then `npm run validate`, which now runs the static content tests and the full R suite over twenty-six exercises and eighteen lessons on top of everything the other module plans added. Record the wall time; if it has pushed the total past the twenty minutes content-platform task P4 step 5 set as the threshold, split `validate:static` from `validate:r` there rather than trimming fixtures here.
@@ -4844,7 +4874,7 @@ Expected: PASS. Then `npm run validate`, which now runs the static content tests
 Run: `npm run dev`, then open `http://localhost:5173/statlab/which-test`.
 Expected: walk all eight paths. Each answer shows its model, its R snippet, "Check first:", its note, and a link naming a real lesson; clicking the link lands on that lesson and the sidebar highlights it. Use "Start over" between paths and confirm focus moves to the heading each time. Check one leaf's promise against its lesson — the two-group leaf says the *t*-test matches with the sign reversed, and lesson `11-1` is where a student can run that and see it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx
