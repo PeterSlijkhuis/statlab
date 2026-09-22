@@ -1,0 +1,114 @@
+Every model in Modules 9 to 12 assumed that the rows of your data are independent
+— that knowing one employee's score tells you nothing about the next. Two very
+common designs break that assumption, and both are in this dataset.
+
+1. **The same people, measured more than once.** Engagement was recorded at two
+   time points. An employee who was engaged in March is likely to be engaged in
+   September; those two rows are not two independent observations.
+2. **People grouped inside something.** The 480 employees work at six sites.
+   People at the same site share a manager, a building and a canteen, so their
+   scores are more alike than scores from different sites.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% select(employee_id, site, engagement_t1, engagement_t2) %>% head(6)
+
+d %>% summarise(r_within_employee = cor(engagement_t1, engagement_t2))`} />
+
+That correlation is the dependence, measured. An employee's two scores are
+strongly related, which means the second measurement carries much less new
+information than a second employee would.
+
+<Predict
+  id="p-ignore"
+  question="Suppose you stacked the two measurements into 960 rows and ran an ordinary lm(engagement ~ time). What goes wrong?"
+  choices={[
+    { text: 'Nothing - 960 rows is more data, so the estimate improves', response: 'The estimate of the change is fine. It is the uncertainty around it that the model gets wrong.' },
+    { text: 'The model treats 480 people as 960, so the differences between people land in the residual and the standard error for time is wrong', correct: true, response: 'Exactly. Stable between-person differences swamp the within-person change, and the test loses most of its power.' },
+    { text: 'R will refuse to run it', response: 'It runs perfectly happily and prints a plausible table. Nothing in the output says the rows are not independent.' },
+    { text: 'The change score comes out with the wrong sign', response: 'The estimate is unbiased. Only its standard error, and therefore its t and p, are wrong.' },
+  ]}
+/>
+
+## Wide and long
+
+The file stores the two measurements side by side, one row per employee. That is
+**wide** format. A model needs one row per observation — one row per employee per
+measurement — which is **long** format.
+
+<CodeBlock id="c-pivot" code={`long_d <- d %>%
+  pivot_longer(
+    cols = c(engagement_t1, engagement_t2),
+    names_to = "time",
+    values_to = "engagement"
+  ) %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+long_d %>% select(employee_id, site, time, engagement) %>% head(6)
+nrow(long_d)`} />
+
+Three things that trip people up:
+
+- **`names_to` takes the old column names**, `values_to` takes the numbers. Write
+  them the wrong way round and you get a data frame that looks fine and holds
+  text where the scores should be.
+- **`employee_id` is carried along**, appearing twice. That repeated id is what
+  the model in the next lesson uses to know which rows belong together, so it
+  must survive the reshape.
+- **Set the level order deliberately.** With the default alphabetical order t1
+  comes first here, which is what you want — but on a dataset with levels called
+  `post` and `pre` alphabetical order would silently reverse your effect.
+
+<CodeBlock id="c-time-means" code={`long_d %>%
+  group_by(time) %>%
+  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())`} />
+
+Two means, and the direction of the change. Whatever the model says next has to
+agree with this table.
+
+<Exercise id="m13-1-a" />
+
+## Seeing the dependence
+
+<CodeBlock id="c-spaghetti" code={`library(ggplot2)
+
+long_d %>%
+  filter(employee_id <= 30) %>%
+  ggplot(aes(x = time, y = engagement, group = employee_id)) +
+  geom_line(alpha = 0.5) +
+  geom_point(alpha = 0.6) +
+  labs(x = "Measurement", y = "Engagement", title = "Thirty employees, twice each") +
+  theme_classic()`} />
+
+Notice what dominates the picture: the lines sit at very different heights, and
+most of them tilt gently upward. The height differences are between-employee
+variation — nothing to do with the intervention. The tilts are the effect. A
+model that cannot tell those apart is looking for a small tilt through a thick
+cloud of heights, which is exactly what the next lesson fixes.
+
+<Quiz
+  id="q-long"
+  question="Why must the data be in long format before fitting a repeated-measures model?"
+  choices={[
+    { text: 'Because long data frames are smaller', response: 'They have more rows, not fewer. Format is about structure, not size.' },
+    { text: 'Because the model needs one row per observation, with a column saying which measurement it is and a column saying whose it is', correct: true, response: 'Correct. Wide format hides the measurement occasion in the column name, where a formula cannot reach it.' },
+    { text: 'Because pivot_longer removes the dependence between measurements', response: 'It changes the shape, not the data. The dependence is still there - the model is what accounts for it.' },
+    { text: 'Because lm() cannot handle two columns', response: 'lm() handles many columns. The issue is that engagement_t1 and engagement_t2 are one variable measured twice, not two variables.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-1"
+  question="A colleague stacked the two measurements into 960 rows, ran lm(engagement ~ time), and reports b = 1.31, SE = 0.42, t(958) = 3.12, p = .002. What should you tell them?"
+  choices={[
+    { text: 'The analysis is fine; 960 observations is a good sample.', response: 'There are 480 independent units, not 960. Counting each person twice overstates the information available.' },
+    { text: 'The estimate of the change is unbiased, but the model treats each employee as two unrelated people, so the standard error and the degrees of freedom are wrong. A mixed model with a random intercept per employee, or a paired t-test, is the correct analysis.', correct: true, response: 'Correct on both counts: the point estimate survives, the inference does not.' },
+    { text: 'They should report it as t(479) instead, since there are 480 employees.', response: 'Changing the degrees of freedom by hand does not fix the standard error, which was computed from the wrong residual variance.' },
+    { text: 'The p value is too small and should be doubled to be safe.', response: 'Inference is not repaired by inventing a correction. Fit the model that matches the design.' },
+  ]}
+/>

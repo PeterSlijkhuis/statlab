@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { findLesson } from '../content/manifest';
 
 export type Node =
   | { kind: 'question'; text: string; options: { label: string; next: Node }[] }
@@ -45,6 +46,7 @@ export const TREE: Node = {
                     traditional:
                       "Pearson correlation: cor.test(d$outcome, d$predictor). Its t and p match the slope's.",
                     note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
+    lessonId: '09-2',
                   },
                 },
                 {
@@ -57,6 +59,7 @@ export const TREE: Node = {
                     check:
                       'Roughly linear relationships; no extreme outliers; residuals with similar spread across the fitted values; residuals roughly normal (mainly a concern in small samples); predictors not almost perfectly correlated with each other.',
                     note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
+    lessonId: '10-1',
                   },
                 },
                 {
@@ -71,6 +74,7 @@ export const TREE: Node = {
                     traditional:
                       'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t with the sign reversed — t.test subtracts the groups the other way round — and the same p.',
                     note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
+    lessonId: '11-1',
                   },
                 },
                 {
@@ -84,6 +88,7 @@ export const TREE: Node = {
                       'Similar spread in each group, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
                     traditional: 'One-way ANOVA: summary(aov(outcome ~ group, data = d)). Same F, same p.',
                     note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
+    lessonId: '11-2',
                   },
                 },
                 {
@@ -100,6 +105,7 @@ export const TREE: Node = {
                     // Type III main-effect tests are only meaningful with sum-to-zero contrasts. Under R's
                     // default treatment contrasts they test each factor at the other's reference level.
                     note: 'The contrasts = list(...) line matters: type III tests of the main effects are only correct with sum-to-zero contrasts, and R does not use those by default. An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
+    lessonId: '12-2',
                   },
                 },
               ],
@@ -117,6 +123,7 @@ export const TREE: Node = {
               traditional:
                 'With two time points, the paired-samples t-test: t.test(d$before, d$after, paired = TRUE). With more, repeated-measures ANOVA.',
               note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Setting the factor levels makes "before" the reference, so the time coefficient is the change from before to after. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
+    lessonId: '13-2',
             },
           },
           {
@@ -127,6 +134,7 @@ export const TREE: Node = {
               rCode: 'library(lmerTest)\nmodel <- lmer(outcome ~ predictor + (1 | site), data = d)\nsummary(model)',
               check: 'Enough groups to estimate how they vary (a handful at the very least). Residuals roughly normal, which matters mainly in small samples.',
               note: 'People in the same site are more alike than people in different sites; (1 | site) accounts for that. If people are also measured repeatedly, nest them: (1 | site/id).',
+    lessonId: '13-3',
             },
           },
         ],
@@ -144,12 +152,31 @@ export const TREE: Node = {
         traditional:
           'With one categorical predictor, the chi-square test of independence: chisq.test(table(d$outcome, d$predictor), correct = FALSE), which matches anova(model, test = "Rao").',
         note: 'The coefficients are in log odds. exp() turns them into odds ratios: above 1, the outcome becomes more likely; below 1, less likely.',
+    lessonId: '14-2',
       },
     },
   ],
 };
 
-export default function TestChooser() {
+/**
+ * The link to the lesson a leaf teaches. findLesson reads MODULES, which holds
+ * only modules whose lesson files all exist, so a lessonId added before its
+ * module is written resolves to undefined. The link still works in that case -
+ * the route renders its own not-found state - but it loses its title, which is
+ * what ModelChooser.test.tsx watches for.
+ */
+function LessonLink({ lessonId }: { lessonId: string }) {
+  const lesson = findLesson(lessonId);
+  return (
+    <p className="model-chooser-lesson">
+      <Link to={`/lesson/${lessonId}`}>
+        {lesson ? `Go to the lesson: ${lesson.title}` : 'Go to the lesson'}
+      </Link>
+    </p>
+  );
+}
+
+export default function ModelChooser() {
   const [node, setNode] = useState<Node>(TREE);
   const [trail, setTrail] = useState<string[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -176,7 +203,7 @@ export default function TestChooser() {
   }
 
   return (
-    <div className="test-chooser">
+    <div className="model-chooser">
       <h1>Which model should I use?</h1>
       <p>
         Work down from your research question. Almost every analysis in this course is one of three
@@ -185,7 +212,7 @@ export default function TestChooser() {
       </p>
 
       {trail.length > 0 && (
-        <p className="test-chooser-trail">
+        <p className="model-chooser-trail">
           {trail.join(' → ')}{' '}
           <button type="button" onClick={restart} className="link-button">
             Start over
@@ -198,7 +225,7 @@ export default function TestChooser() {
           <h2 ref={headingRef} tabIndex={-1}>
             {node.text}
           </h2>
-          <ul className="test-chooser-options">
+          <ul className="model-chooser-options">
             {node.options.map((option) => (
               <li key={option.label}>
                 <button type="button" onClick={() => choose(option.label, option.next)}>
@@ -209,7 +236,7 @@ export default function TestChooser() {
           </ul>
         </>
       ) : (
-        <div className="test-chooser-answer">
+        <div className="model-chooser-answer">
           <h2 ref={headingRef} tabIndex={-1}>
             {node.model}
           </h2>
@@ -225,7 +252,7 @@ export default function TestChooser() {
             </p>
           )}
           <p>{node.note}</p>
-          {node.lessonId && <Link to={`/lesson/${node.lessonId}`}>Go to the lesson</Link>}
+          {node.lessonId && <LessonLink lessonId={node.lessonId} />}
         </div>
       )}
     </div>

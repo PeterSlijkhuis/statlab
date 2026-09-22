@@ -31,10 +31,21 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit
+      # Before the slow jobs: a lesson that names a package the course cannot
+      # install, or an orphaned exercise, should report in under a minute
+      # rather than after the R suite has downloaded 90 MB of binaries.
+      - name: Validate content statically
+        run: npm run validate:static
+      # The committed CSV must still carry the effects the Part 3 lessons teach
+      # against. It is generated, so a regenerated file can silently lose one.
+      - name: Check the workplace dataset's built-in effects
+        run: npm run check:data
       - name: Unit tests
         run: npx vitest run
       - name: Validate content against real R
-        run: npm run validate
+        # Thirty-nine lessons' code blocks and every exercise fixture, in R.
+        timeout-minutes: 45
+        run: npm run validate:r
 
   e2e:
     # A hung download from the webR CDN must not hold a runner for six hours.

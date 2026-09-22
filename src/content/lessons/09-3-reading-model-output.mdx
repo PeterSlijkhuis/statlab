@@ -1,0 +1,125 @@
+You can fit a model. Now read one — and report it, which is a separate skill and
+the one examiners actually grade.
+
+Every inferential analysis in this course follows the same six steps, and from
+here on each lesson names them:
+
+> **Question → Assumptions → Choice of model → Computation → Interpretation → Report**
+
+<CodeBlock id="c-fit" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())
+
+model <- lm(wellbeing ~ autonomy, data = d)
+model %>% tidy()`} />
+
+## The coefficient table, column by column
+
+- **`estimate`** — *b*, the slope. In the units of the data: points of wellbeing
+  per point of autonomy.
+- **`std.error`** — how much *b* would bounce around across repeated samples.
+  This is the standard error from Module 7, applied to a slope.
+- **`statistic`** — *t* = `estimate` / `std.error`. How many standard errors the
+  slope sits from zero.
+- **`p.value`** — the probability of a *t* at least this extreme if the true
+  slope were exactly zero. Module 8's definition, unchanged.
+
+Notice what the *p* value is attached to: **a slope of zero**, meaning a flat
+line, meaning autonomy tells you nothing about wellbeing. That is the null
+hypothesis being tested, and it is the only one being tested.
+
+## The whole model
+
+<CodeBlock id="c-glance" code={`model %>% glance()`} />
+
+`glance()` returns one row about the model rather than one row per coefficient.
+Three columns matter now:
+
+- **`r.squared`** — the share of the variance in wellbeing the model accounts
+  for. With one predictor it is exactly the squared correlation.
+- **`statistic` and `p.value`** — the model *F* test, with `df` and `df.residual`
+  degrees of freedom. With a single predictor, *F* = *t*², and its *p* is the
+  slope's *p*. Two numbers, one fact.
+- **`sigma`** — the residual standard deviation: the typical size of a miss.
+
+<CodeBlock id="c-equivalence" code={`t_value <- model %>% tidy() %>% filter(term == "autonomy") %>% pull(statistic)
+f_value <- model %>% glance() %>% pull(statistic)
+
+c(t_squared = t_value^2, F = f_value)
+
+r_value <- cor(d$autonomy, d$wellbeing)
+c(r_squared = r_value^2, R_squared = model %>% glance() %>% pull(r.squared))`} />
+
+Both pairs should agree to every decimal R prints. This is the first of several
+places in Part 3 where two traditions give the same answer through different
+arithmetic — correlation and regression here, the *t*-test and `lm` in Module 11,
+the paired *t*-test and `lmer` in Module 13.
+
+<Predict
+  id="p-r2"
+  question="R-squared for this model is about .21. What does that leave?"
+  choices={[
+    { text: 'The 79 % of employees the model gets wrong', response: 'R-squared is not a count of people. It is a share of variance, and the model is a bit wrong about nearly everybody.' },
+    { text: 'The 79 % of the variance in wellbeing that autonomy does not account for - other causes, and measurement noise', correct: true, response: 'Exactly. In Module 10 you will hand some of that 79 % to workload and tenure.' },
+    { text: 'The probability the model is wrong', response: 'R-squared is a description of fit in this sample, not a probability about the model.' },
+  ]}
+/>
+
+<Exercise id="m9-3-a" />
+
+## Assumptions, checked by eye
+
+Step 2 of the chain. For a linear model, four things, in the order they go wrong:
+
+1. **Linearity** — the pattern is roughly straight. Check on the scatterplot.
+2. **Similar spread** — the residuals do not fan out. Check on a residuals-versus-fitted plot.
+3. **No extreme outliers** — a handful of far-out points can carry the slope.
+4. **Roughly normal residuals** — matters mainly at small *n*; at 480 the
+   Central Limit Theorem from Module 6 does the work.
+
+<CodeBlock id="c-assumptions" code={`model %>%
+  augment() %>%
+  ggplot2::ggplot(ggplot2::aes(x = .fitted, y = .resid)) +
+  ggplot2::geom_point(alpha = 0.4) +
+  ggplot2::geom_hline(yintercept = 0) +
+  ggplot2::labs(x = "Fitted wellbeing", y = "Residual") +
+  ggplot2::theme_classic()`} />
+
+A shapeless band of about the same height across the plot is what you want. A
+funnel means the spread changes with the prediction; a curve means a straight
+line was the wrong shape.
+
+## The other direction
+
+<Exercise id="m9-3-b" />
+
+## Reporting it
+
+An APA 7 report of a simple regression carries the model, its fit, and the
+coefficient: *F*(1, 478), *R*², then *b* with its *SE*, *t* and *p*. Never a
+*p* value alone, and never a bare "significant".
+
+<Quiz
+  id="q-p-meaning"
+  question="The autonomy slope has p < .001. Which statement is a correct reading of that p value?"
+  choices={[
+    { text: 'There is less than a 0.1 % chance that autonomy is unrelated to wellbeing.', response: 'That is a probability about the hypothesis. A p value is a probability about data, computed while assuming the null is true.' },
+    { text: 'If the true slope were zero, a slope at least this far from zero would turn up in fewer than 1 in 1000 samples.', correct: true, response: 'Correct - a statement about data under an assumed null, which is all a p value ever is.' },
+    { text: 'The result will replicate more than 99.9 % of the time.', response: 'Replication probability depends on the true effect size and the new study\'s power, not on this p value.' },
+    { text: 'The effect of autonomy is large.', response: 'p answers "how surprising under the null", not "how big". With n = 480, a small slope can reach p < .001.' },
+  ]}
+/>
+
+<Interpret
+  id="i-9-3"
+  question="Your model gives F(1, 478) = 126.30, R-squared = .209, and for autonomy b = 2.24, SE = 0.20, t(478) = 11.24, p < .001. Which write-up is correct APA 7?"
+  choices={[
+    { text: 'Autonomy significantly predicted wellbeing (p < .001), explaining 20.9 % of employees.', response: 'Two problems: a p value on its own is not a report, and R-squared is a share of variance, not a share of employees.' },
+    { text: 'A simple linear regression showed that autonomy significantly predicted wellbeing, F(1, 478) = 126.30, p < .001, R-squared = .209. Each additional point of autonomy was associated with a 2.24-point increase in wellbeing, b = 2.24, SE = 0.20, t(478) = 11.24, p < .001.', correct: true, response: 'Correct. The model test, the fit and the coefficient are all there, and "was associated with" keeps the claim at the level the design supports.' },
+    { text: 'Autonomy caused a 2.24-point increase in wellbeing, b = 2.24, SE = 0.20, t(478) = 11.24, p < .001.', response: 'The statistics are right and the verb is not. Nothing was manipulated or randomised, so the design cannot support "caused".' },
+    { text: 'There was a strong relationship between autonomy and wellbeing, R-squared = .209, p < .001.', response: 'The coefficient is missing, and with R-squared = .209 the relationship is moderate. A reader cannot recover the slope or its precision from this sentence.' },
+  ]}
+/>

@@ -1,0 +1,99 @@
+Two models, two questions. Does the set of predictors, taken together, do better
+than nothing? And does each predictor pull its weight? The first is the model *F*
+test; the second is the coefficient table.
+
+<CodeBlock id="c-fit" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+model3 <- lm(wellbeing ~ autonomy + workload + tenure_years, data = d)
+
+model3 %>% glance() %>% select(r.squared, adj.r.squared, sigma, statistic, df, df.residual, p.value)`} />
+
+- **`statistic`** is *F*, and **`df`** and **`df.residual`** are its two degrees
+  of freedom: the number of predictors, and *n* minus the number of estimated
+  coefficients. APA writes them together: *F*(3, 476).
+- Its null hypothesis is that **every** slope is zero at once. Rejecting it says
+  at least one predictor is doing something, and nothing about which.
+- **`sigma`** is the residual SD — the typical miss, in points of wellbeing.
+  Compare it with the SD of wellbeing itself to see how much the model bought.
+
+<CodeBlock id="c-sigma" code={`c(
+  sd_wellbeing = sd(d$wellbeing),
+  residual_sd = glance(model3)$sigma
+)`} />
+
+<Predict
+  id="p-f"
+  question="The model F is highly significant, but one of the three coefficients has p = .38. What follows?"
+  choices={[
+    { text: 'The model is invalid and the non-significant predictor must be removed', response: 'Neither. The F test and the individual t tests answer different questions, and dropping predictors by their p values is a good way to get an unreplicable model.' },
+    { text: 'The predictors together account for variance, and that one predictor adds little once the others are in the model', correct: true, response: 'Right, and the second half is the careful phrasing: a coefficient is always conditional on the rest of the model.' },
+    { text: 'That predictor has no relationship with wellbeing', response: 'A non-significant coefficient is not evidence of no relationship. It may correlate with the outcome perfectly well on its own and share that variance with another predictor.' },
+  ]}
+/>
+
+<Exercise id="m10-3-a" />
+
+## Comparing two models directly
+
+When one model's predictors are a subset of another's, `anova()` tests whether
+the extra ones are worth their degrees of freedom.
+
+<CodeBlock id="c-nested" code={`small <- lm(wellbeing ~ autonomy, data = d)
+large <- lm(wellbeing ~ autonomy + workload + tenure_years, data = d)
+
+anova(small, large) %>% tidy()
+
+bind_rows(
+  small %>% glance() %>% mutate(model = "autonomy"),
+  large %>% glance() %>% mutate(model = "autonomy + workload + tenure")
+) %>% select(model, r.squared, adj.r.squared, sigma)`} />
+
+The *F* in that table tests the increase in *R*² against what you would expect
+from adding two arbitrary predictors. This is the same machinery Module 12 uses
+to test an interaction: fit with, fit without, compare.
+
+## The APA report
+
+A multiple regression is reported in two moves. First the model:
+
+> A multiple linear regression with autonomy, workload and tenure as predictors
+> accounted for a significant share of the variance in wellbeing, *F*(3, 476) =
+> 61.42, *p* < .001, *R*² = .279, adjusted *R*² = .274.
+
+Then each coefficient, with its *SE*, *t* and *p*, and a sentence saying what it
+means in the units of the study. Conventions worth getting right the first time:
+
+- Drop the leading zero from statistics that cannot exceed 1: *p* = .032,
+  *R*² = .279. Keep it where a value can: *b* = 0.35.
+- Two decimals for *b*, *SE*, *t* and *F*; three for *p*, down to *p* < .001.
+- Never *p* = .000.
+- Report *b* and its *SE* or its 95 % CI, not a *p* value on its own.
+- Say "was associated with", not "caused" or "led to", unless something was
+  randomised.
+
+<CodeBlock id="c-ci" code={`model3 %>% tidy(conf.int = TRUE) %>% select(term, estimate, std.error, statistic, p.value, conf.low, conf.high)`} />
+
+<Quiz
+  id="q-apa"
+  question="Which of these is written correctly for an APA 7 results section?"
+  choices={[
+    { text: 'F(3, 476) = 61.42, p = .000, R2 = 0.279', response: 'Three errors: p is never .000, R-squared drops its leading zero, and the superscript matters.' },
+    { text: 'F(3, 476) = 61.42, p < .001, R-squared = .279', correct: true, response: 'Correct: both degrees of freedom, p at its floor, and no leading zero on a statistic bounded by 1.' },
+    { text: 'F(476) = 61.42, p < .001, R-squared = .279', response: 'An F test has two degrees of freedom and both are reported.' },
+    { text: 'The regression was significant (p < .05).', response: 'No statistics, no degrees of freedom, no effect size. A reader can do nothing with this.' },
+  ]}
+/>
+
+<Interpret
+  id="i-10-3"
+  question="Your model gives F(3, 476) = 61.42, p < .001, R-squared = .279; autonomy b = 2.31, SE = 0.20, t = 11.55, p < .001; workload b = -3.09, SE = 0.28, t = -11.04, p < .001; tenure b = 0.09, SE = 0.10, t = 0.90, p = .368. Which write-up is correct?"
+  choices={[
+    { text: 'The three predictors accounted for a significant share of the variance in wellbeing, F(3, 476) = 61.42, p < .001, R-squared = .279. Autonomy (b = 2.31, SE = 0.20, t = 11.55, p < .001) and workload (b = -3.09, SE = 0.28, t = -11.04, p < .001) were each associated with wellbeing, whereas tenure was not once the other two were in the model (b = 0.09, SE = 0.10, t = 0.90, p = .368).', correct: true, response: 'Correct. Every coefficient is reported, including the non-significant one, and "once the other two were in the model" keeps its claim conditional.' },
+    { text: '... Tenure had no effect on wellbeing (p = .368).', response: 'A p of .368 does not establish the absence of an effect. Its confidence interval almost certainly includes values that would matter.' },
+    { text: '... The model explains 27.9 % of employees, F(3, 476) = 61.42, p < .001.', response: 'R-squared is a share of variance, not a share of people.' },
+    { text: 'Autonomy was the strongest predictor of wellbeing because it had the largest t value, t = 11.55.', response: 'Workload actually has the larger coefficient on the same scale, and a t value compares an estimate with its own precision - it does not rank importance.' },
+  ]}
+/>

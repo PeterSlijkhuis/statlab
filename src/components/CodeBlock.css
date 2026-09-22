@@ -1,8 +1,20 @@
-.code-block { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.75rem; margin: 1.25rem 0; background: #f8fafc; }
-.r-editor { border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; background: #fff; }
-.r-editor .cm-editor { max-height: 24rem; }
-.code-block-actions { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
-.code-block-actions button { padding: 0.35rem 0.9rem; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; font-size: 0.9rem; }
-.code-block-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
-.code-block-actions button.secondary { background: #fff; color: #1d4ed8; }
-.code-block-hint { color: #64748b; font-size: 0.85rem; }
+.code-block { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem; margin: 1.5rem 0; background: var(--surface); box-shadow: var(--shadow-sm); }
+.r-editor { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: #fbfcfe; transition: border-color var(--fast), box-shadow var(--fast); }
+.r-editor:focus-within { border-color: #a5b4fc; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+.r-editor .cm-editor { max-height: 24rem; font-family: var(--mono); font-size: 0.88rem; }
+.r-editor .cm-gutters { background: #f4f6fb; border-right: 1px solid var(--line); color: #94a3b8; }
+.r-editor .cm-activeLine { background: rgba(99, 102, 241, 0.05); }
+.r-editor .cm-activeLineGutter { background: rgba(99, 102, 241, 0.08); }
+.code-block-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.65rem 0; }
+.code-block-actions button {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 1.05rem; border-radius: 999px;
+  border: 1px solid var(--brand); background: var(--brand); color: #fff; cursor: pointer; font-size: 0.9rem; font-weight: 650;
+  transition: background var(--fast), transform var(--fast) var(--ease);
+}
+.code-block-actions button:not(.secondary)::before { content: "▶"; font-size: 0.65rem; }
+.code-block-actions button:hover:not(:disabled) { background: var(--brand-ink); }
+.code-block-actions button:active:not(:disabled) { transform: scale(0.97); }
+.code-block-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.code-block-actions button.secondary { background: var(--surface); color: var(--brand-ink); border-color: var(--line-strong); }
+.code-block-actions button.secondary:hover:not(:disabled) { background: var(--brand-soft); }
+.code-block-hint { color: var(--muted); font-size: 0.85rem; }

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getExercise } from '../content/exercises';
 import { useLesson } from '../content/LessonContext';
 import { runExercise, type CheckOutcome } from '../r/checker';
-import { getDraft, markExercise, saveDraft } from '../state/progress';
+import { findLesson } from '../content/manifest';
+import { getDraft, getProgress, markExercise, saveDraft } from '../state/progress';
+import { lessonStatus, POINTS } from '../state/stats';
+import { confetti, showToast } from './celebrate';
 import { PLOT_SIZE, R_STOPPED_MESSAGE } from './CodeBlock';
 import OutputPane from './OutputPane';
 import REditor from './REditor';
@@ -18,6 +21,7 @@ export default function Exercise({ id }: { id: string }) {
   const [attempted, setAttempted] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [crashed, setCrashed] = useState(false);
+  const checkButton = useRef<HTMLButtonElement | null>(null);
 
   if (!definition) {
     return <p className="exercise-missing">Exercise “{id}” is not defined.</p>;
@@ -40,8 +44,21 @@ export default function Exercise({ id }: { id: string }) {
       // punish them for a faulty exercise.
       setAttempted(true);
       // A broken check is an infrastructure fault: it records nothing.
-      if (result.status === 'pass') markExercise(lessonId, id, 'passed');
-      else if (result.status === 'fail' || result.status === 'student-error') {
+      if (result.status === 'pass') {
+        const lesson = findLesson(lessonId);
+        const alreadyPassed = getProgress().lessons[lessonId]?.exercises[id] === 'passed';
+        const wasComplete = lesson ? lessonStatus(lesson, getProgress()) === 'complete' : false;
+        markExercise(lessonId, id, 'passed');
+        // Rewards only for a first solve: re-checking a solved exercise is practice.
+        if (!alreadyPassed) {
+          confetti(checkButton.current);
+          if (lesson && !wasComplete && lessonStatus(lesson, getProgress()) === 'complete') {
+            showToast('Lesson complete!', `+${POINTS.exercise + POINTS.lesson} points. On to the next one.`, 'milestone');
+          } else {
+            showToast('Exercise solved', `+${POINTS.exercise} points`);
+          }
+        }
+      } else if (result.status === 'fail' || result.status === 'student-error') {
         markExercise(lessonId, id, 'attempted');
       }
     } catch {
@@ -56,14 +73,14 @@ export default function Exercise({ id }: { id: string }) {
   }
 
   return (
-    <section className="exercise">
-      <p className="exercise-label">Exercise</p>
+    <section className={`exercise${outcome?.status === 'pass' ? ' exercise-passed' : ''}`}>
+      <p className="exercise-label"><span aria-hidden="true">🎯</span> Exercise</p>
       <p className="exercise-prompt">{definition.prompt}</p>
 
       <REditor value={source} onChange={edit} />
 
       <div className="exercise-actions">
-        <button type="button" onClick={check} disabled={!ready || checking}>
+        <button ref={checkButton} type="button" onClick={check} disabled={!ready || checking}>
           {checking ? 'Checking…' : 'Check my answer'}
         </button>
         <button

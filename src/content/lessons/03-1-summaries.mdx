@@ -1,0 +1,92 @@
+A dataset of 480 employees and 14 columns holds more numbers than anyone can
+read. Describing it means replacing all of them with a handful that carry the
+same message — and then being honest about what got lost.
+
+<CodeBlock id="setup" code={`library(dplyr)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## summarise()
+
+`summarise()` collapses a whole table into one row. You name each number you
+want and say how to compute it.
+
+<CodeBlock id="first" code={`employees %>%
+  summarise(mean_wellbeing = mean(wellbeing))`} />
+
+Several at once, which is how you would actually use it:
+
+<CodeBlock id="several" code={`employees %>%
+  summarise(
+    mean_wellbeing = mean(wellbeing),
+    sd_wellbeing = sd(wellbeing),
+    n = n()
+  )`} />
+
+`n()` counts the rows that went into the summary. It takes no arguments, because
+it already knows which rows it is being asked about.
+
+A mean with no SD and no n is not a result. The SD says how much employees
+differ from one another; the n says how much of the company you are describing.
+Every APA table you write from Module 9 onwards has all three.
+
+<Predict
+  id="p-summarise"
+  question="employees has 480 rows. How many rows will employees %>% mutate(mean_wellbeing = mean(wellbeing)) have?"
+  choices={[
+    { text: '1, because there is one mean', response: 'That is what summarise() would give you. mutate() does something different.' },
+    { text: '480, each with the same company-wide mean beside it', correct: true, response: 'Yes. mutate() adds a column and keeps every row, so the single mean is repeated 480 times. That is useful when you want to compare each person with the average - and wrong when you wanted a summary table.' },
+    { text: '480, each holding the mean of that one employee alone', response: 'One employee has one wellbeing score, so a mean of that person alone would just be the score itself. mean(wellbeing) is computed over all the rows in scope.' },
+  ]}
+/>
+
+<CodeBlock id="mutate-vs" code={`employees %>%
+  mutate(mean_wellbeing = mean(wellbeing)) %>%
+  select(employee_id, wellbeing, mean_wellbeing) %>%
+  head(4)`} />
+
+**summarise collapses, mutate keeps.** Choosing the wrong one is the most common
+dplyr mistake there is, and it never produces an error — only a table of the
+wrong shape.
+
+<Exercise id="m3-1-a" />
+
+## Describing spread
+
+The mean says where the middle is. Three different numbers say how wide the
+distribution is, and they disagree on purpose.
+
+<CodeBlock id="spread" code={`employees %>%
+  summarise(
+    sd_wellbeing = sd(wellbeing),
+    iqr_wellbeing = IQR(wellbeing),
+    smallest = min(wellbeing),
+    largest = max(wellbeing)
+  )`} />
+
+- The **standard deviation** is roughly the average distance from the mean. It
+  uses every score, so a single extreme person moves it.
+- The **interquartile range** is the width of the middle half of the company: the
+  distance from the 25th to the 75th percentile. It ignores the tails entirely.
+- The **range** — largest minus smallest — is built from exactly two people, so
+  it is the least stable number in statistics and the easiest to quote.
+
+Watch out for R's `range()`: it returns the two endpoints, not the distance
+between them.
+
+<CodeBlock id="range-trap" code={`range(employees$wellbeing)
+
+max(employees$wellbeing) - min(employees$wellbeing)`} />
+
+<Exercise id="m3-1-b" />
+
+<Quiz
+  id="q-3-1"
+  question="One employee's wellbeing score is corrected from 71 to 17. Which summary of the 480 scores changes least?"
+  choices={[
+    { text: 'The mean', response: 'The mean uses every score, so it moves - only a little with 480 people, but it moves.' },
+    { text: 'The standard deviation', response: 'The SD is built from distances to the mean, and a score 54 points lower than before adds a large one.' },
+    { text: 'The interquartile range', correct: true, response: 'Right. The IQR depends only on the two quartiles. Moving one score from one tail to the other leaves the middle half almost exactly where it was.' },
+    { text: 'The range', response: 'The range is the most sensitive of all: if 17 is now the lowest score in the company, the range changes by the full amount.' },
+  ]}
+/>
