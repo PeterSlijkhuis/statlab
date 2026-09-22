@@ -28,6 +28,24 @@ Every task's requirements implicitly include this section. Values are copied ver
 - **Every exercise carries at least one `wrongAnswers` entry**, and each must fail because the check returned `pass = FALSE`, not because the code threw.
 - **Progress is student-local** under localStorage key `statlab.progress.v1`. No backend, no accounts, no instructor dashboard.
 - **Node ≥ 17** is required to run webR under Node (CI uses Node 22).
+- **webR 0.6.0 cannot boot under Node on Windows without a patch.** Its worker
+  does `await import(path.resolve(e))`; on Windows `path.resolve` returns
+  `C:\...`, which Node's ESM loader rejects (`ERR_UNSUPPORTED_ESM_URL_SCHEME`,
+  "Received protocol 'c:'"). The fix is to wrap that path in `pathToFileURL`,
+  applied via `patch-package` (Task 3). 0.6.0 is the latest release, so there is
+  no version to upgrade to. The patch is a no-op on Linux, where `import()`
+  already accepts absolute paths, so CI behaviour is unchanged.
+- **R objects are freed with `webR.destroy(obj)`, never `obj.destroy()`.** The
+  RObject proxy has no `destroy` method in webR 0.6.0 — destruction lives on
+  `WebR`/`Shelter`. This has already caused three separate defects in this plan,
+  one of which silently reported every correct exercise answer as a broken
+  exercise. (CodeMirror's `EditorView.destroy()` is unrelated and is correct.)
+- **Captured R conditions are RObject proxies, not strings.** For `error`,
+  `warning`, and `message` output items, `data` is an async R object with
+  `names()` of `["message", "call"]`. The text comes from
+  `await (await data.get('message')).toArray()`. Calling `String()` on it
+  yields `[object Object]` — which is what a student would then see instead of
+  their error message. Only `stdout`/`stderr` items carry plain strings.
 
 ---
 
@@ -157,8 +175,9 @@ describe('vite config', () => {
     expect(config.base).toBe('/statlab/');
   });
 
-  test('no webR URL uses the floating latest tag', () => {
-    expect(JSON.stringify(config)).not.toContain('webr.r-wasm.org/latest');
+  test('base path is absolute and ends in a slash, as Vite requires', () => {
+    expect(config.base?.startsWith('/')).toBe(true);
+    expect(config.base?.endsWith('/')).toBe(true);
   });
 });
 ```
@@ -208,7 +227,22 @@ The MDX plugin must run before the React plugin, and React's `include` must cove
 }
 ```
 
-- [ ] **Step 6: Create `vitest.config.ts`**
+- [ ] **Step 6: Create `vitest.config.ts` and the test setup file**
+
+`src/test-setup.ts`:
+
+```ts
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+// React Testing Library registers its own afterEach(cleanup) only when Vitest
+// runs with globals enabled. This project keeps globals off, so unmounting
+// between tests has to be wired up explicitly — without it every render leaks
+// into the next test and queries fail with "found multiple elements".
+afterEach(cleanup);
+```
+
+`vitest.config.ts`:
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -217,13 +251,16 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: false,
+    setupFiles: ['src/test-setup.ts'],
     include: ['src/**/*.{test,itest}.{ts,tsx}'],
     testTimeout: 10_000,
   },
 });
 ```
 
-Integration tests that boot real R use a `// @vitest-environment node` docblock and set their own timeout.
+Integration tests that boot real R use a `// @vitest-environment node` docblock
+and set their own timeout. The setup file is harmless there: `cleanup()` is a
+no-op when nothing has been rendered.
 
 - [ ] **Step 7: Create `index.html`, `src/main.tsx`, `src/App.tsx`**
 
@@ -281,7 +318,16 @@ Expected: PASS, 2 tests.
 Run: `npm run dev`
 Expected: `http://localhost:5173/statlab/` shows the heading. Note the path includes `/statlab/`; the bare root will 404, which is correct.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 10: Verify React component testing actually works under jsdom**
+
+Everything from Task 8 onward depends on this. Create a throwaway
+`src/__probe.test.tsx` that renders a small stateful component twice — in two
+separate `test()` blocks — clicks a button in one, and asserts on
+`screen.getByRole`. Run it. Both tests must pass; a "found multiple elements"
+failure means cleanup is not wired up. Delete the probe once it passes; do not
+commit it.
+
+- [ ] **Step 11: Commit**
 
 ```bash
 git add package.json package-lock.json tsconfig.json vite.config.ts vitest.config.ts index.html src/
@@ -301,9 +347,16 @@ git commit -m "feat: scaffold Vite + React + MDX project with pinned base path"
 - Produces:
   - `WEBR_VERSION: 'v0.6.0'`, `WEBR_BASE_URL: string`
   - `getWebR(): Promise<WebR>` — browser singleton, initialises once
-  - `restartWebR(): Promise<WebR>` — closes and respawns the worker
+  - `getStatus(): RStatus`, `setStatus(s: RStatus): void`
   - `onStatus(fn: (s: RStatus) => void): () => void`
   - `type RStatus = { phase: 'idle'|'booting'|'installing'|'ready'|'error'; detail?: string }`
+
+> **No `restartWebR`.** Recovery from a wedged worker is a page reload (Task 13),
+> which clears the dead R session, the memoised course-session promise, and stale
+> component state in one move. An in-place respawn function with no caller would
+> be dead code, and the obvious implementation has a real race: called while the
+> first boot is still pending, it captures a null `instance`, leaves that boot
+> running, and lets it overwrite the singleton when it resolves.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -388,23 +441,9 @@ export function getWebR(): Promise<WebR> {
   return booting;
 }
 
-export async function restartWebR(): Promise<WebR> {
-  const previous = instance;
-  instance = null;
-  booting = null;
-  setStatus({ phase: 'booting', detail: 'Restarting R' });
-  if (previous) {
-    try {
-      await previous.close();
-    } catch {
-      // A wedged worker may refuse to close; respawning is still correct.
-    }
-  }
-  return getWebR();
-}
 ```
 
-`restartWebR` exists because the PostMessage channel cannot interrupt running R code (see Global Constraints). It is the only recovery path for a runaway loop.
+There is deliberately no in-place restart function here; see the note above.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -435,6 +474,56 @@ git commit -m "feat: webR client with pinned v0.6.0 and restart support"
   - `evaluateR(webR: WebR, code: string, opts?: EvaluateOptions): Promise<RunResult>`
 
 This takes the `WebR` instance as a parameter rather than importing the singleton, so Node tests and the CI validator can pass their own instance. That is the seam that makes the whole R layer testable.
+
+- [ ] **Step 0: Patch webR so it can boot under Node on Windows**
+
+Without this, every R integration test in the project fails before running a
+line of R. webR 0.6.0's worker does `await import(path.resolve(e))`; on Windows
+`path.resolve` yields `C:\...`, and Node's ESM loader rejects it with
+`ERR_UNSUPPORTED_ESM_URL_SCHEME` ("Received protocol 'c:'"). Wrapping the path
+in `pathToFileURL` fixes it, and is a no-op on Linux where `import()` already
+accepts absolute paths.
+
+Install the tool and add the hook:
+
+```bash
+npm install --save-dev patch-package
+```
+
+Add to `package.json` scripts:
+
+```json
+"postinstall": "patch-package"
+```
+
+Then edit `node_modules/webr/dist/webr-worker.js`, replacing the single
+occurrence of:
+
+```js
+await import((await import("path")).default.resolve(e))
+```
+
+with:
+
+```js
+await import((await import("url")).pathToFileURL((await import("path")).default.resolve(e)).href)
+```
+
+and record it:
+
+```bash
+npx patch-package webr
+```
+
+This writes `patches/webr+0.6.0.patch`, which must be committed. Verify the
+patch survives a clean install before moving on:
+
+```bash
+rm -rf node_modules && npm ci
+```
+
+`npm ci` must print that patch-package applied the webr patch. If it does not,
+the patch is not wired up and every later R task will fail on a fresh clone.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -476,7 +565,22 @@ describe('evaluateR', () => {
   test('captures warnings separately from errors', async () => {
     const result = await evaluateR(webR, 'warning("careful")');
     expect(result.errored).toBe(false);
-    expect(result.output.some((o) => o.type === 'warning')).toBe(true);
+    expect(result.output.some((o) => o.type === 'warning' && o.data.includes('careful'))).toBe(true);
+  });
+
+  test('reports the real message for a typical student mistake', async () => {
+    // The commonest error a beginner sees. If condition objects are not
+    // unwrapped, this reads "[object Object]" instead.
+    const result = await evaluateR(webR, 'undefined_fn(1)');
+    expect(result.errored).toBe(true);
+    expect(text(result)).toContain('could not find function');
+    expect(text(result)).not.toContain('[object Object]');
+  });
+
+  test('captures messages, which are neither warnings nor errors', async () => {
+    const result = await evaluateR(webR, 'message("hello")');
+    expect(result.errored).toBe(false);
+    expect(result.output.some((o) => o.type === 'message' && o.data.includes('hello'))).toBe(true);
   });
 
   test('captures stdout from explicit printing', async () => {
@@ -499,7 +603,7 @@ Expected: FAIL — cannot resolve `./evaluate`. First run downloads the R WebAss
 - [ ] **Step 3: Implement `src/r/evaluate.ts`**
 
 ```ts
-import type { RObject, WebR } from 'webr';
+import type { RCharacter, RObject, WebR } from 'webr';
 
 export type RunOutput = {
   type: 'stdout' | 'stderr' | 'message' | 'warning' | 'error';
@@ -522,6 +626,23 @@ export type EvaluateOptions = {
   graphics?: { width: number; height: number } | false;
 };
 
+/**
+ * stdout and stderr arrive as plain strings. Conditions (error, warning,
+ * message) arrive as R objects whose `$message` holds the text — `String()`
+ * on one yields "[object Object]", which is what the student would see in
+ * place of their error.
+ */
+async function conditionText(data: unknown): Promise<string> {
+  if (typeof data === 'string') return data;
+  try {
+    const message = await (data as RObject).get('message');
+    const parts = (await (message as RCharacter).toArray()) as (string | null)[];
+    return parts.map((part) => part ?? '').join('').trimEnd();
+  } catch {
+    return 'An R condition was raised, but its message could not be read.';
+  }
+}
+
 export async function evaluateR(
   webR: WebR,
   code: string,
@@ -540,10 +661,13 @@ export async function evaluateR(
       ...(env ? { env } : {}),
     });
 
-    const output: RunOutput[] = captured.output.map((item) => ({
-      type: item.type as RunOutput['type'],
-      data: typeof item.data === 'string' ? item.data : String(item.data),
-    }));
+    const output: RunOutput[] = [];
+    for (const item of captured.output) {
+      output.push({
+        type: item.type as RunOutput['type'],
+        data: await conditionText(item.data),
+      });
+    }
 
     return {
       output,
@@ -551,12 +675,22 @@ export async function evaluateR(
       errored: output.some((o) => o.type === 'error'),
     };
   } finally {
-    shelter.purge();
+    // Awaited: purge() returns a promise, and an unawaited rejection here
+    // would surface as an unhandled rejection rather than reaching the caller.
+    await shelter.purge();
   }
 }
 ```
 
 `withAutoprint: true` is the line that makes `x` and ggplot objects render at all — webR defaults it to `false`.
+
+**Known, accepted limitation.** `data.get('message')` returns an R object that webR
+preserves but registers in no shelter, so nothing can free it — `shelter.destroy`,
+`webR.destroy` and `obj.destroy` all reject it. Measured cost is about two R cells
+(~120 bytes) per captured condition, within the noise of ordinary evaluation, and a
+page reload clears it. Avoiding it would mean binding the condition into an R
+environment for a shelter-scoped `conditionMessage()` call — more machinery in the
+hottest path of the app for no measurable gain.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -583,7 +717,11 @@ git commit -m "feat: R evaluation wrapper with captured output and safe graphics
 - Produces:
   - `createLessonEnv(webR: WebR): Promise<RObject>` — `new.env(parent = globalenv())`
   - `createChildEnv(webR: WebR, parent: RObject): Promise<RObject>`
-  - `destroyEnv(env: RObject): Promise<void>`
+  - `destroyEnv(webR: WebR, env: RObject): Promise<void>`
+
+> **Note:** webR 0.6.0 has no `.destroy()` on the RObject proxy — destruction lives
+> on `WebR`/`Shelter`. `destroyEnv` therefore takes the instance, like every other
+> function in the R layer.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -615,7 +753,7 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'x <- 42', { env });
     const result = await evaluateR(webR, 'x', { env });
     expect(text(result)).toContain('42');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('lessons cannot see each other objects', async () => {
@@ -624,15 +762,15 @@ describe('lesson environments', () => {
     await evaluateR(webR, 'secret <- 99', { env: a });
     const result = await evaluateR(webR, 'secret', { env: b });
     expect(result.errored).toBe(true);
-    await destroyEnv(a);
-    await destroyEnv(b);
+    await destroyEnv(webR, a);
+    await destroyEnv(webR, b);
   });
 
   test('base R remains reachable from a lesson environment', async () => {
     const env = await createLessonEnv(webR);
     const result = await evaluateR(webR, 'mean(c(1, 2, 3))', { env });
     expect(text(result)).toContain('2');
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   });
 
   test('a child environment sees its parent objects but not the reverse', async () => {
@@ -647,8 +785,8 @@ describe('lesson environments', () => {
     const leaked = await evaluateR(webR, 'attempt', { env: parent });
     expect(leaked.errored).toBe(true);
 
-    await destroyEnv(child);
-    await destroyEnv(parent);
+    await destroyEnv(webR, child);
+    await destroyEnv(webR, parent);
   });
 });
 ```
@@ -681,8 +819,12 @@ export async function createChildEnv(webR: WebR, parent: RObject): Promise<RObje
   return webR.evalR('new.env(parent = environment())', { env: parent });
 }
 
-export async function destroyEnv(env: RObject): Promise<void> {
-  await env.destroy();
+/**
+ * webR 0.6.0 exposes destruction on the WebR/Shelter, not on the RObject proxy,
+ * so the instance is passed in — matching `evaluateR` and the two creators above.
+ */
+export async function destroyEnv(webR: WebR, env: RObject): Promise<void> {
+  await webR.destroy(env);
 }
 ```
 
@@ -727,7 +869,7 @@ Create `src/r/session.itest.ts`.
 import { WebR } from 'webr';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { evaluateR } from './evaluate';
-import { DATASET_FILES, mountDatasets } from './session';
+import { DATASET_FILES, installCoursePackages, mountDatasets } from './session';
 
 let webR: WebR;
 
@@ -764,6 +906,31 @@ describe('dataset mounting', () => {
     expect(result.errored).toBe(false);
   });
 });
+
+describe('course packages', () => {
+  // Slow (downloads binaries) and deliberately kept: the entire curriculum
+  // from Module 4 onward assumes webR publishes builds of these for this R
+  // version. Finding out here costs one minute; finding out at Module 4 costs
+  // a rewrite of every visualisation lesson.
+  test('dplyr and ggplot2 install and load', async () => {
+    await installCoursePackages(webR);
+
+    const loaded = await evaluateR(webR, 'suppressMessages({ library(dplyr); library(ggplot2) }); "ok"');
+    expect(loaded.errored, loaded.output.map((o) => o.data).join('\n')).toBe(false);
+
+    const piped = await evaluateR(
+      webR,
+      'as.character(nrow(filter(data.frame(x = 1:10), x > 6)))',
+    );
+    expect(text(piped)).toContain('4');
+
+    const plotted = await evaluateR(
+      webR,
+      'class(ggplot(data.frame(x = 1, y = 1), aes(x, y)) + geom_point())[1]',
+    );
+    expect(text(plotted)).toContain('gg');
+  }, 600_000);
+});
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -784,25 +951,32 @@ export const DATASET_FILES = ['wellbeing-population.csv'] as const;
 /** webR's working directory; `read.csv("data/x.csv")` resolves under it. */
 const HOME = '/home/web_user';
 
+/**
+ * Reports progress but deliberately does not announce `ready` — installing
+ * packages is one step of session setup, not the whole of it. The caller that
+ * knows when every step is done owns that transition.
+ */
 export async function installCoursePackages(webR: WebR): Promise<void> {
   setStatus({ phase: 'installing', detail: 'Installing dplyr and ggplot2' });
   await webR.installPackages([...COURSE_PACKAGES]);
-  setStatus({ phase: 'ready' });
 }
 
 export async function mountDatasets(
   webR: WebR,
   load: (name: string) => Promise<Uint8Array>,
 ): Promise<void> {
-  try {
-    await webR.FS.mkdir(`${HOME}/data`);
-  } catch {
-    // Already exists after a restart; writing the files again is still correct.
+  // Checked rather than try/catch: an empty catch would also swallow a real
+  // failure (bad path, out of space) and surface it later as a confusing
+  // "file not found" when a lesson tries to read its data.
+  const dir = `${HOME}/data`;
+  const info = await webR.FS.analyzePath(dir);
+  if (!info.exists) {
+    await webR.FS.mkdir(dir);
   }
 
   for (const name of DATASET_FILES) {
     const bytes = await load(name);
-    await webR.FS.writeFile(`${HOME}/data/${name}`, bytes);
+    await webR.FS.writeFile(`${dir}/${name}`, bytes);
   }
 }
 ```
@@ -810,7 +984,9 @@ export async function mountDatasets(
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/r/session.itest.ts`
-Expected: PASS, 3 tests. Nothing here depends on the real dataset, so the suite must be fully green before this task is reviewed.
+Expected: PASS, 4 tests. Nothing here depends on the real dataset, so the suite must be
+fully green before this task is reviewed. The package-install test downloads binaries and
+may take a minute or more on a first run.
 
 - [ ] **Step 5: Commit**
 
@@ -859,6 +1035,7 @@ import {
   markExercise,
   markQuiz,
   saveDraft,
+  subscribeProgress,
   touchLesson,
 } from './progress';
 
@@ -918,6 +1095,33 @@ describe('progress store', () => {
     expect(getProgress()).toEqual({ version: 1, lessons: {} });
   });
 
+  test('rejects an import whose version is right but whose lessons are malformed', () => {
+    // The one untrusted input in the app: a file the student supplies.
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': {} } }))).toBe(false);
+    expect(importProgress(JSON.stringify({ version: 1, lessons: { '06-1': 'nope' } }))).toBe(false);
+  });
+
+  test('a malformed stored payload cannot make a later write throw', () => {
+    localStorage.setItem('statlab.progress.v1', JSON.stringify({ version: 1, lessons: { '06-1': {} } }));
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+  });
+
+  test('a throwing subscriber breaks neither the write nor the other subscribers', () => {
+    const seen: string[] = [];
+    const offA = subscribeProgress(() => {
+      throw new Error('subscriber exploded');
+    });
+    const offB = subscribeProgress(() => seen.push('b'));
+
+    expect(() => markExercise('06-1', 'm6-e1', 'passed')).not.toThrow();
+    expect(seen).toContain('b');
+    expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
+
+    offA();
+    offB();
+  });
+
   test('works when localStorage throws', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota exceeded');
@@ -963,10 +1167,25 @@ export function subscribeProgress(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function isLessonProgress(value: unknown): value is LessonProgress {
+  if (!isRecord(value)) return false;
+  return isRecord(value.exercises) && isRecord(value.quizzes) && isRecord(value.drafts);
+}
+
+/**
+ * Validates every lesson, not just the envelope. `importProgress` accepts a
+ * file the student supplies — the only untrusted input in the app — and a
+ * payload with the right version but a malformed lesson would otherwise be
+ * stored and then throw out of `markExercise` on the next write.
+ */
 function isProgress(value: unknown): value is Progress {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<Progress>;
-  return candidate.version === 1 && typeof candidate.lessons === 'object' && candidate.lessons !== null;
+  if (!isRecord(value)) return false;
+  if (value.version !== 1) return false;
+  if (!isRecord(value.lessons)) return false;
+  return Object.values(value.lessons).every(isLessonProgress);
 }
 
 export function getProgress(): Progress {
@@ -987,7 +1206,14 @@ function write(next: Progress): void {
   } catch {
     // Progress simply is not saved; never break the lesson over it.
   }
-  for (const fn of listeners) fn();
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch {
+      // One broken subscriber must not stop the others, nor fail the write
+      // it is reacting to.
+    }
+  }
 }
 
 function update(lessonId: string, fn: (lesson: LessonProgress) => void): void {
@@ -1054,7 +1280,7 @@ export function importProgress(json: string): boolean {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run src/state/progress.test.ts`
-Expected: PASS, 10 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1124,7 +1350,7 @@ const exercise: ExerciseDef = {
 async function run(code: string) {
   const env = await createLessonEnv(webR);
   const outcome = await runExercise(webR, exercise, code, env);
-  await destroyEnv(env);
+  await destroyEnv(webR, env);
   return outcome;
 }
 
@@ -1159,7 +1385,7 @@ describe('runExercise', () => {
     const broken = { ...exercise, check: 'stop("check is broken")' };
     const env = await createLessonEnv(webR);
     const outcome = await runExercise(webR, broken, exercise.solution, env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('broken-check');
   });
 
@@ -1167,7 +1393,7 @@ describe('runExercise', () => {
     const broken = { ...exercise, check: '"not a list"' };
     const env = await createLessonEnv(webR);
     const outcome = await runExercise(webR, broken, exercise.solution, env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('broken-check');
   });
 
@@ -1175,7 +1401,7 @@ describe('runExercise', () => {
     const env = await createLessonEnv(webR);
     await runExercise(webR, exercise, exercise.solution, env);
     const outcome = await runExercise(webR, exercise, 'y <- 1', env);
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
     expect(outcome.status).toBe('fail');
   });
 });
@@ -1269,9 +1495,12 @@ export async function runExercise(
       try {
         const result = (await webR.evalR(wrapCheck(exercise.check), { env: checkEnv })) as RCharacter;
         raw = ((await result.toArray()) as (string | null)[]).map((v) => v ?? '');
-        await result.destroy();
+        // Both frees swallow their own failures. The verdict is already
+        // computed by this point, and a failed cleanup must never turn a
+        // student's correct answer into "this exercise is broken".
+        await webR.destroy(result).catch(() => {});
       } finally {
-        await destroyEnv(checkEnv);
+        await destroyEnv(webR, checkEnv).catch(() => {});
       }
     } catch (err) {
       return { status: 'broken-check', message: String(err), run };
@@ -1285,7 +1514,7 @@ export async function runExercise(
       ? { status: 'pass', message: raw[1] || 'Correct.', run }
       : { status: 'fail', message: raw[1] || 'Not quite.', run };
   } finally {
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   }
 }
 ```
@@ -1339,13 +1568,31 @@ describe('OutputPane', () => {
 
   test('labels an error distinctly from ordinary output', () => {
     render(<OutputPane result={result([{ type: 'error', data: 'object not found' }])} running={false} />);
-    const line = screen.getByText('object not found');
+    const line = screen.getByText(/object not found/);
     expect(line.className).toContain('error');
+    expect(line.textContent).toBe('Error: object not found');
   });
 
   test('labels a warning distinctly from an error', () => {
     render(<OutputPane result={result([{ type: 'warning', data: 'NAs introduced' }])} running={false} />);
-    expect(screen.getByText('NAs introduced').className).toContain('warning');
+    const line = screen.getByText(/NAs introduced/);
+    expect(line.className).toContain('warning');
+    expect(line.textContent).toBe('Warning: NAs introduced');
+  });
+
+  test('does not prefix ordinary console output', () => {
+    render(<OutputPane result={result([{ type: 'stdout', data: '[1] 42' }])} running={false} />);
+    expect(screen.getByText('[1] 42').textContent).toBe('[1] 42');
+  });
+
+  test('the plot canvas carries the hidden attribute when there is no plot', () => {
+    // jsdom does not apply the CSS cascade, so this checks only the attribute.
+    // That the attribute actually hides the element is asserted by the
+    // Playwright smoke test, where real CSS applies.
+    const { container } = render(
+      <OutputPane result={result([{ type: 'stdout', data: '[1] 42' }])} running={false} />,
+    );
+    expect(container.querySelector('canvas')?.hasAttribute('hidden')).toBe(true);
   });
 
   test('announces that R is running', () => {
@@ -1372,21 +1619,33 @@ type Props = {
   running: boolean;
 };
 
+/**
+ * R's captured conditions carry only their message text, so a bare error would
+ * read as an unexplained sentence. Labelling matches what students see in
+ * RStudio and tells them which kind of thing just happened.
+ */
+const PREFIX: Record<RunResult['output'][number]['type'], string> = {
+  stdout: '',
+  stderr: '',
+  message: '',
+  warning: 'Warning: ',
+  error: 'Error: ',
+};
+
 export default function OutputPane({ result, running }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const images = result?.images ?? [];
-    if (!canvas) return;
+    // Nothing to draw: the canvas is hidden in that case, and assigning a new
+    // width below clears it before the next plot, so there is no stale frame
+    // to erase. Touching the 2D context here would be pointless work — and
+    // under jsdom it logs a "not implemented" error on every render.
+    if (!canvas || images.length === 0) return;
 
     const context = canvas.getContext('2d');
     if (!context) return;
-
-    if (images.length === 0) {
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
 
     // Show the final plot: intermediate frames of a multi-step plot are noise.
     const image = images[images.length - 1];
@@ -1406,6 +1665,7 @@ export default function OutputPane({ result, running }: Props) {
         <pre className="output-console">
           {result.output.map((line, index) => (
             <span key={index} className={`output-line output-${line.type}`}>
+              {PREFIX[line.type]}
               {line.data}
             </span>
           ))}
@@ -1429,7 +1689,14 @@ export default function OutputPane({ result, running }: Props) {
 .output-warning { color: #fcd34d; }
 .output-message { color: #93c5fd; }
 .output-stderr { color: #fcd34d; }
-.output-plot { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
+/* :not([hidden]) is required, not decorative. An author-stylesheet `display`
+   declaration beats the user-agent `[hidden] { display: none }` rule, so a
+   plain `.output-plot { display: block }` would leave the canvas visible even
+   when hidden — showing an empty white box before any code runs, and leaving
+   the previous plot on screen after a run that produced none. jsdom does not
+   apply the cascade, so no unit test can catch this; the Playwright smoke
+   test asserts the canvas is not visible before a plot exists. */
+.output-plot:not([hidden]) { display: block; max-width: 100%; height: auto; margin-top: 0.75rem; background: #fff; border-radius: 4px; }
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -1716,7 +1983,7 @@ export default function CodeBlock({ id, code }: Props) {
 - [ ] **Step 7: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/CodeBlock.test.tsx`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 8: Commit**
 
@@ -1950,14 +2217,43 @@ git commit -m "feat: predict, quiz, and interpret blocks on a shared choice prim
 ### Task 11: Exercise component
 
 **Files:**
-- Create: `src/components/Exercise.tsx`, `src/components/Exercise.css`
+- Create: `src/content/exercises/index.ts`, `src/content/exercises/module-06.ts`, `src/components/Exercise.tsx`, `src/components/Exercise.css`
 - Test: `src/components/Exercise.test.tsx`
 
 **Interfaces:**
 - Consumes: `runExercise` + `ExerciseDef` (Task 7), `useLesson` (Task 9), `markExercise`/drafts (Task 6), `REditor`, `OutputPane`
-- Produces: `<Exercise id={string} />`, resolving the definition from `src/content/exercises/`
+- Produces: `getExercise(id: string): ExerciseDef | undefined`, `ALL_EXERCISES: ExerciseDef[]`, `<Exercise id={string} />`
 
-- [ ] **Step 1: Write the failing test**
+> `Exercise.tsx` imports `getExercise`, so the exercise registry must exist for
+> the type check and the build to pass — Step 1 creates it here, empty. Task 14
+> tests it and Task 15 fills it with Module 6's exercises.
+
+- [ ] **Step 1: Create the empty exercise registry**
+
+`src/content/exercises/module-06.ts`:
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module06: ExerciseDef[] = [];
+```
+
+`src/content/exercises/index.ts`:
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+import { module06 } from './module-06';
+
+export const ALL_EXERCISES: ExerciseDef[] = [...module06];
+
+const byId = new Map(ALL_EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+export function getExercise(id: string): ExerciseDef | undefined {
+  return byId.get(id);
+}
+```
+
+- [ ] **Step 2: Write the failing test**
 
 Create `src/components/Exercise.test.tsx`.
 
@@ -2076,12 +2372,12 @@ describe('Exercise', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
 Expected: FAIL — cannot resolve `./Exercise`.
 
-- [ ] **Step 3: Implement `src/components/Exercise.tsx`**
+- [ ] **Step 4: Implement `src/components/Exercise.tsx`**
 
 ```tsx
 import { useState } from 'react';
@@ -2195,7 +2491,7 @@ export default function Exercise({ id }: { id: string }) {
 }
 ```
 
-- [ ] **Step 4: Create `src/components/Exercise.css`**
+- [ ] **Step 5: Create `src/components/Exercise.css`**
 
 ```css
 .exercise { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; margin: 1.75rem 0; background: #fff; }
@@ -2216,15 +2512,21 @@ export default function Exercise({ id }: { id: string }) {
 .exercise-missing { color: #b91c1c; font-weight: 600; }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run src/components/Exercise.test.tsx`
-Expected: PASS, 7 tests. (`getExercise` is mocked here; it is implemented in Task 15.)
+Expected: PASS, 7 tests. The test mocks `getExercise`; the real registry exists
+but is empty until Task 15.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Verify the project still type-checks**
+
+Run: `npx tsc --noEmit`
+Expected: clean. This is what the registry created in Step 1 is for.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/components/Exercise.tsx src/components/Exercise.css src/components/Exercise.test.tsx
+git add src/content/exercises/ src/components/Exercise.tsx src/components/Exercise.css src/components/Exercise.test.tsx
 git commit -m "feat: exercise component with staged hints and distinct check outcomes"
 ```
 
@@ -2905,10 +3207,10 @@ export default function RStatus() {
 ```
 
 Restart exists because the PostMessage channel cannot interrupt a running loop —
-a student's infinite loop has no other escape. `restartWebR()` from Task 2 stays
-available for the day the app needs in-place recovery that preserves scroll
-position and output; re-running the lesson's earlier code blocks automatically
-(spec §3.5) is deferred with it.
+a student's infinite loop has no other escape. Spec §3.5's in-place recovery,
+which would preserve scroll position and output and re-run the lesson's earlier
+code blocks, is deferred; when it is built it needs its own guard against a
+restart racing an in-flight first boot.
 
 - [ ] **Step 6: Implement `src/pages/Home.tsx`**
 
@@ -3036,6 +3338,9 @@ links fall through to the catch-all and land on the home page.
 
 ```css
 :root { color-scheme: light; }
+/* Author `display` declarations outrank the user-agent [hidden] rule, so a
+   component style can silently un-hide an element. This makes `hidden` win. */
+[hidden] { display: none !important; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
 .app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }
 .sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; }
@@ -3081,8 +3386,8 @@ git commit -m "feat: application shell with navigation, R status, and progress e
 ### Task 14: Content pipeline and lesson page
 
 **Files:**
-- Create: `src/content/exercises/index.ts`, `src/content/mdxComponents.tsx`, `src/pages/Lesson.tsx`
-- Modify: `src/r/session.ts` (add `prepareSession`)
+- Create: `src/content/mdxComponents.tsx`, `src/pages/Lesson.tsx`
+- Modify: `src/r/session.ts` (add `prepareSession` and `fetchDataset`), `src/App.tsx` (lesson route), `src/App.css`
 - Test: `src/content/exercises/index.test.ts`
 
 **Interfaces:**
@@ -3107,6 +3412,8 @@ export function prepareSession(
     prepared = (async () => {
       await mountDatasets(webR, load);
       await installCoursePackages(webR);
+      // Every setup step is done; only this composer knows that.
+      setStatus({ phase: 'ready' });
     })().catch((err) => {
       prepared = null; // Allow a retry after a transient network failure.
       throw err;
@@ -3173,28 +3480,13 @@ describe('exercise definitions', () => {
 Run: `npx vitest run src/content/exercises/index.test.ts`
 Expected: FAIL — cannot resolve `./index`.
 
-- [ ] **Step 4: Implement `src/content/exercises/index.ts`**
+- [ ] **Step 4: Confirm the exercise registry from Task 11 is unchanged**
 
-```ts
-import type { ExerciseDef } from '../../r/checker';
-import { module06 } from './module-06';
-
-export const ALL_EXERCISES: ExerciseDef[] = [...module06];
-
-const byId = new Map(ALL_EXERCISES.map((exercise) => [exercise.id, exercise]));
-
-export function getExercise(id: string): ExerciseDef | undefined {
-  return byId.get(id);
-}
-```
-
-Create `src/content/exercises/module-06.ts` as an empty export for now; Task 15 fills it.
-
-```ts
-import type { ExerciseDef } from '../../r/checker';
-
-export const module06: ExerciseDef[] = [];
-```
+`src/content/exercises/index.ts` and `src/content/exercises/module-06.ts` were
+created in Task 11 so `Exercise.tsx` could compile. Read them and confirm
+`index.ts` exports `ALL_EXERCISES` and `getExercise`, and that `module06` is
+still an empty array. Do not rewrite either file — the test written in Step 2
+is what this task adds. Task 15 fills `module06`.
 
 - [ ] **Step 5: Implement `src/content/mdxComponents.tsx`**
 
@@ -3260,6 +3552,7 @@ export default function Lesson() {
     if (!meta) return;
     let live = true;
     let created: RObject | null = null;
+    let createdBy: WebR | null = null;
 
     void (async () => {
       try {
@@ -3267,10 +3560,11 @@ export default function Lesson() {
         await prepareSession(instance, fetchDataset);
         const lessonEnv = await createLessonEnv(instance);
         if (!live) {
-          await destroyEnv(lessonEnv);
+          await destroyEnv(instance, lessonEnv);
           return;
         }
         created = lessonEnv;
+        createdBy = instance;
         setWebR(instance);
         setEnv(lessonEnv);
         setStatus({ phase: 'ready' });
@@ -3281,7 +3575,7 @@ export default function Lesson() {
 
     return () => {
       live = false;
-      if (created) void destroyEnv(created);
+      if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, [meta]);
 
@@ -3873,6 +4167,7 @@ export default function Playground() {
   useEffect(() => {
     let live = true;
     let created: RObject | null = null;
+    let createdBy: WebR | null = null;
 
     void (async () => {
       try {
@@ -3880,10 +4175,11 @@ export default function Playground() {
         await prepareSession(instance, fetchDataset);
         const playgroundEnv = await createLessonEnv(instance);
         if (!live) {
-          await destroyEnv(playgroundEnv);
+          await destroyEnv(instance, playgroundEnv);
           return;
         }
         created = playgroundEnv;
+        createdBy = instance;
         setWebR(instance);
         setEnv(playgroundEnv);
         setStatus({ phase: 'ready' });
@@ -3894,7 +4190,7 @@ export default function Playground() {
 
     return () => {
       live = false;
-      if (created) void destroyEnv(created);
+      if (created && createdBy) void destroyEnv(createdBy, created);
     };
   }, []);
 
@@ -4247,6 +4543,29 @@ describe('lesson content', () => {
     }
   });
 
+  test('block ids are unique within each lesson', () => {
+    // Progress is keyed by lesson id plus block id, so two blocks sharing an id
+    // in one lesson silently overwrite each other's saved draft or quiz result.
+    // Nothing at runtime can detect this; an author would just see answers go
+    // missing.
+    for (const [path, source] of Object.entries(sources)) {
+      const ids = [...source.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+      expect(duplicates, `${path} reuses block id(s): ${[...new Set(duplicates)].join(', ')}`).toEqual([]);
+    }
+  });
+
+  test('each lesson lists exactly the exercises its MDX contains', () => {
+    // The sidebar marks a lesson complete only when every exercise listed in the
+    // manifest is passed. If the list and the lesson's <Exercise> blocks drift
+    // apart, a lesson either can never be completed or is marked complete early.
+    for (const lesson of ALL_LESSONS) {
+      const source = sources[`./lessons/${lesson.file}.mdx`] ?? '';
+      const inMdx = [...source.matchAll(/<Exercise\s+id="([^"]+)"/g)].map((match) => match[1]).sort();
+      expect(inMdx, `${lesson.id}: manifest exercises disagree with its MDX`).toEqual([...lesson.exercises].sort());
+    }
+  });
+
   test('no lesson uses a function that hangs on the PostMessage channel', () => {
     const forbidden = /\b(readline|scan|menu|browser)\s*\(/;
     for (const [path, source] of Object.entries(sources)) {
@@ -4268,7 +4587,7 @@ describe('lesson content', () => {
 - [ ] **Step 2: Run it**
 
 Run: `npx vitest run src/content/content.test.ts`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 3: Write the R validation suite**
 
@@ -4305,7 +4624,7 @@ async function attempt(exerciseId: string, code: string) {
     // Graphics stay off: webr::canvas() needs OffscreenCanvas, absent in Node.
     return await runExercise(webR, exercise, code, env, false);
   } finally {
-    await destroyEnv(env);
+    await destroyEnv(webR, env);
   }
 }
 
@@ -4418,6 +4737,10 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
 
   await page.getByRole('link', { name: 'R playground' }).click();
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+
+  // Real CSS applies here, unlike jsdom: proves the hidden attribute actually
+  // hides the plot canvas, which an author `display` rule would silently defeat.
+  await expect(page.locator('canvas.output-plot')).toBeHidden();
 
   await page.getByRole('button', { name: 'Run' }).click();
   await expect(page.locator('.output-console')).toContainText('stress', { timeout: 120_000 });
@@ -4566,4 +4889,3 @@ Run against the spec after completing the plan.
 **Remaining scope note**
 
 The five simulations other than `clt` (§6) and Modules 1–5 and 7–12 (§7) are out of scope here by the spec's own §10, and become content work against the interfaces this plan freezes.
-
