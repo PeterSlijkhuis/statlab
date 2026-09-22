@@ -27,6 +27,7 @@ The shell plan's Global Constraints and the overview's content constraints apply
 - **Every wrong answer fails through the check, never by erroring.** The validator distinguishes `student-error` from `pass = FALSE` and only the latter satisfies a negative fixture (spec §8.1). Each wrong answer below is R that runs cleanly and produces a defensible-looking object holding the wrong number: the formula the wrong way round, a model without its interaction term, the intercept read as a group mean, the coefficient exponentiated where the odds ratio was wanted, `adjust = "none"` where Tukey was wanted, `type = "II"` where type III was wanted, `var.equal` left at its default.
 - **Check messages teach.** A failing message names what the student's object holds, what it should hold, and the one sentence of statistics that distinguishes them. A passing message reports the number they found and what it means in the units of the workplace study.
 - **Manifest `packages` arrays are copied verbatim from the content-platform plan's task P3 table** and may not be edited here. Inside a lesson, `library()` is restricted to that lesson's `packages` plus `CORE_PACKAGES` (`dplyr`, `ggplot2`, `tidyr`, `readr`, `broom`) — exactly the set the validator allows (content-platform P3 step 4). In practice that means `emmeans`, `car` and `lmerTest` may be attached **only** in `11-3`, `12-2`, `13-2` and `13-3`; a lesson that attaches one it did not declare works for the student who arrives from the lesson that did install it, and fails for everyone else.
+- **A lesson may only attach the packages its P3 entry declares.** The validator's undeclared-package rule reads the R inside `<CodeBlock>` literals (content-platform P3 step 4), so naming a package in prose is allowed; calling `library()` on an undeclared one in a code block is not. Lesson `12-3` is where this matters: it names `emmeans` in prose and points back to `11-3`, and must never attach it.
 - **Data is loaded one way only:** `d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`. `stringsAsFactors = TRUE` is what makes `department`, `site`, `remote`, `training` and `mentoring` factors, which is what makes `lm` dummy-code them instead of erroring.
 - **Only the columns in the P2 codebook exist:** `employee_id`, `department`, `site`, `remote`, `tenure_years`, `workload`, `autonomy`, `training`, `mentoring`, `wellbeing`, `engagement_t1`, `engagement_t2`, `performance`, `left_company`. No lesson or check may invent one.
 - **Forbidden everywhere:** `readline`, `scan`, `menu`, `browser` — they hang rather than error on the PostMessage channel (spec §3.2).
@@ -81,7 +82,7 @@ Module 9 is where Part 3 starts, and it carries a load the later modules do not:
 
 - [ ] **Step 1: Add the Module 9 entry to `PLANNED_MODULES`**
 
-In `src/content/manifest.ts`, replace the Module 9 placeholder with exactly this. Ids, titles, files, exercise ids and package lists are frozen by the content-platform plan's task P3 table and must match it character for character.
+In `src/content/manifest.ts`, the Module 9 entry of `PLANNED_MODULES` must read exactly this. Content-platform task P3 declared all fourteen modules from the same table, so for a worker following the recommended sequence this step is a verification rather than an edit — but verify it character for character, because a wrong `file` silently keeps the module out of `MODULES` and a wrong exercise id fails `content.test.ts` with a message about the MDX rather than about the manifest. The same applies to step 1 of tasks M10 through M14.
 
 ```ts
   {
@@ -2972,8 +2973,8 @@ For the significance tests of those simple effects, `emmeans` — which you met 
 Module 11 — takes a vertical bar:
 `emmeans(model, pairwise ~ training | mentoring, adjust = "tukey")` gives the
 training comparison within each level of mentoring, with the adjustment applied.
-That call needs `library(emmeans)`, which this lesson does not attach; go back to
-lesson 11-3 to run it.
+That call needs the `emmeans` package attached, which this lesson deliberately
+does not do; go back to lesson 11-3 to run it there.
 
 ## An APA-ready figure
 
@@ -3075,3 +3076,1832 @@ git commit -m "feat: Module 12, interactions and factorial designs"
 ```
 
 ---
+
+### Task M13: Repeated measures and nested data
+
+**Files:**
+- Create: `src/content/lessons/13-1-why-independence-breaks.mdx`, `src/content/lessons/13-2-random-intercepts.mdx`, `src/content/lessons/13-3-nesting-and-paired-t.mdx`
+- Modify: `src/content/manifest.ts` (`PLANNED_MODULES`), `src/content/exercises/module-13.ts`, `src/content/exercises/index.test.ts`
+- Test: `src/content/content.test.ts`, `src/content/exercises/index.test.ts`, `src/content/exercises/validate.itest.ts`
+
+**Interfaces:**
+- Consumes: `ExerciseDef`; `data/workplace.csv`; `tidyr::pivot_longer` (core); **`lmerTest`, and through it `lme4`, whose availability from the webR binary repository at v0.6.0 is verified by content-platform task P1 step 8.** Do not start this task until that step has run and passed. If `lme4`/`lmerTest` do not install, Module 13 becomes the long-format reshape plus the paired *t*-test only: lessons `13-2` and `13-3` drop their `lmer` blocks, exercises `m13-2-a`, `m13-2-b` and `m13-3-a` are rewritten against `t.test(..., paired = TRUE)` and the within-employee correlation, the manifest entries lose their `lmerTest` package, and task M15 makes the chooser's two mixed-model leaves reference material with no `lessonId` (overview open question 3).
+- Produces: `module13: ExerciseDef[]` with ids `m13-1-a`, `m13-2-a`, `m13-2-b`, `m13-3-a`; three lesson files; `module-13` live in `MODULES`.
+
+The two engagement columns are the only repeated measure in the dataset, and `site` is the only nesting. Both are used: `(1 | employee_id)` for the two time points, `(1 | site)` for employees grouped in offices, and `(1 | site/employee_id)` where both apply at once.
+
+**A naming decision that everything downstream depends on:** `pivot_longer` puts the original column names into the new `time` column, so its levels would be `engagement_t1` and `engagement_t2` and the fixed effect would be called `timeengagement_t2`. Every lesson and every exercise here relabels them to `t1` and `t2` in the same `mutate`, so the coefficient is `timet2`. Checks still locate the fixed effect by position and by a `time` prefix rather than by that exact string, so a student who keeps the long names still passes.
+
+- [ ] **Step 1: Add the Module 13 entry to `PLANNED_MODULES`**
+
+```ts
+  {
+    id: 'module-13',
+    number: 13,
+    title: 'Repeated measures and nested data',
+    lessons: [
+      {
+        id: '13-1',
+        title: 'When independence breaks',
+        file: '13-1-why-independence-breaks',
+        exercises: ['m13-1-a'],
+        packages: ['dplyr', 'tidyr'],
+      },
+      {
+        id: '13-2',
+        title: 'Random intercepts',
+        file: '13-2-random-intercepts',
+        exercises: ['m13-2-a', 'm13-2-b'],
+        packages: ['lmerTest', 'broom'],
+      },
+      {
+        id: '13-3',
+        title: 'Nesting, and the paired t-test',
+        file: '13-3-nesting-and-paired-t',
+        exercises: ['m13-3-a'],
+        packages: ['lmerTest', 'tidyr'],
+      },
+    ],
+  },
+```
+
+- [ ] **Step 2: Write `src/content/exercises/module-13.ts`**
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module13: ExerciseDef[] = [
+  {
+    id: 'm13-1-a',
+    prompt:
+      'Reshape the two engagement columns into long format. Store the result in long_d, with one row per employee per measurement, a factor column time whose levels are t1 then t2, and a numeric column engagement. Then build time_means: the mean, SD and n of engagement at each time point. The means are what tell you which way engagement moved.',
+    starterCode:
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\n\nlong_d <- d %>%\n  pivot_longer(\n    cols = ,\n    names_to = ,\n    values_to = \n  )\n\ntime_means <- ',
+    solution:
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(\n    cols = c(engagement_t1, engagement_t2),\n    names_to = "time",\n    values_to = "engagement"\n  ) %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\ntime_means <- long_d %>%\n  group_by(time) %>%\n  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())',
+    wrongAnswers: [
+      // names_to and values_to the wrong way round: the columns swap roles.
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(\n    cols = c(engagement_t1, engagement_t2),\n    names_to = "engagement",\n    values_to = "time"\n  )\ntime_means <- long_d %>%\n  group_by(engagement) %>%\n  summarise(mean_engagement = mean(time), sd_engagement = sd(time), n = n())',
+      // The wrong pair of columns reshaped.
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(\n    cols = c(wellbeing, performance),\n    names_to = "time",\n    values_to = "engagement"\n  ) %>%\n  mutate(time = factor(time))\ntime_means <- long_d %>%\n  group_by(time) %>%\n  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())',
+      // Only one time point kept: 480 rows, and no comparison possible.
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  select(employee_id, site, engagement = engagement_t1) %>%\n  mutate(time = factor("t1"))\ntime_means <- long_d %>%\n  group_by(time) %>%\n  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())',
+      // Grouped by department rather than by time.
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(\n    cols = c(engagement_t1, engagement_t2),\n    names_to = "time",\n    values_to = "engagement"\n  ) %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\ntime_means <- long_d %>%\n  group_by(department) %>%\n  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())',
+    ],
+    alternateSolutions: [
+      // names_prefix strips the shared start, so the levels are already t1 and t2.
+      'library(dplyr)\nlibrary(tidyr)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(\n    cols = starts_with("engagement_"),\n    names_to = "time",\n    names_prefix = "engagement_",\n    values_to = "engagement"\n  ) %>%\n  mutate(time = factor(time))\ntime_means <- long_d %>%\n  group_by(time) %>%\n  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())',
+      // Base R: two stacked frames, and aggregate() for the summary.
+      'd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- rbind(\n  data.frame(employee_id = d$employee_id, site = d$site, time = "t1", engagement = d$engagement_t1),\n  data.frame(employee_id = d$employee_id, site = d$site, time = "t2", engagement = d$engagement_t2)\n)\nlong_d$time <- factor(long_d$time, levels = c("t1", "t2"))\ntime_means <- aggregate(engagement ~ time, data = long_d,\n  FUN = function(x) c(mean = mean(x), sd = sd(x), n = length(x)))',
+    ],
+    check: `
+      if (!has_answer("long_d") || !has_answer("time_means")) {
+        list(pass = FALSE, message = "I need both long_d and time_means.")
+      } else {
+        long_d <- answer("long_d")
+        tbl <- answer("time_means")
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        expected_values <- sort(c(d$engagement_t1, d$engagement_t2))
+        exp_m1 <- mean(d$engagement_t1)
+        exp_m2 <- mean(d$engagement_t2)
+        if (!is.data.frame(long_d)) {
+          list(pass = FALSE, message = "long_d should be a data frame.")
+        } else if (nrow(long_d) != 2L * nrow(d)) {
+          list(pass = FALSE, message = paste0("long_d has ", nrow(long_d), " rows. Two measurements for each of ", nrow(d), " employees is ", 2L * nrow(d), " rows - one row per employee per time point."))
+        } else if (!("engagement" %in% names(long_d)) || !is.numeric(long_d$engagement)) {
+          list(pass = FALSE, message = paste0("long_d needs a numeric column called engagement holding the scores. Its columns are: ", paste(names(long_d), collapse = ", "), ". names_to gets the name of the column the value came FROM; values_to gets the values themselves - it is easy to write them the wrong way round."))
+        } else if (!("time" %in% names(long_d))) {
+          list(pass = FALSE, message = paste0("long_d needs a column called time saying which measurement each row is. Its columns are: ", paste(names(long_d), collapse = ", "), "."))
+        } else if (!isTRUE(all.equal(sort(as.vector(long_d$engagement)), as.vector(expected_values), tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = "The values in long_d$engagement are not the two engagement columns. Reshape engagement_t1 and engagement_t2, not another pair.")
+        } else if (length(unique(as.character(long_d$time))) != 2L) {
+          list(pass = FALSE, message = "time should take exactly two values, one per measurement.")
+        } else {
+          labels <- sort(unique(as.character(long_d$time)))
+          first_label <- labels[1]
+          means_by_time <- tapply(long_d$engagement, as.character(long_d$time), mean)
+          if (!isTRUE(all.equal(as.vector(means_by_time[[labels[1]]]), exp_m1, tolerance = 1e-6, check.attributes = FALSE))) {
+            list(pass = FALSE, message = "The first level of time does not hold the time 1 scores. Set the levels explicitly so that the earlier measurement comes first - otherwise the model in the next lesson reports the change backwards.")
+          } else if (!is.data.frame(tbl) || nrow(tbl) != 2L) {
+            list(pass = FALSE, message = paste0("time_means should have two rows, one per time point. Yours has ", if (is.data.frame(tbl)) nrow(tbl) else 0, ". Group by time."))
+          } else {
+            found <- FALSE
+            for (nm in names(tbl)) {
+              value <- tbl[[nm]]
+              if (is.numeric(value) && length(value) == 2L &&
+                  isTRUE(all.equal(sort(as.vector(value)), sort(c(exp_m1, exp_m2)), tolerance = 1e-6, check.attributes = FALSE))) found <- TRUE
+            }
+            if (!found) {
+              list(pass = FALSE, message = paste0("No column of time_means holds the two mean engagement scores, which are ", round(exp_m1, 2), " and ", round(exp_m2, 2), ". Check that you grouped by time."))
+            } else {
+              list(pass = TRUE, message = paste0("960 rows, two per employee. Engagement went from ", round(exp_m1, 2), " at time 1 to ", round(exp_m2, 2), " at time 2, a rise of ", round(exp_m2 - exp_m1, 2), " points. Keep that direction in mind: the model in the next lesson should report the same sign, and if it does not, the level order of time is the first thing to check."))
+            }
+          }
+        }
+      }
+    `,
+    hints: [
+      'pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement").',
+      'names_to names the new column that holds the OLD column names; values_to names the column that holds the numbers.',
+      'factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")) fixes both the order and the labels.',
+    ],
+  },
+  {
+    id: 'm13-2-a',
+    prompt:
+      'Fit the mixed-effects model for the two measurements: engagement predicted by time, with a random intercept for each employee. Store the model in m_time and the fixed effect of time in b_time.',
+    starterCode:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\n\n# (1 | employee_id) gives every employee their own starting level.\nm_time <- \nb_time <- ',
+    solution:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nb_time <- fixef(m_time)[["timet2"]]',
+    wrongAnswers: [
+      // An ordinary lm: it ignores that each employee appears twice.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lm(engagement ~ time, data = long_d)\nb_time <- coef(m_time)[["timet2"]]',
+      // The wrong grouping factor: site does not identify the repeated measure.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | site), data = long_d)\nb_time <- fixef(m_time)[["timet2"]]',
+      // The intercept read as the effect of time.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nb_time <- fixef(m_time)[[1]]',
+      // The level order reversed, so the fixed effect reports the fall from t2 to t1.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t2", "engagement_t1"), labels = c("t2", "t1")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nb_time <- fixef(m_time)[[2]]',
+    ],
+    alternateSolutions: [
+      // The fixed effect read off the summary table instead of with fixef().
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nb_time <- summary(m_time)$coefficients["timet2", "Estimate"]',
+      // names_prefix leaves the levels as t1 and t2 without a second mutate,
+      // and the effect is taken by position.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = starts_with("engagement_"), names_to = "time", names_prefix = "engagement_", values_to = "engagement")\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nb_time <- fixef(m_time)[[2]]',
+    ],
+    check: `
+      if (!has_answer("m_time") || !has_answer("b_time")) {
+        list(pass = FALSE, message = "I need both m_time and b_time.")
+      } else {
+        m_time <- answer("m_time")
+        b <- as.vector(answer("b_time"))
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        long <- data.frame(
+          employee_id = rep(d$employee_id, 2),
+          site = rep(d$site, 2),
+          time = factor(rep(c("t1", "t2"), each = nrow(d)), levels = c("t1", "t2")),
+          engagement = c(d$engagement_t1, d$engagement_t2)
+        )
+        reference <- lmerTest::lmer(engagement ~ time + (1 | employee_id), data = long)
+        exp_b <- as.vector(lme4::fixef(reference)[[2]])
+        exp_intercept <- as.vector(lme4::fixef(reference)[[1]])
+        if (!inherits(m_time, "merMod")) {
+          list(pass = FALSE, message = "m_time is not a mixed-effects model. An lm() on the long data treats each employee's two rows as two unrelated people, which throws away the pairing and gets the standard error wrong. Use lmer(engagement ~ time + (1 | employee_id), data = long_d).")
+        } else if (!("employee_id" %in% names(m_time@flist))) {
+          list(pass = FALSE, message = paste0("The random intercept is grouped by ", paste(names(m_time@flist), collapse = ", "), ". The repeated measurement is within employees, so the grouping factor has to be employee_id: the model needs to know which two rows belong to the same person."))
+        } else if (!is.numeric(b) || length(b) != 1L) {
+          list(pass = FALSE, message = "b_time should be a single number.")
+        } else if (isTRUE(all.equal(b, exp_intercept, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the intercept (", round(exp_intercept, 2), "), the predicted engagement at time 1. The effect of time is the second fixed effect, ", round(exp_b, 2), "."))
+        } else if (isTRUE(all.equal(b, -exp_b, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("Right size, wrong sign: your time factor has t2 as its first level, so the coefficient reports the fall from time 2 back to time 1. Set levels = c(\\"engagement_t1\\", \\"engagement_t2\\") so the earlier measurement is the reference and the coefficient is the rise, ", round(exp_b, 2), "."))
+        } else if (!isTRUE(all.equal(b, exp_b, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("b_time is ", round(b, 4), " but the fixed effect of time is ", round(exp_b, 4), "."))
+        } else {
+          list(pass = TRUE, message = paste0("Engagement rose by ", round(exp_b, 2), " points from time 1 to time 2. Because each employee has their own intercept, that estimate is built from within-employee changes rather than from the difference between two piles of scores - which is why it is the right model for data where the same people were measured twice."))
+        }
+      }
+    `,
+    hints: [
+      'lmer(engagement ~ time + (1 | employee_id), data = long_d) - the fixed part before the plus, the random part in brackets.',
+      'The vertical bar reads "grouped by": (1 | employee_id) is an intercept for each employee.',
+      'fixef(m_time) returns the fixed effects; the one you want is the second, named after the second level of time.',
+    ],
+  },
+  {
+    id: 'm13-2-b',
+    prompt:
+      'Split the leftover variation in two. From the same model, store the standard deviation of the employee random intercepts in sd_employee, the residual standard deviation in sd_residual, and the intraclass correlation - the share of the variance that is between employees - in icc.',
+    starterCode:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\n\nvc <- as.data.frame(VarCorr(m_time))\nvc\n\nsd_employee <- \nsd_residual <- \n# The ICC compares VARIANCES, not standard deviations.\nicc <- ',
+    solution:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nsd_employee <- vc$sdcor[vc$grp == "employee_id"]\nsd_residual <- vc$sdcor[vc$grp == "Residual"]\nicc <- sd_employee^2 / (sd_employee^2 + sd_residual^2)',
+    wrongAnswers: [
+      // Variances handed in where SDs were asked for.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nsd_employee <- vc$vcov[vc$grp == "employee_id"]\nsd_residual <- vc$vcov[vc$grp == "Residual"]\nicc <- sd_employee / (sd_employee + sd_residual)',
+      // The ICC computed from standard deviations rather than variances.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nsd_employee <- vc$sdcor[vc$grp == "employee_id"]\nsd_residual <- vc$sdcor[vc$grp == "Residual"]\nicc <- sd_employee / (sd_employee + sd_residual)',
+      // The two components swapped.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nsd_employee <- vc$sdcor[vc$grp == "Residual"]\nsd_residual <- vc$sdcor[vc$grp == "employee_id"]\nicc <- sd_employee^2 / (sd_employee^2 + sd_residual^2)',
+      // The ICC as the share of variance that is WITHIN employees.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nsd_employee <- vc$sdcor[vc$grp == "employee_id"]\nsd_residual <- vc$sdcor[vc$grp == "Residual"]\nicc <- sd_residual^2 / (sd_employee^2 + sd_residual^2)',
+    ],
+    alternateSolutions: [
+      // sigma() for the residual SD, and the variance components pulled by position.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nsd_employee <- attr(VarCorr(m_time)$employee_id, "stddev")[["(Intercept)"]]\nsd_residual <- sigma(m_time)\nicc <- sd_employee^2 / (sd_employee^2 + sd_residual^2)',
+      // The variances taken first, then square-rooted.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nvc <- as.data.frame(VarCorr(m_time))\nvar_employee <- vc$vcov[vc$grp == "employee_id"]\nvar_residual <- vc$vcov[vc$grp == "Residual"]\nsd_employee <- sqrt(var_employee)\nsd_residual <- sqrt(var_residual)\nicc <- var_employee / (var_employee + var_residual)',
+    ],
+    check: `
+      if (!has_answer("sd_employee") || !has_answer("sd_residual") || !has_answer("icc")) {
+        list(pass = FALSE, message = "I need all three: sd_employee, sd_residual and icc.")
+      } else {
+        sd_e <- as.vector(answer("sd_employee"))
+        sd_r <- as.vector(answer("sd_residual"))
+        icc <- as.vector(answer("icc"))
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        long <- data.frame(
+          employee_id = rep(d$employee_id, 2),
+          time = factor(rep(c("t1", "t2"), each = nrow(d)), levels = c("t1", "t2")),
+          engagement = c(d$engagement_t1, d$engagement_t2)
+        )
+        reference <- lmerTest::lmer(engagement ~ time + (1 | employee_id), data = long)
+        vc <- as.data.frame(lme4::VarCorr(reference))
+        exp_sd_e <- as.vector(vc$sdcor[vc$grp == "employee_id"])
+        exp_sd_r <- as.vector(vc$sdcor[vc$grp == "Residual"])
+        exp_icc <- exp_sd_e^2 / (exp_sd_e^2 + exp_sd_r^2)
+        sd_icc <- exp_sd_e / (exp_sd_e + exp_sd_r)
+        if (!is.numeric(sd_e) || length(sd_e) != 1L || !is.numeric(sd_r) || length(sd_r) != 1L || !is.numeric(icc) || length(icc) != 1L) {
+          list(pass = FALSE, message = "All three should be single numbers.")
+        } else if (isTRUE(all.equal(sd_e, exp_sd_e^2, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the variance (", round(exp_sd_e^2, 2), "), not the standard deviation. In as.data.frame(VarCorr(m)) the vcov column holds variances and the sdcor column holds their square roots; report SDs, which are in the units of engagement."))
+        } else if (isTRUE(all.equal(sd_e, exp_sd_r, tolerance = 1e-4, check.attributes = FALSE)) && isTRUE(all.equal(sd_r, exp_sd_e, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = "You have the two components the wrong way round. The employee_id row is the between-employee SD; the Residual row is what is left within an employee across the two measurements.")
+        } else if (!isTRUE(all.equal(sd_e, exp_sd_e, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("sd_employee is ", round(sd_e, 4), " but the employee_id standard deviation is ", round(exp_sd_e, 4), "."))
+        } else if (!isTRUE(all.equal(sd_r, exp_sd_r, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("sd_residual is ", round(sd_r, 4), " but the residual standard deviation is ", round(exp_sd_r, 4), "."))
+        } else if (isTRUE(all.equal(icc, sd_icc, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("You divided standard deviations. The ICC is a share of VARIANCE, so square both first: ", round(exp_sd_e, 2), " squared over ", round(exp_sd_e, 2), " squared plus ", round(exp_sd_r, 2), " squared, which is ", round(exp_icc, 3), "."))
+        } else if (isTRUE(all.equal(icc, 1 - exp_icc, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the share of variance WITHIN employees (", round(1 - exp_icc, 3), "). The ICC is the between-employee share, ", round(exp_icc, 3), " - the proportion of the total that the random intercepts account for."))
+        } else if (!isTRUE(all.equal(icc, exp_icc, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("icc is ", round(icc, 4), " but should be ", round(exp_icc, 4), "."))
+        } else {
+          list(pass = TRUE, message = paste0("Between employees SD = ", round(exp_sd_e, 2), ", within-employee residual SD = ", round(exp_sd_r, 2), ", ICC = ", round(exp_icc, 3), ". So about ", round(100 * exp_icc), " % of the variation in engagement is stable differences between people. That is exactly the dependence an ordinary lm would have ignored, and the reason its standard error for time would be wrong."))
+        }
+      }
+    `,
+    hints: [
+      'as.data.frame(VarCorr(m_time)) gives one row per variance component, with grp, vcov and sdcor columns.',
+      'vc$sdcor[vc$grp == "employee_id"] picks the between-employee SD; the residual row is labelled "Residual".',
+      'The ICC is between-variance over total variance, so square the SDs before dividing.',
+    ],
+  },
+  {
+    id: 'm13-3-a',
+    prompt:
+      'Show that with two time points the mixed model reproduces the paired-samples t-test. Fit the model and store it in m_time, store its t statistic for time in t_lmer, and store the t from the paired t-test in t_paired. They should agree.',
+    starterCode:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\n\nm_time <- \nt_lmer <- \n# t.test needs paired = TRUE, or it forgets who is who.\nt_paired <- ',
+    solution:
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- summary(m_time)$coefficients["timet2", "t value"]\nt_paired <- t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)$statistic',
+    wrongAnswers: [
+      // paired left out: the pairing is discarded and the t is much smaller.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- summary(m_time)$coefficients["timet2", "t value"]\nt_paired <- t.test(d$engagement_t2, d$engagement_t1)$statistic',
+      // An lm on the long data instead of a mixed model.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lm(engagement ~ time, data = long_d)\nt_lmer <- summary(m_time)$coefficients["timet2", "t value"]\nt_paired <- t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)$statistic',
+      // The intercept row read as the time effect.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- summary(m_time)$coefficients["(Intercept)", "t value"]\nt_paired <- t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)$statistic',
+      // A one-sample test on the time 2 scores, which runs and answers nothing.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- summary(m_time)$coefficients["timet2", "t value"]\nt_paired <- t.test(d$engagement_t2)$statistic',
+    ],
+    alternateSolutions: [
+      // The paired test written the other way round: the t flips sign, and the
+      // check compares sizes, which is what the equivalence is about.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- summary(m_time)$coefficients["timet2", "t value"]\nt_paired <- t.test(d$engagement_t1, d$engagement_t2, paired = TRUE)$statistic',
+      // The paired test as a one-sample test on the differences - the same test.
+      'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlong_d <- d %>%\n  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%\n  mutate(time = factor(time, levels = c("engagement_t1", "engagement_t2"), labels = c("t1", "t2")))\nm_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)\nt_lmer <- coef(summary(m_time))[2, "t value"]\nt_paired <- t.test(d$engagement_t2 - d$engagement_t1)$statistic',
+    ],
+    check: `
+      if (!has_answer("m_time") || !has_answer("t_lmer") || !has_answer("t_paired")) {
+        list(pass = FALSE, message = "I need all three: m_time, t_lmer and t_paired.")
+      } else {
+        m_time <- answer("m_time")
+        t_lmer <- as.vector(answer("t_lmer"))
+        t_paired <- as.vector(answer("t_paired"))
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        long <- data.frame(
+          employee_id = rep(d$employee_id, 2),
+          time = factor(rep(c("t1", "t2"), each = nrow(d)), levels = c("t1", "t2")),
+          engagement = c(d$engagement_t1, d$engagement_t2)
+        )
+        reference <- lmerTest::lmer(engagement ~ time + (1 | employee_id), data = long)
+        exp_t <- as.vector(coef(summary(reference))[2, "t value"])
+        exp_intercept_t <- as.vector(coef(summary(reference))[1, "t value"])
+        exp_paired <- as.vector(t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)$statistic)
+        unpaired <- as.vector(t.test(d$engagement_t2, d$engagement_t1)$statistic)
+        if (!inherits(m_time, "merMod")) {
+          list(pass = FALSE, message = "m_time is not a mixed-effects model. An lm() on the long data pretends the 960 rows come from 960 different people, which inflates the residual variance and shrinks the t. Use lmer with (1 | employee_id).")
+        } else if (!is.numeric(t_lmer) || length(t_lmer) != 1L || !is.numeric(t_paired) || length(t_paired) != 1L) {
+          list(pass = FALSE, message = "Both t statistics should be single numbers.")
+        } else if (isTRUE(all.equal(t_lmer, exp_intercept_t, tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = "t_lmer is the intercept's t, which tests whether engagement at time 1 differs from zero. The row you want is the one named after the second level of time.")
+        } else if (!isTRUE(all.equal(abs(t_lmer), abs(exp_t), tolerance = 1e-4, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("t_lmer is ", round(t_lmer, 4), " but the fixed effect of time has t = ", round(exp_t, 4), "."))
+        } else if (isTRUE(all.equal(abs(t_paired), abs(unpaired), tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the independent-samples t (", round(unpaired, 3), "), which treats the two measurements as two unrelated groups and throws away the fact that they come from the same 480 people. With paired = TRUE it becomes ", round(exp_paired, 3), " - far larger, because each employee acts as their own control."))
+        # Tolerance 1e-3, not 1e-6: REML fits the variance components by
+        # optimisation, so the equivalence with the paired t is exact in
+        # algebra and agrees only to several decimals in floating point.
+        } else if (!isTRUE(all.equal(abs(t_paired), abs(exp_t), tolerance = 1e-3, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("t_paired is ", round(t_paired, 4), ", which does not match the model's ", round(exp_t, 4), ". Check that you compared engagement_t2 with engagement_t1 and passed paired = TRUE."))
+        } else {
+          list(pass = TRUE, message = paste0("Both are about ", round(abs(exp_t), 3), " in size. With exactly two time points and nobody missing, lmer(engagement ~ time + (1 | employee_id)) and t.test(paired = TRUE) are the same test - the random intercept is doing precisely what taking a difference score does. The model keeps working when there are three time points, or when someone missed one; the paired t-test does not."))
+        }
+      }
+    `,
+    hints: [
+      'summary(m_time)$coefficients is a matrix with a "t value" column; take the timet2 row.',
+      't.test(d$engagement_t2, d$engagement_t1, paired = TRUE) compares each employee with themselves.',
+      'Without paired = TRUE you get the independent-samples test, which is a different and much less powerful comparison.',
+    ],
+  },
+];
+```
+
+> **Why the looser tolerances in this module.** `m13-2-b` compares variance components and `m13-3-a` compares a mixed-model *t* with a paired *t* at `tolerance = 1e-4` and `1e-3` respectively, not `1e-6`. `lmer` estimates its variance components by numerical optimisation under REML, so two fits of the same model agree to many decimals rather than to machine precision, and the algebraic equivalence with the paired *t*-test survives only to about the same depth. Both comparisons carry that reason as a comment at the call, per spec §5.2.
+
+- [ ] **Step 3: Write `src/content/lessons/13-1-why-independence-breaks.mdx`**
+
+````mdx
+Every model in Modules 9 to 12 assumed that the rows of your data are independent
+— that knowing one employee's score tells you nothing about the next. Two very
+common designs break that assumption, and both are in this dataset.
+
+1. **The same people, measured more than once.** Engagement was recorded at two
+   time points. An employee who was engaged in March is likely to be engaged in
+   September; those two rows are not two independent observations.
+2. **People grouped inside something.** The 480 employees work at six sites.
+   People at the same site share a manager, a building and a canteen, so their
+   scores are more alike than scores from different sites.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% select(employee_id, site, engagement_t1, engagement_t2) %>% head(6)
+
+d %>% summarise(r_within_employee = cor(engagement_t1, engagement_t2))`} />
+
+That correlation is the dependence, measured. An employee's two scores are
+strongly related, which means the second measurement carries much less new
+information than a second employee would.
+
+<Predict
+  id="p-ignore"
+  question="Suppose you stacked the two measurements into 960 rows and ran an ordinary lm(engagement ~ time). What goes wrong?"
+  choices={[
+    { text: 'Nothing - 960 rows is more data, so the estimate improves', response: 'The estimate of the change is fine. It is the uncertainty around it that the model gets wrong.' },
+    { text: 'The model treats 480 people as 960, so the differences between people land in the residual and the standard error for time is wrong', correct: true, response: 'Exactly. Stable between-person differences swamp the within-person change, and the test loses most of its power.' },
+    { text: 'R will refuse to run it', response: 'It runs perfectly happily and prints a plausible table. Nothing in the output says the rows are not independent.' },
+    { text: 'The change score comes out with the wrong sign', response: 'The estimate is unbiased. Only its standard error, and therefore its t and p, are wrong.' },
+  ]}
+/>
+
+## Wide and long
+
+The file stores the two measurements side by side, one row per employee. That is
+**wide** format. A model needs one row per observation — one row per employee per
+measurement — which is **long** format.
+
+<CodeBlock id="c-pivot" code={`long_d <- d %>%
+  pivot_longer(
+    cols = c(engagement_t1, engagement_t2),
+    names_to = "time",
+    values_to = "engagement"
+  ) %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+long_d %>% select(employee_id, site, time, engagement) %>% head(6)
+nrow(long_d)`} />
+
+Three things that trip people up:
+
+- **`names_to` takes the old column names**, `values_to` takes the numbers. Write
+  them the wrong way round and you get a data frame that looks fine and holds
+  text where the scores should be.
+- **`employee_id` is carried along**, appearing twice. That repeated id is what
+  the model in the next lesson uses to know which rows belong together, so it
+  must survive the reshape.
+- **Set the level order deliberately.** With the default alphabetical order t1
+  comes first here, which is what you want — but on a dataset with levels called
+  `post` and `pre` alphabetical order would silently reverse your effect.
+
+<CodeBlock id="c-time-means" code={`long_d %>%
+  group_by(time) %>%
+  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())`} />
+
+Two means, and the direction of the change. Whatever the model says next has to
+agree with this table.
+
+<Exercise id="m13-1-a" />
+
+## Seeing the dependence
+
+<CodeBlock id="c-spaghetti" code={`library(ggplot2)
+
+long_d %>%
+  filter(employee_id <= 30) %>%
+  ggplot(aes(x = time, y = engagement, group = employee_id)) +
+  geom_line(alpha = 0.5) +
+  geom_point(alpha = 0.6) +
+  labs(x = "Measurement", y = "Engagement", title = "Thirty employees, twice each") +
+  theme_classic()`} />
+
+Notice what dominates the picture: the lines sit at very different heights, and
+most of them tilt gently upward. The height differences are between-employee
+variation — nothing to do with the intervention. The tilts are the effect. A
+model that cannot tell those apart is looking for a small tilt through a thick
+cloud of heights, which is exactly what the next lesson fixes.
+
+<Quiz
+  id="q-long"
+  question="Why must the data be in long format before fitting a repeated-measures model?"
+  choices={[
+    { text: 'Because long data frames are smaller', response: 'They have more rows, not fewer. Format is about structure, not size.' },
+    { text: 'Because the model needs one row per observation, with a column saying which measurement it is and a column saying whose it is', correct: true, response: 'Correct. Wide format hides the measurement occasion in the column name, where a formula cannot reach it.' },
+    { text: 'Because pivot_longer removes the dependence between measurements', response: 'It changes the shape, not the data. The dependence is still there - the model is what accounts for it.' },
+    { text: 'Because lm() cannot handle two columns', response: 'lm() handles many columns. The issue is that engagement_t1 and engagement_t2 are one variable measured twice, not two variables.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-1"
+  question="A colleague stacked the two measurements into 960 rows, ran lm(engagement ~ time), and reports b = 1.31, SE = 0.42, t(958) = 3.12, p = .002. What should you tell them?"
+  choices={[
+    { text: 'The analysis is fine; 960 observations is a good sample.', response: 'There are 480 independent units, not 960. Counting each person twice overstates the information available.' },
+    { text: 'The estimate of the change is unbiased, but the model treats each employee as two unrelated people, so the standard error and the degrees of freedom are wrong. A mixed model with a random intercept per employee, or a paired t-test, is the correct analysis.', correct: true, response: 'Correct on both counts: the point estimate survives, the inference does not.' },
+    { text: 'They should report it as t(479) instead, since there are 480 employees.', response: 'Changing the degrees of freedom by hand does not fix the standard error, which was computed from the wrong residual variance.' },
+    { text: 'The p value is too small and should be doubled to be safe.', response: 'Inference is not repaired by inventing a correction. Fit the model that matches the design.' },
+  ]}
+/>
+````
+
+- [ ] **Step 4: Write `src/content/lessons/13-2-random-intercepts.mdx`**
+
+````mdx
+The spaghetti plot showed two kinds of variation at once: employees sitting at
+different heights, and each employee moving a little between measurements. A
+mixed-effects model estimates both, and keeps them apart.
+
+> **This lesson installs `lmerTest` and `lme4`.** They are the largest download
+> in the course; the status pill shows the progress and the browser caches them.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+library(lmerTest)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+long_d <- d %>%
+  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+long_d %>%
+  group_by(time) %>%
+  summarise(mean_engagement = mean(engagement), sd_engagement = sd(engagement), n = n())`} />
+
+## Fixed and random
+
+- A **fixed effect** is something you want an estimate of, with the same meaning
+  for everyone: the effect of time here. It gets a coefficient, an SE, a *t* and
+  a *p*.
+- A **random effect** is a set of deviations you assume are drawn from a
+  distribution: each employee's own starting level. You do not estimate 480
+  separate parameters and report them; you estimate the standard deviation of
+  that distribution.
+
+The question "is this factor fixed or random?" is really "do I want to compare
+these particular levels, or account for the fact that levels exist?"
+
+<CodeBlock id="c-fit" code={`m_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)
+
+summary(m_time)`} />
+
+Read the formula as two halves. `engagement ~ time` is the fixed part, exactly the
+`lm` from Module 11. `(1 | employee_id)` is the random part: a `1` means an
+intercept, and the vertical bar reads "grouped by". Every employee gets their own
+starting height; the model estimates how spread out those heights are.
+
+<Exercise id="m13-2-a" />
+
+## Two sources of variation
+
+<CodeBlock id="c-varcorr" code={`vc <- as.data.frame(VarCorr(m_time))
+vc
+
+c(
+  icc = vc$sdcor[vc$grp == "employee_id"]^2 /
+        (vc$sdcor[vc$grp == "employee_id"]^2 + vc$sdcor[vc$grp == "Residual"]^2)
+)`} />
+
+The `employee_id` row is how much employees differ from each other; the
+`Residual` row is what is left within an employee once their own level and the
+time effect are accounted for. Their ratio is the **intraclass correlation**: the
+share of the total variance that is stable differences between people.
+
+A high ICC is the whole justification for the model. It says most of the raw
+variation has nothing to do with your research question, and that an ordinary
+`lm` would have been trying to find a small effect inside it.
+
+<Predict
+  id="p-icc"
+  question="The ICC comes out around .65. What does that imply for an ordinary lm on the same 960 rows?"
+  choices={[
+    { text: 'The lm would have given the same answer', response: 'The same estimate of the change, yes. Not the same standard error, and so not the same t or p.' },
+    { text: 'The lm would put that 65 % into its residual variance, inflating the standard error of time and losing most of the power', correct: true, response: 'Exactly. The mixed model removes that variance from the comparison, which is why its t is so much larger.' },
+    { text: 'The ICC has no bearing on the lm', response: 'It is the exact quantity the lm cannot see and the mixed model removes.' },
+    { text: 'The lm would have been anti-conservative, giving too small a p value', response: 'For a within-person effect it goes the other way: the naive lm is too conservative. Ignoring clustering is anti-conservative for a BETWEEN-cluster predictor, and that difference is worth knowing.' },
+  ]}
+/>
+
+<Exercise id="m13-2-b" />
+
+## Where the p values come from
+
+`lme4` deliberately reports no *p* values for fixed effects, because the
+denominator degrees of freedom for a mixed model are not a settled question.
+`lmerTest` — which is what `library(lmerTest)` loads on top of it — adds them
+using Satterthwaite's approximation, which is why the `summary()` above has a
+`Pr(>|t|)` column and why this course attaches `lmerTest` rather than `lme4`.
+
+<CodeBlock id="c-coefs" code={`coef(summary(m_time))`} />
+
+Degrees of freedom that are not whole numbers are normal here, and are reported
+as such: *t*(478.0) or *t*(942.7), rounded to one decimal.
+
+<Quiz
+  id="q-random"
+  question="What does (1 | employee_id) add to the model?"
+  choices={[
+    { text: 'A separate coefficient for every employee, reported in the output', response: 'The deviations are estimated but not reported as fixed coefficients. What is reported is their standard deviation.' },
+    { text: 'One extra parameter: the standard deviation of employees\' own starting levels, which lets the model know which rows belong to the same person', correct: true, response: 'Correct - one parameter for 480 employees, which is what makes the approach practical.' },
+    { text: 'An interaction between employee and time', response: 'That would be a random slope, written (1 + time | employee_id). This is an intercept only.' },
+    { text: 'A correction applied to the p value after fitting', response: 'Nothing is corrected afterwards. The dependence is part of the model from the start.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-2"
+  question="Your model gives a fixed effect of time b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001, with employee SD = 5.84 and residual SD = 3.21. Which write-up is correct?"
+  choices={[
+    { text: 'A linear mixed-effects model with a random intercept for each employee showed that engagement increased from time 1 to time 2, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001. Employees differed substantially in their overall level of engagement (SD = 5.84) relative to the within-employee residual variation (SD = 3.21).', correct: true, response: 'Correct: the random structure is described, the fixed effect is reported in full, and both variance components are given.' },
+    { text: 'Engagement increased significantly over time, p < .001, in a mixed model.', response: 'No estimate, no SE, no degrees of freedom, and nothing about the random structure - a reader could not reproduce or evaluate this.' },
+    { text: 'The intervention raised engagement by 1.31 points, t(479.0) = 8.73, p < .001.', response: 'The model has no intervention in it. The fixed effect is a change over time, which in a study with no control group cannot be attributed to any particular cause.' },
+    { text: 'A mixed model showed engagement increased, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001; the random effect was not significant, so it could be dropped.', response: 'The random intercept is a feature of the design, not a hypothesis. It stays whether or not some test of it reaches .05.' },
+  ]}
+/>
+````
+
+- [ ] **Step 5: Write `src/content/lessons/13-3-nesting-and-paired-t.mdx`**
+
+````mdx
+Two loose ends. First, the traditional name for what you fitted in the last
+lesson. Second, the other way dependence enters a dataset: people grouped inside
+places.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(tidyr)
+library(lmerTest)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+long_d <- d %>%
+  pivot_longer(cols = c(engagement_t1, engagement_t2), names_to = "time", values_to = "engagement") %>%
+  mutate(time = factor(time,
+                       levels = c("engagement_t1", "engagement_t2"),
+                       labels = c("t1", "t2")))
+
+m_time <- lmer(engagement ~ time + (1 | employee_id), data = long_d)`} />
+
+## The paired t-test, which you have already run
+
+<CodeBlock id="c-paired" code={`coef(summary(m_time))
+
+t.test(d$engagement_t2, d$engagement_t1, paired = TRUE)`} />
+
+Same *t*, same degrees of freedom, same *p*. With exactly two time points and
+nobody missing a measurement, the random intercept does precisely what a paired
+*t*-test does: it removes each employee's own level before looking at the change.
+
+<CodeBlock id="c-differences" code={`differences <- d$engagement_t2 - d$engagement_t1
+
+c(
+  mean_difference = mean(differences),
+  fixed_effect = as.vector(fixef(m_time)[2])
+)
+
+t.test(differences)$statistic`} />
+
+Three routes, one number. A one-sample *t*-test on the differences, a paired
+*t*-test on the two columns, and the fixed effect of time in the mixed model are
+the same analysis wearing three names.
+
+<Predict
+  id="p-why-lmer"
+  question="If the paired t-test gives the same answer, why learn the mixed model at all?"
+  choices={[
+    { text: 'It does not; the t-test is simpler and should be preferred', response: 'It is simpler, and it stops working the moment the design grows past two measurements.' },
+    { text: 'Because it keeps working with three or more measurements, with missing data, and with other predictors in the model', correct: true, response: 'Exactly. The paired t-test is one special case; the model is the general tool.' },
+    { text: 'Because it gives smaller p values', response: 'It gives the same p value in this special case, which is the whole point of the comparison above.' },
+    { text: 'Because the paired t-test requires normally distributed data and the model does not', response: 'They make the same distributional assumptions - they are the same model.' },
+  ]}
+/>
+
+And the practical consequence, which matters in real thesis data:
+
+<CodeBlock id="c-missing" code={`set.seed(4)
+with_gaps <- long_d %>% slice_sample(prop = 0.9)
+
+nrow(with_gaps)
+length(unique(with_gaps$employee_id))
+
+coef(summary(lmer(engagement ~ time + (1 | employee_id), data = with_gaps)))`} />
+
+Ninety per cent of the rows, and many employees now contributing only one
+measurement. A paired *t*-test would drop every one of those employees entirely.
+The mixed model uses what each person has.
+
+<Exercise id="m13-3-a" />
+
+## Nesting: people inside places
+
+The second kind of dependence has nothing to do with time. The 480 employees work
+at six sites, and site is a grouping in exactly the same sense.
+
+<CodeBlock id="c-site-means" code={`d %>%
+  group_by(site) %>%
+  summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())`} />
+
+<CodeBlock id="c-site-model" code={`m_site <- lmer(wellbeing ~ autonomy + workload + (1 | site), data = d)
+
+summary(m_site)
+
+as.data.frame(VarCorr(m_site))`} />
+
+`(1 | site)` gives each site its own baseline wellbeing, so the autonomy and
+workload coefficients are estimated from comparisons **within** sites rather than
+being partly driven by differences between them. The site SD in the `VarCorr`
+table is how much the six baselines differ.
+
+<CodeBlock id="c-ranef" code={`ranef(m_site)$site`} />
+
+Those six numbers are the estimated site deviations. They are shrunk towards zero
+— a site with few employees is pulled harder towards the average than a large one,
+because the model trusts a small sample less. That shrinkage is a feature, and it
+is one of the things a set of six fixed dummy coefficients would not give you.
+
+## Both at once
+
+When employees are measured repeatedly **and** grouped in sites, the groupings
+nest: a measurement is inside an employee, an employee is inside a site.
+
+<CodeBlock id="c-nested" code={`m_nested <- lmer(engagement ~ time + (1 | site/employee_id), data = long_d)
+
+as.data.frame(VarCorr(m_nested))
+coef(summary(m_nested))`} />
+
+`(1 | site/employee_id)` is shorthand for `(1 | site) + (1 | site:employee_id)`:
+a random intercept for each site, and another for each employee within a site.
+Three variance components now — site, employee, and residual — and the fixed
+effect of time is barely changed, because the time comparison lives inside
+employees and sites cannot affect it.
+
+A rule of thumb worth carrying into your own work: you need a reasonable number
+of groups to estimate how groups vary. Six sites is on the thin side, and the
+site variance will be estimated imprecisely; with two or three groups, make them
+fixed effects instead.
+
+<Quiz
+  id="q-nesting"
+  question="What does (1 | site/employee_id) fit that (1 | employee_id) alone does not?"
+  choices={[
+    { text: 'A separate slope for each site', response: 'That would be a random slope, (1 + time | site). Both of these are intercept-only.' },
+    { text: 'An intercept for each site as well as for each employee, so shared site-level variation is separated from individual differences', correct: true, response: 'Correct, and the output shows it as a third variance component.' },
+    { text: 'An interaction between site and time', response: 'No interaction is fitted. Nesting is about which observations share a level, not about effects differing across levels.' },
+    { text: 'Nothing: employee_id is already unique, so site adds no information', response: 'Employees are unique, but employees at the same site share a baseline. That shared part is what the site intercept captures.' },
+  ]}
+/>
+
+<Interpret
+  id="i-13-3"
+  question="Your nested model gives a fixed effect of time b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001, with variance components SD_site = 2.41, SD_employee = 5.32, SD_residual = 3.21, and the paired t-test on the same data gives t(479) = 8.73, p < .001. Which write-up is correct?"
+  choices={[
+    { text: 'Engagement increased over time, t(479) = 8.73, p < .001. A mixed model gave the same result, so the nesting can be ignored.', response: 'It gave the same result for this particular effect because the comparison is within employees. That is a finding about this design, not a licence to ignore nesting in general.' },
+    { text: 'A linear mixed-effects model with random intercepts for site and for employee within site showed that engagement increased from time 1 to time 2, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001 (SD_site = 2.41, SD_employee = 5.32, SD_residual = 3.21). With two time points and complete data this estimate matches a paired-samples t-test, t(479) = 8.73, p < .001.', correct: true, response: 'Correct: the random structure is described, the fixed effect and all three variance components are reported, and the equivalence is stated as the special case it is.' },
+    { text: 'The training programme increased engagement by 1.31 points, b = 1.31, SE = 0.15, t(479.0) = 8.73, p < .001.', response: 'This model contains no intervention. Every employee was measured twice; a rise over time with no control group cannot be attributed to a programme.' },
+    { text: 'Engagement increased by 1.31 points, and since SD_site was smallest, site had no effect on engagement.', response: 'A variance component is not a test, and "smallest of three" does not mean zero. Sites do differ; they differ less than individuals do.' },
+  ]}
+/>
+````
+
+- [ ] **Step 6: Add Module 13 assertions to `src/content/exercises/index.test.ts`**
+
+```ts
+describe('Module 13', () => {
+  const module13 = ALL_EXERCISES.filter((exercise) => exercise.id.startsWith('m13-'));
+
+  test('defines all four exercises', () => {
+    expect(module13.map((exercise) => exercise.id)).toEqual([
+      'm13-1-a', 'm13-2-a', 'm13-2-b', 'm13-3-a',
+    ]);
+  });
+
+  test('every mixed-model check guards on merMod before reading the fit', () => {
+    // An lm() on the long data is the headline wrong answer of this module, and
+    // it has the same coefficient. Only the class tells them apart.
+    for (const exercise of module13) {
+      if (!/lmer\(/.test(exercise.solution)) continue;
+      expect(exercise.check, `${exercise.id}`).toContain('inherits(m_time, "merMod")');
+    }
+  });
+
+  test('the mixed-model exercises rehearse an lm as a wrong answer', () => {
+    const fit = module13.find((exercise) => exercise.id === 'm13-2-a')!;
+    expect(fit.wrongAnswers.some((code) => /m_time <- lm\(/.test(code))).toBe(true);
+  });
+
+  test('the paired equivalence exercise rejects the unpaired test', () => {
+    const paired = module13.find((exercise) => exercise.id === 'm13-3-a')!;
+    expect(paired.solution).toContain('paired = TRUE');
+    expect(paired.wrongAnswers.some((code) => /t\.test\(d\$engagement_t2, d\$engagement_t1\)\$statistic/.test(code))).toBe(true);
+  });
+
+  test('the loosened tolerances carry their reason', () => {
+    // Spec 5.2 allows a looser tolerance where a legitimate route differs
+    // slightly, provided the check says why.
+    const paired = module13.find((exercise) => exercise.id === 'm13-3-a')!;
+    expect(paired.check).toMatch(/#[^\n]*REML/);
+  });
+});
+```
+
+- [ ] **Step 7: Run the static content tests**
+
+Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
+Expected: PASS. `13-1` declares `dplyr` and `tidyr` and must not attach `lmerTest`; `13-2` and `13-3` are the only lessons in the course that may.
+
+> `13-1`'s spaghetti plot calls `library(ggplot2)`, which the lesson does not declare. `ggplot2` is in `CORE_PACKAGES`, so the validator's `declared` set already contains it and the test passes — this is the same allowance every lesson in this plan relies on for `dplyr`.
+
+- [ ] **Step 8: Run the R validator over Module 13**
+
+Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m13-"`
+Expected: four solutions pass, seventeen wrong answers all `fail`, eight alternate solutions pass. This is by far the slowest module: every check refits an `lmer`, each fixture fits at least one more, and the validator's `beforeAll` has to install `lme4` and `lmerTest` first. Budget several minutes and raise the per-test timeout in `validate.itest.ts` if `m13-2-b` or `m13-3-a` times out at 120 s.
+
+Then: `npx vitest run src/content/exercises/validate.itest.ts -t "13-"`. Expected: no R error. `lmer` may emit a message about the REML criterion or, on the nested model, a boundary warning; a *message* or a *warning* is captured and displayed but is not an error, and does not fail the run. An actual `isSingular` error would — if `(1 | site/employee_id)` fails to converge on the committed dataset, say so in the lesson prose and keep the block, because a convergence message is itself worth teaching.
+
+- [ ] **Step 9: Verify Module 13 in the browser**
+
+Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/13-2`.
+Expected: the status pill reads "Installing lmerTest" for noticeably longer than `emmeans` did, then clears; `summary(m_time)` prints a `Pr(>|t|)` column — if it does not, `lme4` was attached instead of `lmerTest` and the *p* values are missing. On `13-3`, the `coef(summary(m_time))` and `t.test(..., paired = TRUE)` blocks print the same *t* to at least three decimals, `ranef(m_site)$site` prints six numbers, and the nested model prints three variance components.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/content/manifest.ts src/content/exercises/module-13.ts src/content/exercises/index.test.ts src/content/lessons/13-1-why-independence-breaks.mdx src/content/lessons/13-2-random-intercepts.mdx src/content/lessons/13-3-nesting-and-paired-t.mdx
+git commit -m "feat: Module 13, repeated measures and nested data"
+```
+
+---
+
+### Task M14: Binary outcomes
+
+**Files:**
+- Create: `src/content/lessons/14-1-why-not-a-linear-model.mdx`, `src/content/lessons/14-2-glm-and-log-odds.mdx`, `src/content/lessons/14-3-odds-ratios-and-reporting.mdx`
+- Modify: `src/content/manifest.ts` (`PLANNED_MODULES`), `src/content/exercises/module-14.ts`, `src/content/exercises/index.test.ts`
+- Test: `src/content/content.test.ts`, `src/content/exercises/index.test.ts`, `src/content/exercises/validate.itest.ts`
+
+**Interfaces:**
+- Consumes: `ExerciseDef`; `data/workplace.csv`, whose `left_company` column is the course's only binary outcome (content-platform P2: `logit(p) = 1.9 - 0.06 x wellbeing - 0.11 x tenure_years`, giving roughly 20 % leavers); `broom`, in the core set. No on-demand package: Module 14 is base `glm` plus `broom`.
+- Produces: `module14: ExerciseDef[]` with ids `m14-1-a`, `m14-2-a`, `m14-2-b`, `m14-3-a`; three lesson files; `module-14` live in `MODULES`.
+
+**One dependency worth checking before writing a line of `14-3`.** `confint()` on a `glm` computes profile-likelihood intervals. That method lived in `MASS` for twenty years and moved into `stats` in R 4.4.0; webR 0.6.0 runs R 4.6.0, so it is present without `MASS`. Verify it in the playground first (step 0 below) — if it is missing, the whole module falls back to `confint.default()` Wald intervals, which is a one-word change in three places and a sentence of prose, not a redesign.
+
+- [ ] **Step 0: Confirm `confint()` works on a glm without MASS**
+
+In the playground, or in the validator's R session:
+
+```r
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+m <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+"MASS" %in% loadedNamespaces()
+confint(m)
+```
+
+Expected: `FALSE`, then a 3 x 2 matrix of profile-likelihood bounds, possibly preceded by a `Waiting for profiling to be done...` message (a message, not an error). If `confint(m)` errors, use `confint.default(m)` throughout this module and say in `14-3` that the intervals are Wald intervals.
+
+- [ ] **Step 1: Add the Module 14 entry to `PLANNED_MODULES`**
+
+```ts
+  {
+    id: 'module-14',
+    number: 14,
+    title: 'Binary outcomes',
+    lessons: [
+      {
+        id: '14-1',
+        title: 'Why not a linear model',
+        file: '14-1-why-not-a-linear-model',
+        exercises: ['m14-1-a'],
+        packages: ['ggplot2'],
+      },
+      {
+        id: '14-2',
+        title: 'glm and log odds',
+        file: '14-2-glm-and-log-odds',
+        exercises: ['m14-2-a', 'm14-2-b'],
+        packages: ['broom'],
+      },
+      {
+        id: '14-3',
+        title: 'Odds ratios, and reporting',
+        file: '14-3-odds-ratios-and-reporting',
+        exercises: ['m14-3-a'],
+        packages: ['broom'],
+      },
+    ],
+  },
+```
+
+- [ ] **Step 2: Write `src/content/exercises/module-14.ts`**
+
+```ts
+import type { ExerciseDef } from '../../r/checker';
+
+export const module14: ExerciseDef[] = [
+  {
+    id: 'm14-1-a',
+    prompt:
+      'See for yourself why a straight line is the wrong shape for a yes/no outcome. Fit lm(left_company ~ wellbeing) and store it in lpm, count how many of its fitted values fall outside the range 0 to 1 and store that count in n_impossible, and build rate_by_third: the proportion who left in each third of wellbeing, lowest third first.',
+    starterCode:
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\n\n# left_company is 0 or 1, so its mean is the proportion who left.\nd %>% summarise(n = n(), leavers = sum(left_company), rate = mean(left_company))\n\nlpm <- \nn_impossible <- \nrate_by_third <- ',
+    solution:
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+    wrongAnswers: [
+      // Counting against the wrong range: a probability lives in 0 to 1.
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 100)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+      // Counting the leavers instead of the impossible predictions.
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(d$left_company == 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+      // The thirds taken on the outcome, which makes the rates trivially 0 and 1.
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(left_company, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+      // The wrong predictor, so the fitted values are someone else\'s.
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ tenure_years, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+    ],
+    alternateSolutions: [
+      // Base R: predict() instead of fitted(), and table thirds with cut().
+      'd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\np <- predict(lpm)\nn_impossible <- length(which(p < 0 | p > 1))\nbreaks <- quantile(d$wellbeing, probs = c(0, 1/3, 2/3, 1))\nd$third <- cut(d$wellbeing, breaks = breaks, include.lowest = TRUE, labels = FALSE)\nrate_by_third <- aggregate(left_company ~ third, data = d, FUN = mean)',
+      // The count written as a sum over a single logical vector.
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(!dplyr::between(fitted(lpm), 0, 1))\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n(), leavers = sum(left_company))',
+    ],
+    check: `
+      if (!has_answer("lpm") || !has_answer("n_impossible") || !has_answer("rate_by_third")) {
+        list(pass = FALSE, message = "I need all three: lpm, n_impossible and rate_by_third.")
+      } else {
+        lpm <- answer("lpm")
+        n_imp <- as.vector(answer("n_impossible"))
+        tbl <- answer("rate_by_third")
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        reference <- lm(left_company ~ wellbeing, data = d)
+        p <- fitted(reference)
+        exp_n <- sum(p < 0 | p > 1)
+        breaks <- quantile(d$wellbeing, probs = c(0, 1/3, 2/3, 1))
+        third <- cut(d$wellbeing, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+        exp_rates <- as.vector(tapply(d$left_company, third, mean))
+        if (!inherits(lpm, "lm")) {
+          list(pass = FALSE, message = "lpm should be an ordinary linear model - this exercise is about what goes wrong when you fit one to a 0/1 outcome.")
+        } else if (!("wellbeing" %in% names(coef(lpm)))) {
+          list(pass = FALSE, message = paste0("lpm has no wellbeing coefficient; its predictors are ", paste(setdiff(names(coef(lpm)), "(Intercept)"), collapse = ", "), "."))
+        } else if (!is.numeric(n_imp) || length(n_imp) != 1L) {
+          list(pass = FALSE, message = "n_impossible should be a single number.")
+        } else if (isTRUE(all.equal(as.numeric(n_imp), as.numeric(sum(d$left_company)), tolerance = 1e-9, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the number of employees who left (", sum(d$left_company), "). The question is how many PREDICTIONS the line makes that no probability could take - count the fitted values below 0 or above 1."))
+        } else if (isTRUE(all.equal(as.numeric(n_imp), 0, tolerance = 1e-9)) && exp_n > 0) {
+          list(pass = FALSE, message = paste0("You found none, but there are ", exp_n, ". Check the range you tested against: a predicted probability has to lie between 0 and 1, not between 0 and 100."))
+        } else if (!isTRUE(all.equal(as.numeric(n_imp), as.numeric(exp_n), tolerance = 1e-9, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("n_impossible is ", n_imp, " but ", exp_n, " fitted values from lm(left_company ~ wellbeing) fall outside 0 to 1."))
+        } else if (!is.data.frame(tbl) || nrow(tbl) != 3L) {
+          list(pass = FALSE, message = "rate_by_third should have three rows, one per third of wellbeing.")
+        } else {
+          found <- FALSE
+          for (nm in names(tbl)) {
+            value <- tbl[[nm]]
+            if (is.numeric(value) && length(value) == 3L &&
+                isTRUE(all.equal(as.vector(value), exp_rates, tolerance = 1e-6, check.attributes = FALSE))) found <- TRUE
+          }
+          if (!found) {
+            list(pass = FALSE, message = paste0("No column of rate_by_third holds the three leaving rates, which are ", paste(round(exp_rates, 3), collapse = ", "), " from the lowest third of wellbeing to the highest. Split on wellbeing, not on left_company."))
+          } else {
+            list(pass = TRUE, message = paste0(exp_n, " of the ", nrow(d), " fitted values are impossible probabilities. And the descriptives say the effect is real: ", round(100 * exp_rates[1], 1), " % of the least happy third left, against ", round(100 * exp_rates[3], 1), " % of the happiest. A model that predicts a negative probability for the very employees it should be most confident about is the wrong shape, not the wrong data."))
+          }
+        }
+      }
+    `,
+    hints: [
+      'fitted(lpm) gives the predicted value for every employee.',
+      'sum() over a logical vector counts the TRUEs: sum(fitted(lpm) < 0 | fitted(lpm) > 1).',
+      'mean() of a 0/1 column is the proportion of 1s, so summarise(rate = mean(left_company)) is the leaving rate.',
+    ],
+  },
+  {
+    id: 'm14-2-a',
+    prompt:
+      'Fit the logistic regression of leaving on wellbeing and tenure. Store the fitted model in m_left and the wellbeing coefficient - on the log-odds scale, exactly as the model reports it - in b_wellbeing.',
+    starterCode:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\n\n# Without family = binomial, glm() fits an ordinary linear model and says nothing.\nm_left <- \nb_wellbeing <- ',
+    solution:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nb_wellbeing <- m_left %>% tidy() %>% filter(term == "wellbeing") %>% pull(estimate)',
+    wrongAnswers: [
+      // family left off: a gaussian glm, which runs and is not logistic regression.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d)\nb_wellbeing <- m_left %>% tidy() %>% filter(term == "wellbeing") %>% pull(estimate)',
+      // lm instead of glm: the same mistake with a different spelling.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- lm(left_company ~ wellbeing + tenure_years, data = d)\nb_wellbeing <- m_left %>% tidy() %>% filter(term == "wellbeing") %>% pull(estimate)',
+      // The coefficient exponentiated when the log odds were asked for.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nb_wellbeing <- exp(coef(m_left)[["wellbeing"]])',
+      // The tenure coefficient read as wellbeing\'s.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nb_wellbeing <- m_left %>% tidy() %>% filter(term == "tenure_years") %>% pull(estimate)',
+      // The intercept read as the wellbeing effect.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nb_wellbeing <- m_left %>% tidy() %>% slice(1) %>% pull(estimate)',
+    ],
+    alternateSolutions: [
+      // family written as the function call, which is the canonical form.
+      'd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial(link = "logit"))\nb_wellbeing <- coef(m_left)["wellbeing"]',
+      // The predictors in the other order, and the coefficient by name.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ tenure_years + wellbeing, data = d, family = "binomial")\nb_wellbeing <- summary(m_left)$coefficients["wellbeing", "Estimate"]',
+    ],
+    check: `
+      if (!has_answer("m_left") || !has_answer("b_wellbeing")) {
+        list(pass = FALSE, message = "I need both m_left and b_wellbeing.")
+      } else {
+        m_left <- answer("m_left")
+        b <- as.vector(answer("b_wellbeing"))
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        reference <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+        exp_b <- as.vector(coef(reference)["wellbeing"])
+        exp_tenure <- as.vector(coef(reference)["tenure_years"])
+        exp_intercept <- as.vector(coef(reference)["(Intercept)"])
+        if (!inherits(m_left, "glm")) {
+          list(pass = FALSE, message = "m_left is not a glm. lm() fits a straight line to the 0/1 outcome, which is the model lesson 14-1 showed predicting impossible probabilities. Use glm().")
+        } else if (!identical(family(m_left)$family, "binomial")) {
+          list(pass = FALSE, message = paste0("m_left is a glm, but its family is \\"", family(m_left)$family, "\\", not binomial. Without family = binomial, glm() fits an ordinary linear model - it runs, it prints a coefficient table, and it is not logistic regression. The family is what puts the outcome on the log-odds scale."))
+        } else if (!("wellbeing" %in% names(coef(m_left)))) {
+          list(pass = FALSE, message = paste0("m_left has no wellbeing coefficient; its predictors are ", paste(setdiff(names(coef(m_left)), "(Intercept)"), collapse = ", "), "."))
+        } else if (!is.numeric(b) || length(b) != 1L) {
+          list(pass = FALSE, message = "b_wellbeing should be a single number.")
+        } else if (isTRUE(all.equal(b, exp(exp_b), tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("You exponentiated. exp(b) = ", round(exp(exp_b), 4), " is the odds ratio, which lesson 14-3 is about. The coefficient itself, on the log-odds scale, is ", round(exp_b, 4), " - and the sign is readable there in a way it is not after exponentiating, because below zero means less likely while below one means the same thing."))
+        } else if (isTRUE(all.equal(b, exp_tenure, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the tenure coefficient (", round(exp_tenure, 4), "). Filter tidy() to the wellbeing row."))
+        } else if (isTRUE(all.equal(b, exp_intercept, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("That is the intercept (", round(exp_intercept, 4), "): the log odds of leaving for an employee with wellbeing 0 and no tenure at all, which describes nobody."))
+        } else if (!isTRUE(all.equal(b, exp_b, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("b_wellbeing is ", round(b, 4), " but the wellbeing coefficient is ", round(exp_b, 4), "."))
+        } else {
+          list(pass = TRUE, message = paste0("b = ", round(exp_b, 4), " log odds per point of wellbeing. Negative, so higher wellbeing goes with a lower chance of leaving - which is the direction the leaving rates by third showed in the last lesson. Log odds are not readable as they stand; exp() fixes that in lesson 14-3."))
+        }
+      }
+    `,
+    hints: [
+      'glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial) - the family argument is what makes it logistic.',
+      'tidy() works on a glm exactly as it does on an lm, and the estimate column is on the log-odds scale.',
+      'Do not exponentiate yet. This exercise asks for the coefficient as the model reports it.',
+    ],
+  },
+  {
+    id: 'm14-2-b',
+    prompt:
+      'Turn both slopes into odds ratios. Store exp() of the wellbeing coefficient in or_wellbeing and exp() of the tenure coefficient in or_tenure. One of them should come out below 1 and one above; make sure you can say which and why.',
+    starterCode:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\n\nm_left %>% tidy()\n\nor_wellbeing <- \nor_tenure <- ',
+    solution:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_wellbeing <- exp(coef(m_left)[["wellbeing"]])\nor_tenure <- exp(coef(m_left)[["tenure_years"]])',
+    wrongAnswers: [
+      // Not exponentiated at all: log odds labelled as odds ratios.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_wellbeing <- coef(m_left)[["wellbeing"]]\nor_tenure <- coef(m_left)[["tenure_years"]]',
+      // The standard errors exponentiated instead of the estimates.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_wellbeing <- exp(summary(m_left)$coefficients["wellbeing", "Std. Error"])\nor_tenure <- exp(summary(m_left)$coefficients["tenure_years", "Std. Error"])',
+      // The reciprocal taken "to make it bigger than 1".
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_wellbeing <- 1 / exp(coef(m_left)[["wellbeing"]])\nor_tenure <- exp(coef(m_left)[["tenure_years"]])',
+      // Exponentiated coefficients from a model with no binomial family.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d)\nor_wellbeing <- exp(coef(m_left)[["wellbeing"]])\nor_tenure <- exp(coef(m_left)[["tenure_years"]])',
+    ],
+    alternateSolutions: [
+      // broom does the exponentiating.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nors <- m_left %>% tidy(exponentiate = TRUE)\nor_wellbeing <- ors$estimate[ors$term == "wellbeing"]\nor_tenure <- ors$estimate[ors$term == "tenure_years"]',
+      // The whole coefficient vector exponentiated at once, then indexed.
+      'd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nall_ors <- exp(coef(m_left))\nor_wellbeing <- all_ors["wellbeing"]\nor_tenure <- all_ors["tenure_years"]',
+    ],
+    check: `
+      if (!has_answer("or_wellbeing") || !has_answer("or_tenure")) {
+        list(pass = FALSE, message = "I need both or_wellbeing and or_tenure.")
+      } else {
+        or_w <- as.vector(answer("or_wellbeing"))
+        or_t <- as.vector(answer("or_tenure"))
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        reference <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+        b_w <- as.vector(coef(reference)["wellbeing"])
+        b_t <- as.vector(coef(reference)["tenure_years"])
+        exp_w <- exp(b_w)
+        exp_t <- exp(b_t)
+        gaussian_fit <- glm(left_company ~ wellbeing + tenure_years, data = d)
+        if (!is.numeric(or_w) || length(or_w) != 1L || !is.numeric(or_t) || length(or_t) != 1L) {
+          list(pass = FALSE, message = "Both should be single numbers.")
+        } else if (isTRUE(all.equal(or_w, b_w, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("Those are still log odds. An odds ratio is exp() of the coefficient: exp(", round(b_w, 3), ") = ", round(exp_w, 3), ". You can spot the mistake without any arithmetic - an odds ratio is never negative, and a log odds usually is."))
+        } else if (isTRUE(all.equal(or_w, exp(as.vector(summary(reference)$coefficients["wellbeing", "Std. Error"])), tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = "You exponentiated the standard error rather than the estimate. Exponentiate the estimate column; the SE stays on the log-odds scale, which is where the confidence interval is built before being exponentiated with it.")
+        } else if (isTRUE(all.equal(or_w, 1 / exp_w, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("You inverted it. 1/OR flips the direction of the comparison, so ", round(1 / exp_w, 3), " would be the odds ratio for a one-point DECREASE in wellbeing. Report exp(b) = ", round(exp_w, 3), " and say in words that higher wellbeing lowers the odds."))
+        } else if (isTRUE(all.equal(or_w, exp(as.vector(coef(gaussian_fit)["wellbeing"])), tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = "Those come from a glm fitted without family = binomial, so they are exp() of a linear-model slope - a number with no interpretation at all. Refit with family = binomial.")
+        } else if (!isTRUE(all.equal(or_w, exp_w, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("or_wellbeing is ", round(or_w, 4), " but exp() of the wellbeing coefficient is ", round(exp_w, 4), "."))
+        } else if (!isTRUE(all.equal(or_t, exp_t, tolerance = 1e-6, check.attributes = FALSE))) {
+          list(pass = FALSE, message = paste0("or_tenure is ", round(or_t, 4), " but exp() of the tenure coefficient is ", round(exp_t, 4), "."))
+        } else {
+          list(pass = TRUE, message = paste0("OR = ", round(exp_w, 3), " per point of wellbeing and ", round(exp_t, 3), " per year of tenure. An odds ratio multiplies rather than adds: below 1 means the odds of leaving shrink with each extra point, above 1 means they grow. Both are ratios of ODDS, not of risks, and the two are only close when the outcome is rare."))
+        }
+      }
+    `,
+    hints: [
+      'exp() undoes the log in log odds: exp(coef(m_left)[["wellbeing"]]).',
+      'Use the double bracket, or unname(), so you get a plain number rather than a named one.',
+      'An odds ratio is always positive. If yours is negative, you have not exponentiated.',
+    ],
+  },
+  {
+    id: 'm14-3-a',
+    prompt:
+      'Build the table that goes in the results section: odds ratios with their 95 % confidence intervals, for every term in the model including the intercept. Store it in or_table, with the odds ratio in a column called OR and the interval bounds beside it.',
+    starterCode:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\n\n# Build the interval on the log-odds scale first, then exponentiate the whole thing.\nor_table <- ',
+    solution:
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_table <- exp(cbind(OR = coef(m_left), confint(m_left)))',
+    wrongAnswers: [
+      // Never exponentiated: log odds in a table labelled OR.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_table <- cbind(OR = coef(m_left), confint(m_left))',
+      // Only the interval: no estimate to report alongside it.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_table <- exp(confint(m_left))',
+      // The whole summary matrix exponentiated, so the SE, z and p are mangled too.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_table <- exp(summary(m_left)$coefficients)',
+      // Built from a model with no binomial family.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d)\nor_table <- exp(cbind(OR = coef(m_left), confint(m_left)))',
+    ],
+    alternateSolutions: [
+      // broom builds the same table as a data frame, with Wald intervals.
+      'library(dplyr)\nlibrary(broom)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nor_table <- m_left %>%\n  tidy(exponentiate = TRUE, conf.int = TRUE) %>%\n  select(term, OR = estimate, conf.low, conf.high)',
+      // Wald intervals built by hand from the estimate and its SE.
+      'd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nm_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)\nest <- coef(m_left)\nse <- summary(m_left)$coefficients[, "Std. Error"]\nor_table <- exp(cbind(OR = est, lower = est - 1.96 * se, upper = est + 1.96 * se))',
+    ],
+    check: `
+      if (!has_answer("or_table")) {
+        list(pass = FALSE, message = "I could not find an object called or_table.")
+      } else {
+        tbl <- answer("or_table")
+        d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+        reference <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+        b <- coef(reference)
+        exp_or <- as.vector(exp(b))
+        profile <- suppressMessages(confint(reference))
+        se <- summary(reference)$coefficients[, "Std. Error"]
+        wald <- cbind(b - 1.96 * se, b + 1.96 * se)
+        gaussian_fit <- glm(left_company ~ wellbeing + tenure_years, data = d)
+        numeric_cols <- list()
+        if (is.matrix(tbl) || is.data.frame(tbl)) {
+          for (nm in colnames(tbl)) {
+            column <- if (is.data.frame(tbl)) tbl[[nm]] else tbl[, nm]
+            if (is.numeric(column)) numeric_cols[[nm]] <- as.vector(column)
+          }
+        }
+        matches <- function(target, tol) {
+          for (column in numeric_cols) {
+            if (length(column) == length(target) &&
+                isTRUE(all.equal(column, as.vector(target), tolerance = tol, check.attributes = FALSE))) return(TRUE)
+          }
+          FALSE
+        }
+        if (!is.matrix(tbl) && !is.data.frame(tbl)) {
+          list(pass = FALSE, message = "or_table should be a table - a matrix from cbind() or a data frame - with one row per term.")
+        } else if (nrow(tbl) != length(b)) {
+          list(pass = FALSE, message = paste0("or_table has ", nrow(tbl), " rows but the model has ", length(b), " terms (the intercept included). exp(confint(m)) on its own gives the interval with no estimate column; cbind the odds ratios on first."))
+        } else if (length(numeric_cols) < 3L) {
+          list(pass = FALSE, message = paste0("or_table needs at least three numeric columns: the odds ratio and the two interval bounds. Yours has ", length(numeric_cols), "."))
+        } else if (matches(as.vector(b), 1e-6)) {
+          list(pass = FALSE, message = paste0("One of your columns holds the raw coefficients, so the table was never exponentiated. exp() the whole cbind() at once - the interval has to be built on the log-odds scale and exponentiated with the estimate, not the other way round. The wellbeing OR should be ", round(exp(b[["wellbeing"]]), 3), ", not ", round(b[["wellbeing"]], 3), "."))
+        } else if (matches(as.vector(exp(coef(gaussian_fit))), 1e-6)) {
+          list(pass = FALSE, message = "Those odds ratios come from a glm fitted without family = binomial. Refit with family = binomial before exponentiating anything.")
+        } else if (!matches(exp_or, 1e-6)) {
+          list(pass = FALSE, message = paste0("No column of or_table holds the odds ratios, which are ", paste(round(exp_or, 3), collapse = ", "), " for the intercept, wellbeing and tenure."))
+        # Tolerance 1e-4, not 1e-6: confint() on a glm finds the profile-likelihood
+        # bounds by iterative root-finding, so two runs agree to several decimals
+        # rather than to machine precision. Wald bounds are accepted as well.
+        } else if (!matches(as.vector(exp(profile[, 1])), 1e-4) && !matches(as.vector(exp(wald[, 1])), 1e-4)) {
+          list(pass = FALSE, message = "No column of or_table holds the lower bounds of the 95 % intervals. confint(m) gives profile-likelihood bounds on the log-odds scale; exponentiate them together with the estimates.")
+        } else if (!matches(as.vector(exp(profile[, 2])), 1e-4) && !matches(as.vector(exp(wald[, 2])), 1e-4)) {
+          list(pass = FALSE, message = "No column of or_table holds the upper bounds of the 95 % intervals.")
+        } else {
+          kind <- if (matches(as.vector(exp(profile[, 1])), 1e-4)) "profile-likelihood" else "Wald"
+          list(pass = TRUE, message = paste0("Your intervals are ", kind, " bounds, which is fine - say which kind you used. Wellbeing: OR = ", round(exp(b[["wellbeing"]]), 3), ", 95 % CI [", round(exp(profile[["wellbeing", 1]]), 3), ", ", round(exp(profile[["wellbeing", 2]]), 3), "]. The test of no effect is whether that interval contains 1, not 0 - exponentiating moved the null value with everything else."))
+        }
+      }
+    `,
+    hints: [
+      'cbind(OR = coef(m_left), confint(m_left)) builds the three columns on the log-odds scale.',
+      'Wrap the whole cbind() in exp() so the estimate and both bounds are transformed together.',
+      'confint() on a glm prints "Waiting for profiling to be done..." - that is a message, not an error.',
+    ],
+  },
+];
+```
+
+> **Why `m14-3-a`'s check searches the columns rather than indexing them.** `exp(cbind(OR = coef(m), confint(m)))` gives a matrix whose second and third columns are named `2.5 %` and `97.5 %`; `tidy(exponentiate = TRUE, conf.int = TRUE)` gives a data frame with `conf.low` and `conf.high` and a `term` column of text. Both are correct answers to the prompt, and a check that indexed by name or position would reject one of them. It also accepts Wald bounds alongside profile bounds, and the passing message names which kind the student produced — because "which interval did you report" is a real question in a results section.
+
+- [ ] **Step 3: Write `src/content/lessons/14-1-why-not-a-linear-model.mdx`**
+
+````mdx
+Five modules of linear models, and one kind of outcome they cannot handle. Did
+the employee leave, yes or no? Did the patient recover? Did the student pass?
+The outcome is not a quantity; it is one of two things.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(ggplot2)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% summarise(n = n(), leavers = sum(left_company), rate = mean(left_company))`} />
+
+`left_company` is stored as 0 and 1, so its mean is the proportion who left. That
+small trick — the mean of a 0/1 column is a proportion — is worth remembering,
+because it is how every descriptive in this module is computed.
+
+<CodeBlock id="c-rates" code={`d %>%
+  mutate(third = ntile(wellbeing, 3)) %>%
+  group_by(third) %>%
+  summarise(rate = mean(left_company), n = n())`} />
+
+Read the direction before fitting anything: the leaving rate falls as wellbeing
+rises. Whatever the model says next has to agree with these three numbers.
+
+<Predict
+  id="p-lm"
+  question="What happens if you fit lm(left_company ~ wellbeing) - a straight line through zeros and ones?"
+  choices={[
+    { text: 'R refuses, because the outcome is not continuous', response: 'R runs it without complaint. The output looks like any other regression table.' },
+    { text: 'It runs, and the fitted values are predicted probabilities that can fall below 0 or above 1', correct: true, response: 'Exactly - and the next block counts how many of them do.' },
+    { text: 'It runs and gives the same answer as logistic regression', response: 'The two agree on the direction and disagree about almost everything else, most visibly at the extremes.' },
+    { text: 'All the fitted values come out as 0 or 1', response: 'A straight line takes every value in between. That is the problem.' },
+  ]}
+/>
+
+## What goes wrong
+
+<CodeBlock id="c-lpm" code={`lpm <- lm(left_company ~ wellbeing, data = d)
+
+fitted_values <- fitted(lpm)
+
+c(
+  smallest = min(fitted_values),
+  largest = max(fitted_values),
+  impossible = sum(fitted_values < 0 | fitted_values > 1)
+)`} />
+
+<CodeBlock id="c-lpm-plot" code={`d %>%
+  ggplot(aes(x = wellbeing, y = left_company)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = lm, se = FALSE) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed") +
+  labs(x = "Wellbeing", y = "Left the company (0/1)", title = "A straight line through a yes/no outcome") +
+  theme_classic()`} />
+
+The line leaves the strip between the dashed lines. Every prediction outside it
+is a probability that cannot exist, and it happens exactly where the data are
+most informative — at the two extremes of wellbeing.
+
+There is a second problem, less visible and just as fatal. A linear model assumes
+the residuals have the same spread everywhere. With a 0/1 outcome the residual
+can only take two values at any given prediction, and their spread depends
+entirely on the predicted probability: near .5 there is a lot of room to be
+wrong, near 0 or 1 there is almost none. The standard errors are wrong before you
+start.
+
+<Exercise id="m14-1-a" />
+
+## The shape we want
+
+A model for a probability should produce a curve that approaches 0 and 1 without
+ever reaching them, and that is steepest in the middle where the outcome is
+genuinely uncertain. That curve is the **logistic** function, and the next lesson
+fits it.
+
+<CodeBlock id="c-curve" code={`d %>%
+  ggplot(aes(x = wellbeing, y = left_company)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = "glm", method.args = list(family = binomial), se = FALSE) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed") +
+  labs(x = "Wellbeing", y = "Left the company (0/1)", title = "A logistic curve through the same data") +
+  theme_classic()`} />
+
+> **Put both on one plot.** Add a second `geom_smooth(method = lm, se = FALSE,
+> linetype = "dashed")` layer to the block above and run it again. The two agree
+> across the middle and part company at the ends, which is the whole story of this
+> lesson in one figure.
+
+<Quiz
+  id="q-lpm"
+  question="Which is the strongest reason not to fit a linear model to a 0/1 outcome?"
+  choices={[
+    { text: 'The coefficients are hard to interpret', response: 'They are unusually easy to interpret - a change in probability per unit. That is not the problem.' },
+    { text: 'It can predict probabilities below 0 or above 1, and its residual spread necessarily changes with the prediction, so the standard errors are wrong', correct: true, response: 'Correct on both counts, and the second reason is the one people forget.' },
+    { text: 'R cannot fit it', response: 'R fits it happily. Nothing in the output warns you.' },
+    { text: 'The outcome is a factor', response: 'Here it is stored as 0/1 numbers. Even so, the model is the wrong shape.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-1"
+  question="A colleague fits lm(left_company ~ wellbeing) and reports b = -0.011, SE = 0.002, t(478) = -5.42, p < .001, concluding that each extra point of wellbeing reduces the probability of leaving by 1.1 percentage points. What should you say?"
+  choices={[
+    { text: 'The conclusion is fine; a linear probability model is a standard approach.', response: 'It is used in some fields, but not without the caveats - and none of them appears here.' },
+    { text: 'The direction is right and the model is the wrong shape: it predicts probabilities outside 0 to 1 at the extremes of wellbeing, and its standard errors assume a constant residual spread that a 0/1 outcome cannot have. Refit with glm(..., family = binomial).', correct: true, response: 'Correct: the finding survives, the model and its inference do not.' },
+    { text: 'The effect is too small to be worth reporting.', response: 'Just over a percentage point per point of wellbeing, across a scale tens of points wide, is a substantial effect. Size is not the issue.' },
+    { text: 'They should report the odds ratio instead, exp(-0.011) = 0.989.', response: 'Exponentiating a linear-model slope produces a number with no interpretation. The odds ratio has to come from a logistic model.' },
+  ]}
+/>
+````
+
+- [ ] **Step 4: Write `src/content/lessons/14-2-glm-and-log-odds.mdx`**
+
+````mdx
+`glm` stands for generalised linear model, and the generalisation is one idea: put
+the linear part on a scale where a straight line makes sense, then transform back.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>%
+  group_by(left_company) %>%
+  summarise(n = n(), mean_wellbeing = mean(wellbeing), mean_tenure = mean(tenure_years))`} />
+
+Descriptives for a binary outcome mean comparing the two groups on the
+predictors. Leavers should have lower wellbeing and shorter tenure than stayers;
+if the model later says otherwise, one of the two is wrong.
+
+## Probability, odds, log odds
+
+Three ways of saying the same thing, each fixing a problem with the last.
+
+- A **probability** *p* runs from 0 to 1. A straight line will not stay inside it.
+- The **odds** are *p* / (1 − *p*): how many times more likely the event is than
+  its absence. They run from 0 to infinity — better at the top, still floored at
+  zero.
+- The **log odds**, log(*p* / (1 − *p*)), run from minus infinity to plus
+  infinity. A straight line can live there safely.
+
+<CodeBlock id="c-scales" code={`probabilities <- c(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)
+
+data.frame(
+  probability = probabilities,
+  odds = probabilities / (1 - probabilities),
+  log_odds = log(probabilities / (1 - probabilities))
+)`} />
+
+Look at the symmetry in the last column: *p* = .25 and *p* = .75 give log odds of
+equal size and opposite sign, and *p* = .5 gives exactly 0. Zero log odds means
+even chances, which is why zero is the null value on this scale.
+
+<Predict
+  id="p-logodds"
+  question="A model gives a log-odds coefficient of -0.06 for wellbeing. What does the minus sign mean?"
+  choices={[
+    { text: 'Wellbeing is negatively skewed', response: 'The coefficient says nothing about the distribution of the predictor.' },
+    { text: 'Higher wellbeing goes with lower odds of leaving', correct: true, response: 'Right. On the log-odds scale, negative means downward, exactly as a negative slope does in a linear model.' },
+    { text: 'The probability of leaving is negative', response: 'Probabilities cannot be negative. The log odds can, and that is the point of the scale.' },
+    { text: 'The model failed to converge', response: 'A negative coefficient is perfectly ordinary. Convergence failures announce themselves as warnings.' },
+  ]}
+/>
+
+## Fitting it
+
+<CodeBlock id="c-fit" code={`m_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+
+m_left %>% tidy()`} />
+
+The formula is the same as always. `family = binomial` is the whole difference,
+and leaving it out is the single most common mistake in this module: `glm()`
+without a family fits an ordinary linear model, prints a perfectly plausible
+table, and answers a different question.
+
+<CodeBlock id="c-no-family" code={`no_family <- glm(left_company ~ wellbeing + tenure_years, data = d)
+
+family(no_family)$family
+family(m_left)$family
+
+c(with_binomial = coef(m_left)[["wellbeing"]], without = coef(no_family)[["wellbeing"]])`} />
+
+Two coefficients, two scales, no warning. Check `family()` when a logistic
+coefficient looks suspiciously small.
+
+<Exercise id="m14-2-a" />
+
+## Reading the table
+
+`tidy()` on a `glm` gives the same four columns as on an `lm`, with two changes
+of name and meaning:
+
+- **`estimate`** is the change in **log odds** per unit of the predictor.
+- **`statistic`** is a *z* value, not a *t* — the sampling distribution here is
+  normal rather than *t*, so there are no residual degrees of freedom to report.
+
+<CodeBlock id="c-glance" code={`m_left %>% glance()`} />
+
+There is no *R*². `glance()` gives the null and residual deviance and the AIC
+instead. Deviance is the logistic analogue of a residual sum of squares: lower is
+better, and the drop from null to residual is what the model bought.
+
+<CodeBlock id="c-lrtest" code={`anova(m_left, test = "LRT") %>% tidy()`} />
+
+That likelihood-ratio test is the closest thing to the model *F* of Module 10: it
+asks whether the predictors together explain more than chance.
+
+<Exercise id="m14-2-b" />
+
+<Quiz
+  id="q-family"
+  question="What does family = binomial actually change?"
+  choices={[
+    { text: 'It tells R the predictors are categorical', response: 'The family describes the outcome, not the predictors. Predictors can be anything.' },
+    { text: 'It says the outcome is a yes/no event and models its log odds as a linear function of the predictors', correct: true, response: 'Correct: a distribution for the outcome and a link function for the scale, which is what "generalised" means.' },
+    { text: 'It makes the p values more conservative', response: 'It changes the model entirely, not the strictness of a test.' },
+    { text: 'It standardises the coefficients', response: 'Nothing is standardised. The coefficients are in log odds per original unit of each predictor.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-2"
+  question="Your model gives, for wellbeing, b = -0.062, SE = 0.013, z = -4.77, p < .001, and for tenure b = -0.108, SE = 0.031, z = -3.48, p < .001. Which reading is correct?"
+  choices={[
+    { text: 'Each additional point of wellbeing reduces the probability of leaving by 0.062.', response: 'The coefficient is in log odds, not in probability. How much the probability moves depends on where on the curve you start.' },
+    { text: 'Holding tenure constant, each additional point of wellbeing was associated with a decrease of 0.062 in the log odds of leaving, b = -0.062, SE = 0.013, z = -4.77, p < .001.', correct: true, response: 'Correct: the scale is named, the adjustment is named, and the statistics are reported in full.' },
+    { text: 'Wellbeing and tenure both had large effects, since both p values are below .001.', response: 'p measures surprise under the null, not size. With 480 employees a modest effect reaches p < .001 easily.' },
+    { text: 'Employees with higher wellbeing are 6.2 % less likely to leave.', response: 'That converts a log odds into a percentage as though they were the same scale. Exponentiate first, and even then an odds ratio is not a percentage change in risk.' },
+  ]}
+/>
+````
+
+- [ ] **Step 5: Write `src/content/lessons/14-3-odds-ratios-and-reporting.mdx`**
+
+````mdx
+Log odds are the right scale for fitting and the wrong scale for writing. Nobody
+has an intuition for −0.062 log odds. Exponentiate, and you get a number people
+can argue about.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>%
+  group_by(left_company) %>%
+  summarise(n = n(), mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing))
+
+m_left <- glm(left_company ~ wellbeing + tenure_years, data = d, family = binomial)
+m_left %>% tidy()`} />
+
+## The odds ratio
+
+<CodeBlock id="c-or" code={`exp(coef(m_left))`} />
+
+An odds ratio **multiplies**. An OR of 0.94 for wellbeing means that each extra
+point of wellbeing multiplies the odds of leaving by 0.94 — a 6 % reduction in
+the odds, applied again for every further point. Ten points multiply the odds by
+0.94 to the power of ten.
+
+The null value is **1**, not 0. Exponentiating moved it along with everything
+else, which is why a confidence interval for an odds ratio is read against 1.
+
+<CodeBlock id="c-table" code={`or_table <- exp(cbind(OR = coef(m_left), confint(m_left)))
+
+round(or_table, 3)`} />
+
+`confint()` builds the interval on the log-odds scale and `exp()` transforms the
+whole thing, estimate and bounds together. Doing it the other way round — an
+interval around the exponentiated estimate — gives a symmetric interval on a
+scale where the quantity is not symmetric, and it is wrong.
+
+The message `Waiting for profiling to be done...` is R computing
+profile-likelihood bounds rather than the quicker Wald approximation. It is a
+message, not a warning, and the intervals are the better ones.
+
+<Predict
+  id="p-or"
+  question="The odds ratio for tenure is 0.90, with a 95 % interval from 0.85 to 0.95. Is the effect of tenure significant at the .05 level?"
+  choices={[
+    { text: 'Yes, because the interval does not contain 1', correct: true, response: 'Right. On the odds-ratio scale, 1 means no effect - the value 0 has been transformed away.' },
+    { text: 'No, because the interval contains values below 1', response: 'Every value in the interval is below 1, which is what a protective effect looks like.' },
+    { text: 'Yes, because the interval does not contain 0', response: 'True but irrelevant: an odds ratio can never be 0, so that test would call everything significant.' },
+    { text: 'Impossible to tell without the p value', response: 'A 95 % interval and a test at .05 carry the same information. The interval also tells you the plausible sizes.' },
+  ]}
+/>
+
+<Exercise id="m14-3-a" />
+
+## Odds ratios are not risk ratios
+
+This is the misreading that reaches print most often. An odds ratio of 2 does
+**not** mean the event is twice as likely.
+
+<CodeBlock id="c-or-vs-rr" code={`p1 <- 0.10
+p2 <- 0.20
+
+c(
+  risk_ratio = p2 / p1,
+  odds_ratio = (p2 / (1 - p2)) / (p1 / (1 - p1))
+)
+
+q1 <- 0.40
+q2 <- 0.60
+
+c(
+  risk_ratio = q2 / q1,
+  odds_ratio = (q2 / (1 - q2)) / (q1 / (1 - q1))
+)`} />
+
+When the outcome is rare the two are close. When it is common they diverge
+sharply, and the odds ratio always looks like the bigger effect. Say "the odds of
+leaving", not "the chance of leaving", and the sentence stays true.
+
+## Back to probabilities
+
+For readers who want a probability, give them one at a stated value of the
+predictors.
+
+<CodeBlock id="c-predict" code={`profiles <- data.frame(
+  wellbeing = c(50, 60, 70),
+  tenure_years = rep(mean(d$tenure_years), 3)
+)
+
+profiles %>%
+  mutate(predicted_probability = predict(m_left, newdata = profiles, type = "response"))`} />
+
+`type = "response"` returns probabilities; without it you get log odds. Notice
+that the three gaps are not equal even though the wellbeing values are evenly
+spaced — the curve is steepest in the middle, so the same change in the predictor
+buys a different change in probability depending on where you start. That is
+exactly the non-linearity the model was chosen for, and the reason a single
+"effect on the probability" does not exist.
+
+## Reporting it
+
+> A logistic regression predicting whether an employee left the company from
+> wellbeing and tenure was a significant improvement on the null model,
+> χ²(2) = 38.11, *p* < .001. Lower wellbeing was associated with higher odds of
+> leaving, *OR* = 0.94, 95 % CI [0.92, 0.97], *z* = −4.77, *p* < .001, as was
+> shorter tenure, *OR* = 0.90, 95 % CI [0.85, 0.95], *z* = −3.48, *p* < .001.
+
+<CodeBlock id="c-lrt" code={`anova(m_left, test = "LRT") %>% tidy()
+
+m_left %>% glance() %>% select(null.deviance, df.null, deviance, df.residual, AIC)`} />
+
+What that report contains, and why each part is there: the model test against the
+null, so the reader knows the predictors do something; the odds ratio, so they
+know the direction and size; the confidence interval, so they know the precision;
+*z* and *p*, because a journal will ask. Report *OR* and its interval together —
+an odds ratio with no interval is an estimate with no error bar.
+
+<Quiz
+  id="q-or-rr"
+  question="A study of a common outcome (about 40 % of people) reports OR = 2.0. A newspaper writes 'twice as likely'. What is wrong?"
+  choices={[
+    { text: 'Nothing; an odds ratio of 2 means twice as likely', response: 'That is true only when the outcome is rare. At 40 % the two diverge substantially.' },
+    { text: 'An odds ratio compares odds, not probabilities. At a 40 % baseline an OR of 2.0 corresponds to a probability rising to about 57 %, a risk ratio near 1.4', correct: true, response: 'Correct, and that gap between 2.0 and 1.4 is the whole reason the distinction matters.' },
+    { text: 'The odds ratio should have been reported as a percentage', response: 'An OR is a ratio and is reported as one. The problem is the translation, not the format.' },
+    { text: 'Odds ratios cannot exceed 1', response: 'They run from 0 to infinity. Above 1 means the event becomes more likely.' },
+  ]}
+/>
+
+<Interpret
+  id="i-14-3"
+  question="Your final model gives, for wellbeing, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001, with a likelihood-ratio test of the model against the null of chi-square(2) = 38.11, p < .001, on 480 employees of whom 97 left. Which write-up is correct APA 7?"
+  choices={[
+    { text: 'A logistic regression predicting whether an employee left the company (97 of 480) from wellbeing and tenure improved significantly on the null model, chi-square(2) = 38.11, p < .001. Each additional point of wellbeing was associated with lower odds of leaving, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001.', correct: true, response: 'Correct: the base rate, the model test, the odds ratio with its interval, and "odds" rather than "chance".' },
+    { text: 'Employees with higher wellbeing were 6 % less likely to leave, OR = 0.94, 95 % CI [0.92, 0.97], p < .001.', response: 'It reads the odds ratio as a risk ratio. With 20 % leaving, a 6 % reduction in the odds is not a 6 % reduction in the probability.' },
+    { text: 'Wellbeing protected employees from leaving, OR = 0.94, p < .001.', response: 'Two problems: "protected" is causal in an observational study, and the confidence interval is missing.' },
+    { text: 'Wellbeing significantly predicted leaving, OR = 0.94, 95 % CI [0.92, 0.97], z = -4.77, p < .001; since the interval excludes 0, the effect is reliable.', response: 'Everything is right except the last clause. An odds ratio is tested against 1, and an interval excluding 0 would be true of every odds ratio ever computed.' },
+  ]}
+/>
+````
+
+- [ ] **Step 6: Add Module 14 assertions to `src/content/exercises/index.test.ts`**
+
+```ts
+describe('Module 14', () => {
+  const module14 = ALL_EXERCISES.filter((exercise) => exercise.id.startsWith('m14-'));
+
+  test('defines all four exercises', () => {
+    expect(module14.map((exercise) => exercise.id)).toEqual([
+      'm14-1-a', 'm14-2-a', 'm14-2-b', 'm14-3-a',
+    ]);
+  });
+
+  test('every check that reads a glm verifies the binomial family', () => {
+    // glm() without family = binomial runs, prints a plausible table, and is an
+    // ordinary linear model. Only family() can tell.
+    for (const exercise of module14) {
+      if (!/family = binomial/.test(exercise.solution)) continue;
+      expect(exercise.check, `${exercise.id}`).toMatch(/family\(/);
+    }
+  });
+
+  test('the logistic exercises rehearse a missing family as a wrong answer', () => {
+    const fit = module14.find((exercise) => exercise.id === 'm14-2-a')!;
+    expect(fit.wrongAnswers.some((code) => /glm\([^)]*data = d\)/.test(code))).toBe(true);
+  });
+
+  test('the odds-ratio exercises rehearse exponentiating the wrong thing', () => {
+    const ors = module14.find((exercise) => exercise.id === 'm14-2-b')!;
+    const table = module14.find((exercise) => exercise.id === 'm14-3-a')!;
+    expect(ors.wrongAnswers.some((code) => code.includes('Std. Error'))).toBe(true);
+    expect(table.wrongAnswers.some((code) => /^(?!.*exp\().*cbind\(OR/s.test(code))).toBe(true);
+  });
+
+  test('the profile-interval tolerance carries its reason', () => {
+    const table = module14.find((exercise) => exercise.id === 'm14-3-a')!;
+    expect(table.check).toMatch(/#[^\n]*profile-likelihood/);
+  });
+});
+```
+
+- [ ] **Step 7: Run the static content tests**
+
+Run: `npx vitest run src/content/content.test.ts src/content/exercises/index.test.ts`
+Expected: PASS, and `MODULES` now contains Modules 6 and 9 through 14. This is the run that first exercises `every planned exercise id is unique across the course` against all twenty-six ids in this plan.
+
+- [ ] **Step 8: Run the R validator over Module 14**
+
+Run: `npx vitest run src/content/exercises/validate.itest.ts -t "m14-"`
+Expected: four solutions pass, seventeen wrong answers all `fail`, eight alternate solutions pass. `m14-3-a`'s check calls `confint()` twice, each of which profiles the likelihood, so allow it time.
+
+Then: `npx vitest run src/content/exercises/validate.itest.ts -t "14-"`. Expected: no R error. `confint()` emits `Waiting for profiling to be done...` as a **message**; the evaluation wrapper captures messages separately from errors and the lesson run stays green. If it comes back as an error, step 0's fallback applies.
+
+- [ ] **Step 9: Verify Module 14 in the browser**
+
+Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/14-1`.
+Expected: the linear-probability plot draws with the fitted line crossing both dashed limits, and `impossible` prints a non-zero count. On `14-2`, `family(no_family)$family` prints `gaussian` beside `binomial` — that contrast is the lesson's point and must actually render. On `14-3`, `confint()` shows its profiling message in the output pane styled as a message rather than an error, `round(or_table, 3)` prints a 3 x 3 table, and `predict(..., type = "response")` returns three probabilities that are unevenly spaced.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/content/manifest.ts src/content/exercises/module-14.ts src/content/exercises/index.test.ts src/content/lessons/14-1-why-not-a-linear-model.mdx src/content/lessons/14-2-glm-and-log-odds.mdx src/content/lessons/14-3-odds-ratios-and-reporting.mdx
+git commit -m "feat: Module 14, binary outcomes and logistic regression"
+```
+
+---
+
+### Task M15: Wire the chooser to the lessons
+
+**Files:**
+- Modify: `src/pages/TestChooser.tsx`, `src/pages/TestChooser.test.tsx`
+- Test: `src/pages/TestChooser.test.tsx`
+
+**Interfaces:**
+- Consumes: `findLesson` (`src/content/manifest.ts`), which resolves against `MODULES` — the **derived** list, containing only modules whose lesson files all exist (content-platform P3 step 3).
+- Produces: a `lessonId` on all eight answer leaves of `TREE`, and a link that names the lesson it goes to.
+
+> **This task runs last.** `findLesson` reads `MODULES`, and a module is in `MODULES` only when every one of its lesson files is on disk. A `lessonId` added before its module's task has completed resolves to `undefined`, the link renders without a title, and the test that every `lessonId` resolves fails. Do M9 through M14 first, then this.
+
+Spec §4.2 requires the chooser to "link each leaf to the lesson that teaches it". Eight leaves, eight links. The rule for choosing which lesson, applied mechanically so a reviewer can check it: **the leaf links to the lesson in which the distinguishing call of its `rCode` is first fitted.** Where the module then continues (reading the output, the pairwise step), the lesson's own next-lesson control carries the student on, so no leaf needs two links.
+
+| Leaf (`model`) | `lessonId` | Why that lesson |
+|---|---|---|
+| Simple linear regression | `09-2` | Where `lm(y ~ x)` is first fitted; `09-3` follows for `tidy()` and `glance()` |
+| Multiple linear regression | `10-1` | Where the second predictor enters the formula |
+| Linear model with a two-group predictor | `11-1` | The two-group lesson, and where the `t.test(var.equal = TRUE)` equivalence is demonstrated |
+| Linear model with a categorical predictor | `11-2` | Dummy coding, the reference level and the overall *F*; `11-3` follows for `emmeans` |
+| Linear model with an interaction (factorial design) | `12-2` | The only lesson that fits `Anova(type = "III")` with `contr.sum`, which is this leaf's snippet |
+| Linear mixed-effects model | `13-2` | Where `lmer(... + (1 \| id))` is fitted |
+| Linear mixed-effects model with a grouping factor | `13-3` | Where `(1 \| site)` and nesting are taught |
+| Logistic regression | `14-2` | Where `glm(..., family = binomial)` is fitted; `14-3` follows for the odds-ratio table |
+
+- [ ] **Step 1: Add `lessonId` to all eight leaves**
+
+In `src/pages/TestChooser.tsx`, add one property to each answer node. Nothing else in `TREE` changes — the `rCode`, `check`, `traditional` and `note` strings were written against this curriculum and are already correct.
+
+```ts
+// Simple linear regression
+                    note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
+                    lessonId: '09-2',
+
+// Multiple linear regression
+                    note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
+                    lessonId: '10-1',
+
+// Two-group predictor
+                    note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
+                    lessonId: '11-1',
+
+// Categorical predictor, three or more groups
+                    note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
+                    lessonId: '11-2',
+
+// Interaction / factorial
+                    note: 'The contrasts = list(...) line matters: type III tests of the main effects are only correct with sum-to-zero contrasts, and R does not use those by default. An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
+                    lessonId: '12-2',
+
+// Mixed-effects model, repeated measures
+              note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Setting the factor levels makes "before" the reference, so the time coefficient is the change from before to after. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
+              lessonId: '13-2',
+
+// Mixed-effects model with a grouping factor
+              note: 'People in the same site are more alike than people in different sites; (1 | site) accounts for that. If people are also measured repeatedly, nest them: (1 | site/id).',
+              lessonId: '13-3',
+
+// Logistic regression
+        note: 'The coefficients are in log odds. exp() turns them into odds ratios: above 1, the outcome becomes more likely; below 1, less likely.',
+        lessonId: '14-2',
+```
+
+> **If content-platform P1 step 8 found `lme4`/`lmerTest` unavailable**, leave `lessonId` off the two mixed-effects leaves — they stay as reference material with no link, exactly as overview open question 3 says — and drop those two rows from the test table in step 3.
+
+- [ ] **Step 2: Make the link name its lesson**
+
+A link reading "Go to the lesson" tells the student nothing about where they are about to land. Pull the title out of the manifest. In `src/pages/TestChooser.tsx`:
+
+```tsx
+import { findLesson } from '../content/manifest';
+
+/**
+ * The link to the lesson a leaf teaches. findLesson reads MODULES, which holds
+ * only modules whose lesson files all exist, so a lessonId added before its
+ * module is written resolves to undefined. The link still works in that case —
+ * the route renders its own not-found state — but it loses its title, which is
+ * what the test in TestChooser.test.tsx watches for.
+ */
+function LessonLink({ lessonId }: { lessonId: string }) {
+  const lesson = findLesson(lessonId);
+  return (
+    <p className="test-chooser-lesson">
+      <Link to={`/lesson/${lessonId}`}>
+        {lesson ? `Go to the lesson: ${lesson.title}` : 'Go to the lesson'}
+      </Link>
+    </p>
+  );
+}
+```
+
+and replace the bare link in the answer branch:
+
+```tsx
+          <p>{node.note}</p>
+          {node.lessonId && <LessonLink lessonId={node.lessonId} />}
+```
+
+- [ ] **Step 3: Extend the chooser tests**
+
+In `src/pages/TestChooser.test.tsx`, add `lessonId` to each entry of the existing hand-written `PATHS` table — it is deliberately not derived from `TREE`, so a leaf that silently loses its link fails here:
+
+```ts
+const PATHS: { clicks: RegExp[]; model: string; code: string; lessonId: string }[] = [
+  { clicks: [/^a number/i, /different people/i, /one continuous predictor/i],
+    model: 'Simple linear regression', code: 'lm(outcome ~ predictor, data = d)', lessonId: '09-2' },
+  { clicks: [/^a number/i, /different people/i, /several predictors/i],
+    model: 'Multiple linear regression', code: 'outcome ~ predictor1 + predictor2', lessonId: '10-1' },
+  { clicks: [/^a number/i, /different people/i, /with two groups/i],
+    model: 'Linear model with a two-group predictor', code: 'group_by(group) %>% summarise(', lessonId: '11-1' },
+  { clicks: [/^a number/i, /different people/i, /three or more groups/i],
+    model: 'Linear model with a categorical predictor', code: 'emmeans(model, pairwise ~ group, adjust = "tukey")', lessonId: '11-2' },
+  { clicks: [/^a number/i, /different people/i, /two grouping variables/i],
+    model: 'Linear model with an interaction (factorial design)', code: 'contrasts = list(factor1 = contr.sum, factor2 = contr.sum)', lessonId: '12-2' },
+  { clicks: [/^a number/i, /measured more than once/i],
+    model: 'Linear mixed-effects model', code: 'pivot_longer', lessonId: '13-2' },
+  { clicks: [/^a number/i, /teams, classes or sites/i],
+    model: 'Linear mixed-effects model with a grouping factor', code: '(1 | site)', lessonId: '13-3' },
+  { clicks: [/^yes or no/i],
+    model: 'Logistic regression', code: 'family = binomial', lessonId: '14-2' },
+];
+```
+
+Then add four tests:
+
+```ts
+test.each(PATHS)('$model links to lesson $lessonId', async ({ clicks, lessonId }) => {
+  renderChooser();
+  for (const name of clicks) {
+    await userEvent.click(screen.getByRole('button', { name }));
+  }
+  const link = screen.getByRole('link', { name: /go to the lesson/i });
+  expect(link.getAttribute('href')).toBe(`/lesson/${lessonId}`);
+});
+
+test('every leaf of the tree links to a lesson', () => {
+  // Spec 4.2: the chooser "links each leaf to the lesson that teaches it". A leaf
+  // with no lessonId is a dead end for the student who navigated to it.
+  const answers: Extract<Node, { kind: 'answer' }>[] = [];
+  (function walk(node: Node) {
+    if (node.kind === 'answer') answers.push(node);
+    else node.options.forEach((option) => walk(option.next));
+  })(TREE);
+
+  for (const answer of answers) {
+    expect(answer.lessonId, `${answer.model} has no lessonId`).toBeDefined();
+  }
+});
+
+test('every lessonId resolves to a lesson a student can open', () => {
+  // findLesson reads MODULES, which contains a module only once all its lesson
+  // files exist. This test therefore also proves Modules 9-14 are complete.
+  (function walk(node: Node) {
+    if (node.kind === 'answer') {
+      if (node.lessonId) expect(findLesson(node.lessonId), `${node.model} -> ${node.lessonId}`).toBeDefined();
+      return;
+    }
+    node.options.forEach((option) => walk(option.next));
+  })(TREE);
+});
+
+test('the link names the lesson it goes to', async () => {
+  renderChooser();
+  await userEvent.click(screen.getByRole('button', { name: /^yes or no/i }));
+  expect(screen.getByRole('link', { name: /go to the lesson: glm and log odds/i })).toBeTruthy();
+});
+```
+
+The existing `every node in the tree is well formed` test already asserts that a
+defined `lessonId` resolves; it now has eight of them to check rather than none,
+and it stays as the guard against a typo in an id.
+
+- [ ] **Step 4: Run the chooser tests**
+
+Run: `npx vitest run src/pages/TestChooser.test.tsx`
+Expected: PASS, including the eight new per-path link assertions. A failure of `every lessonId resolves to a lesson a student can open` means one of Modules 9–14 is not yet live in `MODULES` — find the module whose lesson files are missing rather than deleting the `lessonId`.
+
+- [ ] **Step 5: Run the whole suite**
+
+Run: `npx tsc --noEmit && npx vitest run`
+Expected: PASS. Then `npm run validate`, which now runs the static content tests and the full R suite over twenty-six exercises and eighteen lessons on top of everything the other module plans added. Record the wall time; if it has pushed the total past the twenty minutes content-platform task P4 step 5 set as the threshold, split `validate:static` from `validate:r` there rather than trimming fixtures here.
+
+- [ ] **Step 6: Verify the chooser in the browser**
+
+Run: `npm run dev`, then open `http://localhost:5173/statlab/which-test`.
+Expected: walk all eight paths. Each answer shows its model, its R snippet, "Check first:", its note, and a link naming a real lesson; clicking the link lands on that lesson and the sidebar highlights it. Use "Start over" between paths and confirm focus moves to the heading each time. Check one leaf's promise against its lesson — the two-group leaf says the *t*-test matches with the sign reversed, and lesson `11-1` is where a student can run that and see it.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/pages/TestChooser.tsx src/pages/TestChooser.test.tsx
+git commit -m "feat: link every chooser leaf to the lesson that teaches it"
+```
+
+---
+
+## Self-Review
+
+Run this after all seven tasks are complete, against spec §4.2, §7 and §7.1.
+
+**Spec coverage**
+
+| Spec section | Covered by |
+|---|---|
+| §4.1 `<Interpret>` closes every inferential lesson | All eighteen lessons; enforced by content-platform P4 step 2 |
+| §4.2 The six-step chain named explicitly | `09-3` states it; every later lesson follows it |
+| §4.2 Chooser links each leaf to the lesson that teaches it | M15 |
+| §5.1 `ExerciseDef` contract, every field filled | M9–M14, step 2 of each |
+| §5.2 Value-based checks, tolerance, `has_answer`/`answer` | Global Constraints; every check in this plan |
+| §6 `correlation` and `leastsquares` embedded | M9 (`09-1`, `09-2`) |
+| §7 Module 9, correlation and simple regression | M9 |
+| §7 Module 10, multiple regression | M10 |
+| §7 Module 11, categorical predictors | M11 |
+| §7 Module 12, interactions and factorial designs | M12 |
+| §7 Module 13, repeated measures and nested data | M13 |
+| §7 Module 14, binary outcomes | M14 |
+| §7.1 Tidyverse style, `tidy`/`glance`, base R only where there is no equivalent | Every lesson; `t.test`, `exp`, `confint`, `contr.sum`, `car::Anova` are the only base-R intrusions |
+| §7.1 One model, many names — the *t*-test | `11-1`, exercise `m11-1-b` |
+| §7.1 One model, many names — one-way ANOVA | `11-2` (`aov` beside `glance`) |
+| §7.1 One model, many names — factorial ANOVA | `12-2` (`car::Anova(type = "III")`) |
+| §7.1 One model, many names — the paired *t*-test | `13-3`, exercise `m13-3-a` |
+| §7.1 One model, many names — chi-square | Not a lesson, by the spec's own rule; it stays a one-line mention on the chooser's logistic leaf |
+| §7.1 Always look at the descriptives | Every model lesson; exercises `m9-3-b`, `m10-2-b`, `m11-2-b`, `m12-2-a`, `m13-1-a`, `m14-1-a` |
+| §7.1 APA 7 reporting | The eighteen `<Interpret>` blocks; `10-3` teaches the conventions directly |
+| §7.2 Workplace dataset, its documented effects | Consumed by all six modules; `wellbeing`, the `training` × `mentoring` interaction, the site intercepts and `left_company` each carry one |
+| §8.1 Solutions pass, wrong answers fail via `pass = FALSE`, alternates pass | Step 8 of each module task |
+| §8.2 Static content checks | Step 7 of each module task |
+
+**Counts, so a reviewer can check the plan against itself**
+
+| | M9 | M10 | M11 | M12 | M13 | M14 | Total |
+|---|---|---|---|---|---|---|---|
+| Lessons | 3 | 3 | 3 | 3 | 3 | 3 | 18 |
+| Exercises | 5 | 4 | 5 | 4 | 4 | 4 | 26 |
+| `<Interpret>` blocks | 3 | 3 | 3 | 3 | 3 | 3 | 18 |
+| On-demand packages | — | — | `emmeans` | `car` | `lmerTest` | — | 3 of 4 |
+
+**Deliberate deviations**
+
+1. **Module 12's outcome is a change score**, `engagement_t2 - engagement_t1`, rather than `engagement_t2` itself. The spec names no variable; content-platform P2 put the designed `training` × `mentoring` interaction into the change, so a model of `engagement_t2` would find a much weaker effect diluted by between-employee differences in starting engagement. The change score is also the quantity Module 13 then re-analyses properly with a random intercept, which makes the two modules talk to each other.
+2. **Module 12 computes simple effects from cell means rather than with `emmeans`.** The natural call is `emmeans(model, pairwise ~ training | mentoring)`, and it is what the chooser's factorial leaf shows, but the P3 package table gives lesson `12-3` only `dplyr` and `ggplot2`. Changing that table is a change to the content-platform plan, not something a module task may do; `12-3` therefore names `emmeans` in prose and points back to `11-3`. If the tables are ever revisited, adding `emmeans` to `12-3` is the first change to make.
+3. **Two checks use a looser tolerance than 1e-6.** `m13-3-a` compares a mixed-model *t* with a paired *t* at 1e-3, and `m14-3-a` compares profile-likelihood bounds at 1e-4. Both are algebraic identities that survive only to several decimals once REML optimisation and profile root-finding are involved, and spec §5.2 permits a looser tolerance where a legitimate route differs slightly provided the check says why. Both carry that reason as an R comment at the comparison, and `index.test.ts` asserts the comment is there.
+4. **`<Interpret>` questions state the statistics inline rather than quoting a printed output block.** `ChoiceBlock` renders `question` inside a single `<p>`, so a pasted table collapses into one unreadable line. Every question therefore carries its numbers in prose ("b = 2.24, SE = 0.20, t(478) = 11.24, p < .001"), and the correct option reports exactly those, which keeps the block self-contained and independent of the generated CSV's exact values.
+5. **No check contains a numeric literal from `workplace.csv`.** Every check reads the CSV and refits the reference model. This costs a model fit per submission — noticeable in Module 13, where it is an `lmer` — and buys a course whose grading survives the dataset being regenerated. One fixture is still dataset-dependent and is flagged where it appears: `m11-2-b`'s "sorted by the mean" wrong answer relies on the mean and the median naming different departments, which content-platform P2 step 4 verifies before committing the file.
+6. **The chooser mapping puts the factorial leaf on `12-2`, not `12-1`.** The rule is "the lesson in which the distinguishing call of the leaf's `rCode` is first fitted", and that leaf's snippet is `Anova(model, type = "III")` with `contr.sum`, which only `12-2` fits. Every other leaf lands on the first lesson of its module under the same rule.
+7. **Module 9 depends on the simulations plan.** The overview says module tasks are independent of each other once the platform is in place; that is true of M10–M14 but not of M9, which embeds `correlation` and `leastsquares` and whose `content.test.ts` run fails until both are in the registry. It is recorded here rather than silently discovered.
+8. **Module 13 is conditional on a verification outside this plan.** Everything in M13 assumes content-platform P1 step 8 confirmed that `lme4` and `lmerTest` install under webR 0.6.0. The fallback — the reshape plus the paired *t*-test, and two chooser leaves demoted to reference material — is stated in M13's Interfaces and in M15 step 1 rather than left to whoever hits the failure.
+9. **`library(dplyr)` and `library(ggplot2)` appear in lessons that do not declare them.** Both are in `CORE_PACKAGES`, installed at boot, and the validator's `declared` set is a lesson's `packages` plus the core set — so this is allowed rather than tolerated. It is called out because the P3 table lists `dplyr` for some lessons and not others, which reads as an inconsistency until you know that field means "beyond the core".
