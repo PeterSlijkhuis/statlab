@@ -13,8 +13,13 @@ function download(contents: string) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = 'statlab-progress.json';
+  // In the document, and revoked a tick later. Firefox ignores click() on an
+  // anchor that is not in the document, and revoking in the same task can pull
+  // the blob away before the browser has finished reading it.
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export default function Home() {
