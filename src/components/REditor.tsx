@@ -24,6 +24,10 @@ export default function REditor({ value, onChange }: Props) {
         extensions: [
           basicSetup,
           StreamLanguage.define(r),
+          // Long lines wrap instead of scrolling sideways. On a phone a
+          // horizontal scroller inside a vertically scrolling page is hard to
+          // work, and a wrapped line keeps its single line number.
+          EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           }),

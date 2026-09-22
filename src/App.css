@@ -4,8 +4,10 @@
    It exists because a plot canvas once stayed visible when it should not. */
 [hidden] { display: none !important; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; background: #fff; line-height: 1.6; }
-.app { display: grid; grid-template-columns: 16rem 1fr; min-height: 100vh; }
-.sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; }
+/* minmax(0, 1fr), not 1fr: a plain 1fr column grows to fit its widest child,
+   so one long line of code used to push every lesson page sideways. */
+.app { display: grid; grid-template-columns: 16rem minmax(0, 1fr); min-height: 100vh; }
+.sidebar { border-right: 1px solid #e2e8f0; padding: 1rem; background: #f8fafc; position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; }
 .sidebar-home { display: block; font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; color: #1d4ed8; text-decoration: none; }
 .sidebar h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin: 1rem 0 0.4rem; }
 .sidebar ul { list-style: none; margin: 0; padding: 0; }
@@ -14,7 +16,7 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 .sidebar-lesson.active { background: #dbeafe; font-weight: 600; }
 .sidebar-lesson.started::after { content: " ·"; color: #d97706; }
 .sidebar-lesson.complete::after { content: " ✓"; color: #16a34a; }
-.app-main { padding: 1.5rem 2rem 4rem; max-width: 52rem; }
+.app-main { padding: 1.5rem 2rem 4rem; max-width: 52rem; min-width: 0; width: 100%; box-sizing: border-box; margin: 0 auto; overflow-wrap: break-word; }
 .r-status { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; padding: 0.4rem 0.7rem; border-radius: 6px; margin-bottom: 1rem; }
 .r-status.ready { background: #f0fdf4; color: #166534; }
 .r-status.busy { background: #fffbeb; color: #92400e; }
@@ -23,19 +25,19 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 .r-status button { margin-left: auto; padding: 0.2rem 0.6rem; border-radius: 5px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
 .home-tagline { color: #475569; font-size: 1.05rem; }
 .home-resume a { font-weight: 600; }
-.home-import { display: inline-flex; gap: 0.4rem; align-items: center; margin-left: 1rem; font-size: 0.9rem; }
-@media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar { border-right: none; border-bottom: 1px solid #e2e8f0; }
-  .app-main { padding: 1rem; }
-}
+.home-import { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-left: 1rem; font-size: 0.9rem; }
+.home-import input { max-width: 100%; }
 .lesson h1 { margin-top: 0; }
 .lesson h2 { margin-top: 2rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
 .lesson p { max-width: 42rem; }
 .lesson blockquote { margin: 1.25rem 0; padding: 0.5rem 1rem; border-left: 4px solid #cbd5e1; color: #475569; background: #f8fafc; }
-.lesson code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
-.lesson-nav { display: flex; justify-content: space-between; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
-.lesson-nav .lesson-next { margin-left: auto; }
+.lesson code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; overflow-wrap: anywhere; }
+.lesson table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.lesson th, .lesson td { padding: 0.25rem 0.75rem 0.25rem 0; text-align: left; }
+.lesson pre { max-width: 100%; overflow-x: auto; }
+.lesson img, .lesson video { max-width: 100%; height: auto; }
+.lesson-nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; justify-content: space-between; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
+.lesson-nav .lesson-next { margin-left: auto; text-align: right; }
 .model-chooser-options { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; max-width: 34rem; }
 .model-chooser-options button { width: 100%; text-align: left; padding: 0.6rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.98rem; }
 .model-chooser-options button:hover { border-color: #1d4ed8; background: #eff6ff; }
@@ -44,3 +46,106 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 .model-chooser-answer { border: 2px solid #0d9488; border-radius: 8px; padding: 1rem; max-width: 34rem; }
 .model-chooser-answer pre { background: #0f172a; color: #e2e8f0; padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; }
 .link-button { border: none; background: none; color: #1d4ed8; text-decoration: underline; cursor: pointer; padding: 0; font-size: inherit; }
+
+/* The bar with the menu button exists only below the desktop breakpoint. */
+.topbar { display: none; }
+.nav-backdrop { display: none; }
+
+/* Phones and tablets in portrait: the sidebar becomes a drawer. Without this
+   a phone showed all 42 lessons, about 2000px of links, before any content. */
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .topbar {
+    display: flex; align-items: center; gap: 0.75rem;
+    position: sticky; top: 0; z-index: 40;
+    padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.5rem max(0.75rem, env(safe-area-inset-left));
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+  }
+  .topbar-menu {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    min-height: 44px; padding: 0 0.8rem; border: 1px solid #cbd5e1; border-radius: 8px;
+    background: #fff; color: #0f172a; font-size: 0.95rem; cursor: pointer;
+  }
+  .topbar-home { font-weight: 700; font-size: 1.1rem; color: #1d4ed8; text-decoration: none; }
+  .sidebar {
+    /* Under the bar, not over it, so the button that opened the drawer stays
+       in reach to close it again. */
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30;
+    width: min(20rem, 85vw); height: auto;
+    padding-top: calc(4.5rem + env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    border-right: 1px solid #e2e8f0; box-shadow: 0 0 24px rgba(15, 23, 42, 0.18);
+    transform: translateX(-105%); visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+  .sidebar .sidebar-home { display: none; }
+  .sidebar.open { transform: none; visibility: visible; transition: transform 0.2s ease; }
+  .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 25; background: rgba(15, 23, 42, 0.4); }
+  body.nav-open { overflow: hidden; }
+  .app-main {
+    padding: 1rem max(1rem, env(safe-area-inset-right)) 3rem max(1rem, env(safe-area-inset-left));
+    padding-bottom: max(3rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* A phone on its side has about 375px of height; a pinned bar would take a
+   sixth of it, so there the bar scrolls away with the page. */
+@media (max-width: 900px) and (max-height: 500px) {
+  .topbar { position: static; }
+}
+
+@media (max-width: 600px) {
+  h1 { font-size: 1.6rem; line-height: 1.25; }
+  .lesson h2 { font-size: 1.25rem; }
+  .home-import { margin-left: 0; margin-top: 0.5rem; }
+  .r-status.ready, .r-status.busy { flex-wrap: wrap; }
+
+  /* Simulation controls: each control takes a full row and its slider
+     stretches to fill it, instead of fixed widths that overflow a phone. */
+  .ci-controls label, .clt-controls label, .correlation-controls label,
+  .distribution-controls label, .leastsquares-controls label, .pvalue-controls label { flex: 1 1 100%; }
+  .ci-controls input[type="range"], .clt-controls input[type="range"],
+  .correlation-controls input[type="range"], .distribution-controls input[type="range"],
+  .leastsquares-controls input[type="range"], .pvalue-controls input[type="range"] { flex: 1 1 0; width: auto; min-width: 5rem; }
+  .ci, .clt, .correlation, .distribution, .leastsquares, .pvalue { padding: 0.75rem; }
+
+  /* The simulations draw in a 640-unit viewBox that shrinks to half size or
+     less on a phone, which took 11-unit axis labels down to about 5px. */
+  .clt-axis, .distribution-axis, .pvalue-axis { font-size: 20px; }
+
+  /* Four-column readouts become label and value pairs, two per row. */
+  .ci-readout, .clt-readout, .correlation-readout, .distribution-readout, .leastsquares-readout, .pvalue-readout,
+  .ci-readout tbody, .clt-readout tbody, .correlation-readout tbody,
+  .distribution-readout tbody, .leastsquares-readout tbody, .pvalue-readout tbody { display: block; }
+  .ci-readout tr, .clt-readout tr, .correlation-readout tr,
+  .distribution-readout tr, .leastsquares-readout tr, .pvalue-readout tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ci-readout td, .clt-readout td, .correlation-readout td,
+  .distribution-readout td, .leastsquares-readout td, .pvalue-readout td { padding-right: 0; text-align: right; }
+}
+
+/* Touch screens: controls at least 44px tall, and 16px text in anything
+   editable, below which iOS Safari zooms the page when a field gets focus. */
+@media (pointer: coarse) {
+  .sidebar-lesson { padding: 0.55rem 0.5rem; }
+  .code-block-actions button, .exercise-actions button, .choice-options button,
+  .model-chooser-options button, .r-status button,
+  .ci-controls button, .clt-controls button, .correlation-controls button,
+  .pvalue-controls button, .leastsquares-actions button { min-height: 44px; }
+  .r-editor .cm-content, select, input, textarea { font-size: 16px; }
+  input[type="range"] { min-height: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .sidebar.open { transition: none; }
+}
+
+@media print {
+  .topbar, .sidebar, .nav-backdrop, .r-status, .lesson-nav { display: none !important; }
+  .app { display: block; }
+  .app-main { max-width: none; padding: 0; }
+  .code-block, .exercise, .choice-block { break-inside: avoid; }
+}
