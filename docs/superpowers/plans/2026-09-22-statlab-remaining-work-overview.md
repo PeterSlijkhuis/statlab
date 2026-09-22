@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-22
 **Status:** Planning complete, ready for implementation
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` (amended 2026-09-15 — fourteen modules, tidyverse style)
+**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` on `main` — fourteen modules, tidyverse style. Draft PR #2 reconciles it into one authoritative version; its §0 settles four inconsistencies and its §12 records where the code lags the spec. Read whichever of the two is current when you start.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement these plans task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -27,9 +27,9 @@ its checkboxes now record, the application shell and Module 6 complete:
 - the content validator (static checks plus real R under Node) and the
   GitHub Pages workflow.
 
-That work is on branch `feat/shell-and-module-06`, open as PR #1 and not yet
-merged. **These plans assume it merges first.** They build on its interfaces and
-on the amended spec that the same branch carries.
+That work merged to `main` as PR #1 on 2026-09-22, and the site is live at
+https://peterslijkhuis.github.io/statlab/. These plans build on its interfaces
+and on the spec it brought with it.
 
 ## What these plans cover
 
@@ -199,15 +199,13 @@ Recorded here because a reviewer will want the list in one place.
 
 ## Open questions
 
-1. **The spec version.** These plans are written against the amended spec on
-   `feat/shell-and-module-06` — fourteen modules, tidyverse, a
-   linear-model-centred curriculum. The copy on `main` is the superseded
-   twelve-module, base-R version. If the amendment is ever reverted, Modules
-   9–14 change shape entirely (separate t-test, ANOVA and chi-square lessons
-   replace the `lm`/`lmer`/`glm` spine), Module 2's pipe and verb material moves
-   to base R subsetting, and the `content-platform` plan's `emmeans`/`car`/
-   `lmerTest` installs become unnecessary. Modules 1, 3, 4 and the five
-   simulations are unaffected either way.
+1. **Settled: the spec version.** These plans are written against the amended
+   spec — fourteen modules, tidyverse, a linear-model-centred curriculum. That
+   was an open choice when they were drafted; it is not any more. PR #1 merged
+   on 2026-09-22 and brought the amendment onto `main`, and draft PR #2
+   reconciles the two live versions into one document that takes the amendment
+   as its base. Nothing in these plans depends on the superseded twelve-module,
+   base-R version.
 2. **Package download budget.** Spec §3.5 measures the core set at about 40 MB
    and the modelling packages at about 49 MB beyond it. A student who works
    through Module 13 downloads both. This is planned as an on-demand install

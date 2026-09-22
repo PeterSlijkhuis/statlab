@@ -8,13 +8,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §3.5, §7.2, §8
 
-**Depends on:** the shell plan, merged.
+**Depends on:** nothing. The shell plan merged to `main` as PR #1 on 2026-09-22.
 
 ## Why this plan exists
 
-The shell plan's self-review says the remaining modules are "content work against a stable interface". That is true of Modules 1, 3, 4, 5, 7 and 8. It is not true of the rest, and the gap is worth stating plainly before anyone starts writing lessons:
+The shell plan's self-review says the remaining modules are "content work against a stable interface". That is true of Modules 1, 3, 4, 5, 7 and 8. It is not true of the rest, and the gap is worth stating plainly before anyone starts writing lessons. The reconciled spec's §12 reaches the same four conclusions independently:
 
-- `COURSE_PACKAGES` is `['dplyr', 'ggplot2']`. Spec §3.5 names a core set of five (`dplyr`, `ggplot2`, `tidyr`, `readr`, `broom`) and four modelling packages installed on demand (`emmeans`, `car`, `lme4`, `lmerTest`). Module 2 needs `tidyr`, Module 9 onwards needs `broom`, and Modules 11–13 need three of the four modelling packages. None of them can be attached today.
+- `COURSE_PACKAGES` is `['dplyr', 'ggplot2']`. Spec §3.5 names a core set of four (`dplyr`, `ggplot2`, `tidyr`, `broom`) and four modelling packages installed on demand (`emmeans`, `car`, `lme4`, `lmerTest`). Module 2 needs `tidyr`, Module 9 onwards needs `broom`, and Modules 11–13 need three of the four modelling packages. None of them can be attached today.
 - There is no on-demand install mechanism at all. `prepareSession` installs the core set once per webR instance and nothing else ever installs anything.
 - `DATASET_FILES` is `['wellbeing-population.csv']`. Ten of the thirteen remaining modules read a dataset that does not exist.
 - `MODULES` contains one module. The sidebar, the home page and "continue where you left off" all read it.
@@ -137,8 +137,14 @@ Expected: FAIL — `ensurePackages` is not exported.
 Replace `COURSE_PACKAGES` with the spec's core set and add the on-demand path. Keep `installCoursePackages` as the boot-time caller so `prepareSession` is unchanged.
 
 ```ts
-/** Spec §3.5: installed at boot, about 40 MB with dependencies. */
-export const CORE_PACKAGES = ['dplyr', 'ggplot2', 'tidyr', 'readr', 'broom'] as const;
+/**
+ * Spec §3.5: installed at boot. The 40 MB figure the spec quotes was measured
+ * with `readr`, which §3.5 has since dropped because every lesson loads data
+ * with `read.csv(..., stringsAsFactors = TRUE)`; re-measure when this set
+ * changes, because adding to it lengthens the wait before the first code block
+ * in every lesson in the course.
+ */
+export const CORE_PACKAGES = ['dplyr', 'ggplot2', 'tidyr', 'broom'] as const;
 
 /**
  * Spec §3.5: about 49 MB beyond the core, so these install only when a lesson
@@ -622,7 +628,7 @@ The full curriculum, ids frozen. Each module plan fills in one block.
 | | 14-3 | Odds ratios, and reporting | `14-3-odds-ratios-and-reporting` | m14-3-a | broom |
 
 > **Reading the Packages column.** It lists what a lesson's code attaches.
-> `dplyr`, `ggplot2`, `tidyr`, `readr` and `broom` are in `CORE_PACKAGES` and are
+> `dplyr`, `ggplot2`, `tidyr` and `broom` are in `CORE_PACKAGES` and are
 > installed at boot, so a lesson need not declare them in its `packages` array —
 > the column records them because an author needs to know what a lesson uses.
 > Only `emmeans`, `car`, `lme4` and `lmerTest` must appear in a `packages` array
@@ -894,7 +900,11 @@ git commit -m "test: validator rules for content at fourteen-module scale"
 1. **`MODULES` is derived rather than hand-edited** (P3 step 3). The spec says
    nothing about this; it exists so fourteen independent module tasks do not
    collide in one list, and so a half-written module cannot reach a student.
-2. **`readr` is installed but not taught.** Spec §3.5 names it in the core set;
-   the curriculum uses `read.csv` (spec §7, Module 2). It is installed because
-   the spec says the core set is those five, and because `broom`'s dependency
-   tree pulls it in regardless.
+2. **The core set installs in full at boot rather than growing module by
+   module.** Spec §3.5 as reconciled says "the set grows with the module that
+   first needs it", which would mean `tidyr` arriving at Module 2 and `broom` at
+   Module 9. This plan installs all four at boot instead: they are one
+   `installPackages` call with a largely shared dependency tree, splitting them
+   costs a second visible wait in the middle of the course for a few megabytes,
+   and `ensurePackages` makes a later split a one-line change if the measured
+   boot time argues for it.

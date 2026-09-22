@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
 
-**Status (2026-09-22):** Tasks 1-18 implemented on branch `feat/shell-and-module-06`, open as PR #1 and not yet merged. 129 of the 131 steps below are ticked. The two that are not are Task 18's last two: enabling GitHub Pages in the repository settings, and verifying the deployed site. Both wait on the repository being made public and PR #1 being merged, which spec section 2.3 describes as a deliberate, separate step. Everything else is verified by the test suite, the content validator, and the Playwright smoke test that CI runs against the built site.
+**Status (2026-09-22):** Complete. Tasks 1-18 implemented, merged to `main` as PR #1, and deployed. All 131 steps below are ticked: the repository is public, Pages is served from GitHub Actions, the Deploy workflow succeeded on `main`, and the site is live at https://peterslijkhuis.github.io/statlab/. Correctness is covered by the test suite, the content validator, and the Playwright smoke test CI runs against the built site.
 
 **What comes next:** the thirteen modules, five simulations and workplace dataset this plan left out are planned in `2026-09-22-statlab-remaining-work-overview.md` and the four documents it indexes.
 
@@ -4841,9 +4841,9 @@ boots are local and the whole job stays in the low minutes. If it ever becomes
 the bottleneck on pull-request feedback, split the unit and integration runs into
 separate jobs rather than dropping either.
 
-- [ ] **Step 5: Enable Pages and push**
+- [x] **Step 5: Enable Pages and push**
 
-> **Open (2026-09-22).** The commit and push below are done. Enabling Pages is not, and cannot be until the repository is public.
+> **Done (2026-09-22).** The repository is public and Pages is served from GitHub Actions.
 
 In the repository settings, set Pages → Build and deployment → Source to **GitHub Actions**. Note that Pages serves from a private repository only on a paid plan; making the repository public is a separate, deliberate step.
 
@@ -4853,9 +4853,9 @@ git commit -m "ci: verify content and deploy to GitHub Pages"
 git push
 ```
 
-- [ ] **Step 6: Verify the deployed site**
+- [x] **Step 6: Verify the deployed site**
 
-> **Open (2026-09-22).** Nothing is deployed yet: the workflow deploys on push to `main`, and PR #1 has not merged, so `main` does not carry the workflow.
+> **Done (2026-09-22).** PR #1 merged at 11:16 UTC and the Deploy workflow succeeded on `main` at 11:24, so the site is live.
 
 Open `https://peterslijkhuis.github.io/statlab/` (once the repository is public and the workflow is green). Confirm a lesson URL such as `/statlab/lesson/06-3` loads directly on refresh — this proves the 404.html fallback works.
 
@@ -4898,6 +4898,7 @@ Run against the spec after completing the plan.
 
 The five simulations other than `clt` (§6) and Modules 1–5 and 7–14 (§7) are out of scope here by the spec's own §10.
 They are planned in `2026-09-22-statlab-remaining-work-overview.md` and the four documents it indexes. Note that they are
-not purely content work: `COURSE_PACKAGES` covers two of the spec's five core packages and there is no on-demand install
+not purely content work: `COURSE_PACKAGES` covers two of the spec's four core packages and there is no on-demand install
 mechanism for the modelling packages, `DATASET_FILES` has one of the two datasets, and `MODULES` has one of the fourteen
-modules. The `content-platform` plan closes those four gaps before any module content is written.
+modules. The reconciled spec's §12 records the same gaps. The `content-platform` plan closes them before any module
+content is written.
