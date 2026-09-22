@@ -709,15 +709,28 @@ test('every declared package is one the course knows how to install', async () =
   }
 });
 
+/** The R inside every <CodeBlock code={`…`} /> — the only R in a lesson that runs. */
+function lessonCode(source: string): string {
+  return [...source.matchAll(/code=\{`([\s\S]*?)`\}/g)].map((match) => match[1]).join('\n');
+}
+
 test('a live lesson attaches no package it did not declare', () => {
   // library(emmeans) in a lesson that does not declare it works only if some
   // other lesson happened to install it first. It then fails for the student
   // who opens this lesson first.
+  //
+  // Scanned over the code blocks, not the whole file: a lesson may legitimately
+  // *name* library(tidyverse) in prose as the line students will meet in every
+  // other tutorial, or quote a library() call in a quiz choice. Neither runs.
+  // Code that attaches an undeclared package still fails, which is the defect
+  // this test exists to catch. The forbidden-function rule above keeps scanning
+  // the whole file, because prose telling a student to call readline() is as
+  // harmful as code that does.
   for (const module of MODULES) {
     for (const lesson of module.lessons) {
-      const source = sources[`./lessons/${lesson.file}.mdx`] ?? '';
+      const code = lessonCode(sources[`./lessons/${lesson.file}.mdx`] ?? '');
       const declared = new Set([...(lesson.packages ?? []), ...CORE_PACKAGES]);
-      for (const match of source.matchAll(/library\((\w+)\)/g)) {
+      for (const match of code.matchAll(/library\((\w+)\)/g)) {
         expect([...declared], `${lesson.id} attaches ${match[1]}`).toContain(match[1]);
       }
     }
