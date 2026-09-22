@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import RStatus from './components/RStatus';
+import Logo from './components/Logo';
 import Sidebar from './components/Sidebar';
+import Toaster from './components/Toaster';
+import { prefersReducedMotion } from './components/celebrate';
 import Home from './pages/Home';
 import Lesson from './pages/Lesson';
 import Playground from './pages/Playground';
@@ -25,6 +28,7 @@ export default function App() {
   // button. On wider screens the CSS always shows it and ignores this flag.
   const [navOpen, setNavOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement | null>(null);
+  const page = useRef<HTMLDivElement | null>(null);
   const { pathname } = useLocation();
 
   // A new page starts at its top and with the drawer shut. React Router keeps
@@ -33,6 +37,14 @@ export default function App() {
   useEffect(() => {
     setNavOpen(false);
     window.scrollTo?.(0, 0);
+    // Each new page eases in. Animated in place rather than by remounting on a
+    // key, so a lesson keeps the component lifecycle its R session relies on.
+    if (!prefersReducedMotion()) {
+      page.current?.animate?.(
+        [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+        { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      );
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -68,12 +80,13 @@ export default function App() {
           </svg>
           <span>{navOpen ? 'Close' : 'Lessons'}</span>
         </button>
-        <Link to="/" className="topbar-home">StatLab</Link>
+        <Link to="/" className="topbar-home"><Logo /> StatLab</Link>
       </header>
       <Sidebar open={navOpen} />
       {navOpen && <div className="nav-backdrop" aria-hidden="true" onClick={() => setNavOpen(false)} />}
       <main className="app-main">
         <RStatus />
+        <div ref={page} className={`page page-${pathname.split('/')[1] || 'home'}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/lesson/:lessonId" element={<Lesson />} />
@@ -85,7 +98,9 @@ export default function App() {
           <Route path="/which-test" element={<Navigate to="/which-model" replace />} />
           <Route path="*" element={<Home />} />
         </Routes>
+        </div>
       </main>
+      <Toaster />
     </div>
   );
 }

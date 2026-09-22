@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLesson } from '../content/LessonContext';
 import { markQuiz } from '../state/progress';
+import { POINTS } from '../state/stats';
 import './ChoiceBlock.css';
 
 export type Choice = {
@@ -24,6 +25,8 @@ const LABELS: Record<ChoiceKind, string> = {
   interpret: 'Interpret and report',
 };
 
+const ICONS: Record<ChoiceKind, string> = { predict: '🔮', quiz: '💡', interpret: '📝' };
+
 export default function ChoiceBlock({ id, kind, question, choices }: Props) {
   const { lessonId } = useLesson();
   const [chosen, setChosen] = useState<number | null>(null);
@@ -39,7 +42,7 @@ export default function ChoiceBlock({ id, kind, question, choices }: Props) {
 
   return (
     <section className={`choice-block choice-${kind}`}>
-      <p className="choice-label">{LABELS[kind]}</p>
+      <p className="choice-label"><span aria-hidden="true">{ICONS[kind]}</span> {LABELS[kind]}</p>
       <p className="choice-question">{question}</p>
       <ul className="choice-options">
         {choices.map((choice, index) => (
@@ -48,9 +51,16 @@ export default function ChoiceBlock({ id, kind, question, choices }: Props) {
               type="button"
               onClick={() => choose(index)}
               disabled={chosen !== null}
-              className={chosen === index ? 'chosen' : undefined}
+              className={[
+                chosen === index ? 'chosen' : '',
+                // After answering, the right option lights up too, so a wrong
+                // pick still ends on the correct answer in view.
+                chosen !== null && kind !== 'predict' && choice.correct ? 'is-correct' : '',
+                chosen === index && kind !== 'predict' && !choice.correct ? 'is-wrong' : '',
+              ].filter(Boolean).join(' ') || undefined}
             >
-              {choice.text}
+              <span className="choice-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</span>
+              <span className="choice-text">{choice.text}</span>
             </button>
           </li>
         ))}
@@ -59,6 +69,7 @@ export default function ChoiceBlock({ id, kind, question, choices }: Props) {
         <div className={`choice-response ${selection.correct ? 'right' : 'wrong'}`}>
           {kind !== 'predict' && <strong>{selection.correct ? 'Correct. ' : 'Not quite. '}</strong>}
           {selection.response}
+          {kind !== 'predict' && selection.correct && <span className="points-pop" aria-hidden="true">+{POINTS.quiz}</span>}
         </div>
       )}
     </section>
