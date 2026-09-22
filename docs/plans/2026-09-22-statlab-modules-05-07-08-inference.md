@@ -2054,3 +2054,612 @@ export const module08: ExerciseDef[] = [
 ];
 ````
 
+- [ ] **Step 3: Write `src/content/lessons/08-1-null-distribution.mdx`**
+
+````mdx
+A study finds that students who sleep seven hours or more score higher on the
+exam than students who sleep less. The gap is about six points. Before anyone
+can say whether that means anything, one question has to be answered:
+
+> **How big a gap would this study have produced if sleep made no difference at
+> all?**
+
+That is the entire logic of a hypothesis test, and everything else in this
+module is machinery for answering it.
+
+<CodeBlock id="study" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+population$sleep_group <- ifelse(population$sleep_hours >= 7, "7 or more", "under 7")
+
+set.seed(8241)
+study <- population[sample(nrow(population), 60), ]
+
+study %>%
+  group_by(sleep_group) %>%
+  summarise(mean_exam = mean(exam_score), sd_exam = sd(exam_score), n = n())`} />
+
+<CodeBlock id="observed" code={`observed <- mean(study$exam_score[study$sleep_group == "7 or more"]) -
+  mean(study$exam_score[study$sleep_group == "under 7"])
+
+observed`} />
+
+Keep that number. It is what actually happened, and it is not in dispute. The
+question is what to make of it.
+
+<Predict
+  id="p-null"
+  question="Suppose sleep genuinely had no effect on exam scores. What difference would you expect this study to find between the two groups?"
+  choices={[
+    { text: 'Exactly zero', response: 'Only on average, over many studies. Module 6 showed that any one sample lands near the truth rather than on it.' },
+    { text: 'Zero on average, but rarely zero in any one study', correct: true, response: 'Exactly. Sampling error puts a gap there even when nothing is going on, and the size of that gap is what we need to know.' },
+    { text: 'Something too unpredictable to say anything about', response: 'It is random, but its distribution is not a mystery - we can build it, and that is what the rest of the lesson does.' },
+  ]}
+/>
+
+## Building the null model
+
+Here is the trick. If sleep really made no difference, then which label a
+student carries — "7 or more" or "under 7" — would be irrelevant to their exam
+score. The labels would be interchangeable.
+
+So make them interchangeable. Shuffle the sixty exam scores across the sixty
+students, keep the labels where they are, and take the difference again. That is
+one study from a world where the null hypothesis is exactly true.
+
+<CodeBlock id="one-shuffle" code={`set.seed(3)
+shuffled <- sample(study$exam_score)
+
+mean(shuffled[study$sleep_group == "7 or more"]) -
+  mean(shuffled[study$sleep_group == "under 7"])`} />
+
+Not zero. Run it with another seed and you get a different not-zero. Do it two
+thousand times and you have the **null distribution**: every difference this
+study could have produced if sleep meant nothing.
+
+<CodeBlock id="null" code={`library(ggplot2)
+
+set.seed(81)
+null_diffs <- replicate(2000, {
+  shuffled <- sample(study$exam_score)
+  mean(shuffled[study$sleep_group == "7 or more"]) -
+    mean(shuffled[study$sleep_group == "under 7"])
+})
+
+tibble(difference = null_diffs) %>%
+  ggplot(aes(x = difference)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = observed, linetype = "dashed", linewidth = 1) +
+  labs(x = "Difference in mean exam score under the null", y = "Shuffles") +
+  theme_classic()`} />
+
+It is centred on zero, it is roughly normal — Module 6 said it would be — and
+the dashed line is what your study actually found. The whole of hypothesis
+testing is looking at that picture and asking how surprising the dashed line is.
+
+## What this distribution is, and is not
+
+- It is **not** the distribution of exam scores. It is the distribution of a
+  *difference between two means*, which is a much narrower thing.
+- It is **not** built from any assumption about sleep. It is built from the
+  assumption that sleep does not matter — which is the hypothesis being put on
+  trial, not one being believed.
+- A value in its far tail does **not** prove the null is false. It says the
+  result would be unusual if the null were true. Those are different statements,
+  and the next lesson is careful about the difference.
+
+<Exercise id="m8-1-a" />
+
+<Quiz
+  id="q-null"
+  question="Why are the exam scores shuffled rather than redrawn from the population?"
+  choices={[
+    { text: 'Because shuffling is faster than sampling', response: 'Speed is not the reason, and at this size neither is noticeably slow.' },
+    { text: 'Because it keeps the actual 60 scores and asks only whether the labels carry information', correct: true, response: 'Right. Shuffling holds everything about the data fixed except the one thing under test - which group each score belongs to.' },
+    { text: 'Because sampling from the population would be cheating, since we would be using data we do not have', response: 'A fair point about real research, but it is not the reason shuffling works. In a real study you have no population to draw from at all - and shuffling still works.' },
+    { text: 'Because the population is not normally distributed', response: 'The shuffling approach makes no normality assumption either way. That is one of its attractions, not a reason it is required here.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-1"
+  question="How should the null distribution you just built be described in a results section?"
+  choices={[
+    { text: 'Students sleeping seven hours or more scored higher (M = 76.4) than those sleeping less (M = 70.7). In 2000 random reallocations of the sleep labels, 1.3% of reallocations produced a difference at least this large in absolute value.', correct: true, response: 'Correct. It reports the observed means, names the procedure and the number of reallocations, and states the tail proportion as a property of the reallocations - not as a probability about the hypothesis.' },
+    { text: 'The null distribution shows that the observed difference was due to chance.', response: 'The null distribution shows what chance ALONE would produce. The observed difference sitting in its tail is evidence against that account, not for it.' },
+    { text: 'The null distribution of exam scores was approximately normal, centred on zero.', response: 'Exam scores centre on 73, not on zero. What centres on zero is the distribution of the DIFFERENCE between two group means under the null.' },
+    { text: 'Because the observed difference fell in the tail of the null distribution, the null hypothesis is false.', response: 'Falls in the tail means "would be unusual if the null were true". Unusual things happen; one study in twenty produces a tail result with no effect present at all.' },
+  ]}
+/>
+````
+
+- [ ] **Step 4: Write `src/content/lessons/08-2-p-values-and-alpha.mdx`**
+
+````mdx
+The null distribution is built; the observed difference is a dashed line in its
+tail. Turning that picture into a number takes one line of code, and
+interpreting the number takes the rest of the lesson.
+
+<CodeBlock id="rebuild" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+population$sleep_group <- ifelse(population$sleep_hours >= 7, "7 or more", "under 7")
+
+set.seed(8241)
+study <- population[sample(nrow(population), 60), ]
+observed <- mean(study$exam_score[study$sleep_group == "7 or more"]) -
+  mean(study$exam_score[study$sleep_group == "under 7"])
+
+set.seed(81)
+null_diffs <- replicate(2000, {
+  shuffled <- sample(study$exam_score)
+  mean(shuffled[study$sleep_group == "7 or more"]) -
+    mean(shuffled[study$sleep_group == "under 7"])
+})
+
+observed`} />
+
+<Predict
+  id="p-tail"
+  question="You are about to count the shuffles that were 'at least as extreme' as the observed difference. Which shuffles count?"
+  choices={[
+    { text: 'Only those with a difference larger than the observed one, in the same direction', response: 'That is a one-tailed count, and it halves the answer. You would only use it if you had committed to a direction before collecting data.' },
+    { text: 'Those at least as far from zero as the observed difference, in either direction', correct: true, response: 'Yes. Unless you predicted the direction in advance, a difference of the same size the other way is equally surprising, so both tails count.' },
+    { text: 'All of them, since every shuffle is a possible result', response: 'Then the answer would always be 1. The point is to count the extreme ones.' },
+  ]}
+/>
+
+<CodeBlock id="pval" code={`p_perm <- mean(abs(null_diffs) >= abs(observed))
+p_perm
+
+# The same thing, counted rather than averaged.
+sum(abs(null_diffs) >= abs(observed))`} />
+
+That is a **p-value**: the proportion of results at least as extreme as yours,
+*computed in a world where the null hypothesis is true*.
+
+## What a p-value is not
+
+Three sentences that are all wrong, all common, and all worth being able to
+refute:
+
+1. **"p is the probability the null hypothesis is true."** No. The p-value is
+   computed *assuming* the null is true — that assumption is an input, so the
+   answer cannot be a verdict on it. Getting the probability of a hypothesis
+   from data requires a prior, which is a different framework.
+2. **"p is the probability the result was due to chance."** Same error in
+   different clothes. Chance is assumed, not measured.
+3. **"A large p proves there is no effect."** A large p means the data are
+   compatible with the null. They are usually compatible with plenty of other
+   things too, including a real effect the study was too small to see. That is
+   the subject of the next lesson.
+
+What a p-value *does* say is narrow and useful: **if nothing were going on, data
+this extreme would turn up this often.**
+
+<Simulation name="pvalue" />
+
+<Exercise id="m8-2-a" />
+
+## α, and where it came from
+
+Nobody reports a p-value and stops. They compare it with a threshold, **α**,
+fixed before the data are seen, and call the result "significant" when the
+p-value falls below it.
+
+α is a choice, not a discovery. Setting `α = .05` says: *I am willing to be
+wrong, and claim an effect when there is none, one time in twenty.* Choose `.01`
+and you will make that mistake less often — at the cost of missing real effects
+more often. The next lesson prices that trade.
+
+Two things follow that students regularly get wrong:
+
+- α is chosen **in advance**. Moving it after seeing the p-value converts a
+  decision rule into a rationalisation.
+- `.05` has no mathematical standing whatsoever. It is a convention that stuck.
+  A result with `p = .049` and one with `p = .051` are the same result.
+
+## The shortcut
+
+Shuffling two thousand times is the honest construction, and it is how the idea
+should be learned. In practice a formula gets you there in one line, because the
+Central Limit Theorem already told us what the null distribution looks like.
+
+<CodeBlock id="ttest" code={`t.test(exam_score ~ sleep_group, data = study, var.equal = TRUE)`} />
+
+Read the output against what you built. The `t` statistic is the observed
+difference divided by its standard error — Module 7's standard error, applied to
+a difference. The degrees of freedom are `n − 2`. The p-value should sit very
+close to `p_perm`, because both are measuring the same tail area, one by
+simulating it and one by looking it up.
+
+<Exercise id="m8-2-b" />
+
+## Reporting it
+
+APA 7 wants the test, its degrees of freedom, the statistic, the p-value and an
+interval. Report `p` to three decimals with no leading zero, and when it is
+smaller than .001 write `p < .001` — never `p = 0`. A simulation with 2000
+shuffles cannot distinguish a p-value of .0004 from one of .00000001, and
+neither can a reader.
+
+<Quiz
+  id="q-alpha"
+  question="A study reports p = .06 with alpha set at .05. Which conclusion is defensible?"
+  choices={[
+    { text: 'The effect is not significant at the .05 level; the data are compatible with no effect, but do not establish it', correct: true, response: 'Right, and the second clause is the part usually left out. Failing to reject is not the same as accepting.' },
+    { text: 'There is no effect', response: 'A non-significant result does not establish the null. With a small sample it is exactly what a real effect often looks like.' },
+    { text: 'The effect is marginally significant', response: 'Either the threshold was .05 or it was not. "Marginally significant" moves alpha after the fact, which is the one thing a fixed threshold exists to prevent.' },
+    { text: 'There is a 6% chance the null hypothesis is true', response: 'The p-value is computed ASSUMING the null is true. It cannot also be the probability that it is.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-2"
+  question="Your test gave t(58) = 2.34, p = .023, with a 95% CI for the difference of [0.8, 10.6]. Which sentence belongs in the results section?"
+  choices={[
+    { text: 'Students sleeping seven hours or more scored higher on the exam than those sleeping less, t(58) = 2.34, p = .023, 95% CI [0.8, 10.6].', correct: true, response: 'Correct APA 7: direction of the effect, the test with its degrees of freedom, the exact p to three decimals with no leading zero, and the interval for the difference.' },
+    { text: 'There is a 2.3% probability that the null hypothesis is true, t(58) = 2.34, p = .023.', response: 'The p-value is computed assuming the null is true, so it cannot be the probability that the null is true. This is the single most common misreading in the literature.' },
+    { text: 'There is a 97.7% probability that the effect is real, t(58) = 2.34, p = .023.', response: 'The same error inverted. 1 - p is not the probability that an effect exists.' },
+    { text: 'Sleep had a significant effect on exam scores, p = .023, proving that sleep improves performance.', response: 'Two problems: "proving" overstates any single p-value, and this is an observational comparison, so it cannot establish that sleep caused the difference.' },
+  ]}
+/>
+````
+
+- [ ] **Step 5: Write `src/content/lessons/08-3-errors-and-power.mdx`**
+
+> **No markdown tables.** The MDX pipeline runs `@mdx-js/rollup` without
+> `remark-gfm`, so a pipe table renders as literal text. The two-by-two of
+> errors below is written as a list for that reason; do not "tidy" it into a
+> table.
+
+````mdx
+A hypothesis test makes a decision, and a decision can be wrong in two
+directions. Both have names, and only one of them gets talked about.
+
+- The null is **true** and you **reject** it — a **Type I error**. You announce
+  an effect that is not there. Its long-run rate is exactly α, because that is
+  what α was defined to be.
+- The null is **false** and you **fail to reject** it — a **Type II error**. You
+  miss a real effect. Its rate is called β.
+- The null is **false** and you **do** reject it — a hit. Its rate, `1 − β`, is
+  the study's **power**.
+- The null is **true** and you fail to reject it — the fourth cell, which needs
+  no name because nothing happened.
+
+The first is the error the whole apparatus is built to control. The second is
+the one that quietly wrecks literatures, because nobody publishes it and nobody
+counts it.
+
+## Type I: the null really is true
+
+In this population, `programme` has no relationship with `exam_score` at all —
+Psychology and Business average within a tenth of a point of each other. So run
+a thousand studies comparing them and count how often the test cries wolf.
+
+<CodeBlock id="typeone" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+set.seed(801)
+false_alarms <- replicate(1000, {
+  s <- population[sample(nrow(population), 120), ]
+  t.test(exam_score ~ programme, data = s, var.equal = TRUE)$p.value < 0.05
+})
+
+mean(false_alarms)`} />
+
+About .05. Not approximately for some reason, and not by luck: α *is* the Type I
+error rate. Setting it at .05 is a decision to publish a false positive one
+study in twenty, and nothing about a single significant result tells you which
+kind you are holding.
+
+<Predict
+  id="p-power"
+  question="Now the null is false: mean exam score is really 73.3, and we will test it against 70. Out of 1000 studies of 100 students each at alpha = .05, how many do you expect to come out significant?"
+  choices={[
+    { text: 'All 1000, because the effect is real', response: 'A real effect does not guarantee detection. With this much noise and 100 students, a good fraction of studies will miss it.' },
+    { text: 'About 750', correct: true, response: 'Close to right. The design has about 76% power here - which means roughly one study in four fails to find an effect that is genuinely present.' },
+    { text: 'About 50, matching alpha', response: 'That is the rate when the null is TRUE. When it is false the rejection rate is power, and power is far higher than alpha for a detectable effect.' },
+  ]}
+/>
+
+<CodeBlock id="power" code={`set.seed(83)
+p_values <- replicate(1000, {
+  s <- sample(population$exam_score, 100)
+  t.test(s, mu = 70)$p.value
+})
+
+mean(p_values < 0.05)`} />
+
+Roughly three quarters. Which means roughly a quarter of these studies —
+correctly run, correctly analysed, with a genuine effect present — report
+nothing. Had one of them been your thesis, you would have concluded there was no
+effect, and you would have been wrong.
+
+## Power is a property of the design
+
+Three things move it, and only one of them is usually under your control.
+
+<CodeBlock id="curve" code={`library(ggplot2)
+
+set.seed(84)
+power_at <- function(n) {
+  mean(replicate(400, t.test(sample(population$exam_score, n), mu = 70)$p.value < 0.05))
+}
+
+sizes <- c(20, 40, 60, 100, 150, 200)
+curve_data <- tibble(n = sizes, power = vapply(sizes, power_at, numeric(1)))
+
+curve_data
+
+curve_data %>%
+  ggplot(aes(x = n, y = power)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 0.8, linetype = "dashed") +
+  labs(x = "Students per study", y = "Power") +
+  theme_classic()`} />
+
+- **Sample size.** The one you control. Power climbs steeply and then flattens;
+  the conventional target of .80 needs about 120 students here.
+- **Effect size.** Set by the world. A bigger gap is easier to see, and this one
+  is modest.
+- **α.** Lowering it to .01 to be safer about false positives lowers power at
+  the same time. The two errors trade against each other; you cannot reduce both
+  without more data.
+
+Slide α in the simulation and watch both tails move at once — the shaded
+rejection region grows and shrinks, and so does the chance of missing a real
+effect.
+
+<Simulation name="pvalue" />
+
+<Exercise id="m8-3-a" />
+
+## What to do with a non-significant result
+
+Say what it is. "We did not detect an effect" is honest; "there is no effect" is
+not, unless the study had the power to have seen one. A non-significant result
+from an underpowered study is uninformative, and a confidence interval says so
+much better than a p-value does — a wide interval that includes zero tells the
+reader plainly that the study could not distinguish "nothing" from "quite a lot".
+
+<Quiz
+  id="q-power"
+  question="A study with 20 people per group reports p = .21 for an effect that later meta-analyses put at d = 0.5. What went wrong?"
+  choices={[
+    { text: 'Nothing went wrong; the study simply had about 30% power and this was one of the 70%', correct: true, response: 'Right. With n = 20 per group and d = 0.5, most correctly-run studies miss the effect. The result is uninformative, not mistaken.' },
+    { text: 'The analysis must have been done incorrectly', response: 'No error is needed. Underpowered studies miss real effects most of the time, by design.' },
+    { text: 'The effect does not exist, and the meta-analysis is wrong', response: 'One small non-significant study is very weak evidence against a pooled estimate from many.' },
+    { text: 'The alpha level should have been raised to .20 so the result would be significant', response: 'Choosing alpha after seeing p abandons the error control that alpha exists to provide.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-3"
+  question="Your study of 20 students per group found a 5.7-point difference, t(38) = 1.31, p = .198, 95% CI [-3.1, 14.5], and a power analysis puts the design at about 30% power for an effect this size. What goes in the paper?"
+  choices={[
+    { text: 'The difference was not statistically significant, t(38) = 1.31, p = .198, 95% CI [-3.1, 14.5]. With approximately 30% power for an effect of this size, the study cannot distinguish a null effect from a substantial one, and the result should be treated as inconclusive.', correct: true, response: 'Correct. It reports the test in APA form, gives the interval, and reads the non-significant result against the power the design actually had.' },
+    { text: 'There was no effect of sleep on exam scores, p = .198.', response: 'A p above .05 does not prove there is no effect. The confidence interval here runs up to 14.5 points, so the data are perfectly compatible with a large effect.' },
+    { text: 'There is a 19.8% probability that the null hypothesis is true, p = .198.', response: 'The p-value is computed assuming the null is true. It is never the probability that the null is true, whether it is large or small.' },
+    { text: 'The difference approached significance, t(38) = 1.31, p = .198, and would likely reach it with a larger sample.', response: '"Approached significance" at p = .198 is wishful. And while a larger sample would indeed have more power, promising that it would reach significance assumes the effect you have not yet demonstrated.' },
+  ]}
+/>
+````
+
+- [ ] **Step 6: Add Module 8 assertions to `src/content/content.test.ts`**
+
+```ts
+describe('Module 8', () => {
+  const lessons = ['08-1-null-distribution', '08-2-p-values-and-alpha', '08-3-errors-and-power'];
+
+  test('its three lesson files exist and are live in MODULES', () => {
+    for (const file of lessons) expect(sources[`./lessons/${file}.mdx`], `missing ${file}`).toBeDefined();
+    expect(MODULES.map((m) => m.id)).toContain('module-08');
+  });
+
+  test('the pvalue simulation is embedded in 08-2 and 08-3', () => {
+    expect(sources['./lessons/08-2-p-values-and-alpha.mdx']).toMatch(/<Simulation name="pvalue" \/>/);
+    expect(sources['./lessons/08-3-errors-and-power.mdx']).toMatch(/<Simulation name="pvalue" \/>/);
+  });
+
+  test('no Module 8 lesson contains a markdown table', () => {
+    // MDX runs without remark-gfm, so a pipe table renders as literal text.
+    // 08-3 is the lesson that wants one, for the two-by-two of errors.
+    for (const file of lessons) {
+      expect(sources[`./lessons/${file}.mdx`], `${file} has a pipe table`).not.toMatch(/^\s*\|.*\|\s*$/m);
+    }
+  });
+
+  test('every Module 8 Interpret block carries the two standard misreadings', () => {
+    // Spec §4.1: distractors are drawn from the standard misinterpretations.
+    // These two are the ones the module exists to kill, so their absence is a
+    // content regression no other test would catch.
+    const all = lessons.map((file) => sources[`./lessons/${file}.mdx`]).join('\n');
+    expect(all, 'no Interpret offers "p is the probability the null is true"').toMatch(
+      /probability that the null hypothesis is true/,
+    );
+    expect(all, 'no Interpret offers "a large p proves no effect"').toMatch(/no effect of .*p = \./);
+  });
+
+  test('Module 8 defines exactly the exercises the manifest lists', () => {
+    const planned = PLANNED_MODULES.find((m) => m.id === 'module-08')!;
+    expect(module08.map((e) => e.id)).toEqual(planned.lessons.flatMap((l) => l.exercises));
+  });
+
+  test('Part 2 is complete: Modules 5 to 8 are all live', () => {
+    const live = MODULES.map((m) => m.id);
+    for (const id of ['module-05', 'module-06', 'module-07', 'module-08']) {
+      expect(live, `${id} is not live`).toContain(id);
+    }
+  });
+});
+```
+
+- [ ] **Step 7: Run the validator**
+
+Run: `npm run validate`
+
+Expected:
+
+```
+ ✓ src/content/content.test.ts  (30 tests)
+ ✓ src/content/exercises/index.test.ts  (9 tests)
+ ✓ src/content/exercises/validate.itest.ts
+   ✓ exercise m8-1-a > the reference solution passes its own check
+   ✓ exercise m8-1-a > wrong answers > wrong answer 0..3 rejected by the check, not by an error
+   ✓ exercise m8-1-a > alternate solutions > alternate solution 0..2 passes
+   ✓ exercise m8-2-a > … (4 wrong answers, 3 alternates)
+   ✓ exercise m8-2-b > … (4 wrong answers, 3 alternates)
+   ✓ exercise m8-3-a > … (4 wrong answers, 3 alternates)
+   ✓ lesson 08-1 > its code blocks run in order without an R error, and its exercises grade correctly after them
+   ✓ lesson 08-2 > …
+   ✓ lesson 08-3 > …
+```
+
+Three things must be checked by eye the first time, because each is
+seed-dependent and each would ship as a silently wrong lesson:
+
+- **The permutation p-value for `set.seed(8241)` must land between .002 and .30.**
+  `m8-2-a`'s wrong answers are the one-tailed p (about half of it), `1 − p`, and
+  the count. At a p of exactly 0 the first two collapse onto the right answer
+  and the negative fixtures stop proving anything; near .5 the second does. Run
+  `mean(abs(null_diffs) >= abs(observed))` in the playground and read it. If it
+  is outside the band, **change the seed in `STUDY_60`, not the sample size** —
+  the sample size is what makes the effect visible without making it certain —
+  and re-run this step. Record the value you got in the commit message.
+- **The Type I block in 08-3 must print between .035 and .065.** The prose says
+  "about .05". If the seed gives .08, change the seed.
+- **The power block in 08-3 must print between .70 and .82**, matching both the
+  prose ("roughly three quarters") and `m8-3-a`'s acceptance band.
+
+Runtime: `m8-3-a` runs 1000 `t.test` calls per fixture, and it has nine fixtures
+across the two validator suites, so this exercise alone is roughly 18,000
+`t.test` calls under webR. Expect this module to add two to four minutes to
+`npm run validate`. If it pushes the whole suite past the 20-minute budget named
+in content-platform task P4 step 5, split `validate` there rather than reducing
+the replication count here — 1000 is what makes the band in the check tight
+enough to reject the complement.
+
+- [ ] **Step 8: Verify Module 8 in the browser**
+
+Run: `npm run dev`, then open `http://localhost:5173/statlab/lesson/08-1`.
+
+Expected:
+- All of Modules 5 to 8 appear in the sidebar, in order, and "continue where you
+  left off" on the home page lands on the first incomplete lesson.
+- 08-1: the null-distribution histogram draws with the dashed observed line
+  visible inside the plotted range — if the line is off the edge of the axis,
+  the seed produced an implausibly extreme study and step 7's band check will
+  already have flagged it.
+- 08-2: `<Simulation name="pvalue" />` shades a tail, and moving its α control
+  moves the shaded region; the `ttest` block's p-value is visibly close to
+  `p_perm` from the block above it.
+- 08-3: the `curve` block takes a few seconds (2400 t-tests) and then plots a
+  rising power curve crossing the dashed .80 line near n = 120.
+- `m8-3-a`: submitting `mean(p_values > 0.05)` returns the "that is the Type II
+  error rate" message; submitting a test against the true population mean
+  returns the "that is alpha" message.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/content/lessons/08-1-null-distribution.mdx src/content/lessons/08-2-p-values-and-alpha.mdx src/content/lessons/08-3-errors-and-power.mdx src/content/exercises/module-08.ts src/content/manifest.ts src/content/content.test.ts
+git commit -m "feat: Module 8, hypothesis testing, p-values and power"
+```
+
+---
+
+## Self-Review
+
+Run against the spec after all three tasks are complete.
+
+**Spec coverage**
+
+| Spec section | Covered by |
+|---|---|
+| §3.2 Forbidden R functions | Global Constraints; `index.test.ts` and `content.test.ts` already enforce it over every new file |
+| §3.5 Packages declared per lesson | M7 step 1 (`07-3` declares `dplyr`, `ggplot2`); M5 and M8 declare none, and M7 step 6 asserts that shape |
+| §4.1 `<Predict>` before the reveal | Every lesson: `p-height`, `p-compare`, `p-cutoff`, `p-price`, `p-meaning`, `p-bars`, `p-null`, `p-tail`, `p-power` |
+| §4.1 `<CodeBlock>` with an invited modification | 07-1 (`study`, change 50 to 200); 05-3 and 08-3 invite the same through the simulations |
+| §4.1 `<Exercise>` auto-checked | M5 step 2 (5), M7 step 2 (4), M8 step 2 (4) |
+| §4.1 `<Quiz>` | `q-density`, `q-z`, `q-tails`, `q-se-sd`, `q-95`, `q-bars`, `q-null`, `q-alpha`, `q-power` |
+| §4.1 `<Interpret>` closes every inferential lesson | All nine: `i-5-1`, `i-5-2`, `i-5-3`, `i-7-1`, `i-7-2`, `i-7-3`, `i-8-1`, `i-8-2`, `i-8-3` |
+| §4.2 Pedagogical spine (question → assumptions → model → computation → interpretation → report) | 08-1 opens on the question, 08-2 runs computation and report, 08-3 supplies the assumption check a non-significant result needs |
+| §5.1 `ExerciseDef` contract, `setupCode` seeds | M5/M7/M8 step 2; every exercise involving randomness seeds in `setupCode` |
+| §5.2 Value-based checks, tolerance, hints | Every `check` above; three loosen the tolerance with a stated reason |
+| §6 `distribution` | M5 steps 3, 5 (embedded in 05-1 and 05-3) |
+| §6 `ci` | M7 step 4 (embedded in 07-2) |
+| §6 `pvalue` | M8 steps 4, 5 (embedded in 08-2 and 08-3) |
+| §7 Curriculum, Module 5 | Task M5 |
+| §7 Curriculum, Module 7 | Task M7 |
+| §7 Curriculum, Module 8 | Task M8 |
+| §7.1 Tidyverse style, no `library(tidyverse)` | Global Constraints; M5 step 6 asserts the attach list |
+| §7.1 Always look at the descriptives | 07-3's summary table; 08-1's `group_by(sleep_group)` block before any test; `m7-3-a` and `m8-1-a` both hinge on group means |
+| §7.1 APA 7 reporting | Every `<Interpret>` correct option |
+| §7.2 `wellbeing-population.csv` for Modules 5–8 | Global Constraints; the reference-values table; every lesson and exercise |
+| §8.1 Solutions pass, wrong answers fail via `pass = FALSE`, alternates pass | Every exercise carries 3–4 wrong answers and 3–4 alternates; M5/M7/M8 step 7 |
+| §8.2 Static content checks | M5/M7/M8 step 6 |
+| §8.3 Smoke behaviour | M5/M7/M8 step 8 |
+
+**Deliberate deviations, and why**
+
+1. **Module 5, 07-1, 07-2 and all of Module 8 attach `dplyr` and `ggplot2`
+   although the P3 table gives them no `packages`.** The field is documented as
+   "packages this lesson's code attaches *beyond the core set*", and both are in
+   `CORE_PACKAGES`, so this is consistent with the table rather than a departure
+   from it — and it keeps the nine lessons visually continuous with Module 6,
+   which plots with ggplot2 throughout. The alternative, base graphics in Part 2
+   and ggplot2 everywhere else, would have made Module 6 look like a different
+   course. M5 step 6 pins the attach list to exactly these two so the licence
+   cannot quietly widen.
+
+2. **`<Simulation name="distribution" />` appears twice in Module 5 and
+   `pvalue` twice in Module 8.** The P3 table lists one simulation per module,
+   not one per lesson, and Module 6 already embeds `clt` in two lessons. The
+   second appearance is a different exercise of the same component (reading a
+   cut-off off a shaded area in 05-3; sliding α in 08-3), not decoration.
+
+3. **Module 8's worked example is a randomisation test, not a `t`-test.** Spec
+   §7.1 says there are no separate lessons for t-tests, and there is not one
+   here: the `t`-test arrives in 08-2 as a shortcut that reproduces a number the
+   students already built by shuffling, which is exactly the "show the
+   traditional call and demonstrate that its statistics match" pattern §7.1 asks
+   for. Building the null by simulation first is also what makes "p is a tail
+   area of a distribution you constructed" a fact the student has seen rather
+   than a claim they have been told.
+
+4. **`m7-2-a`, `m8-1-a` and `m8-3-a` grade against a band rather than a value.**
+   Each estimates a quantity by simulation, and any legitimate route consumes
+   random numbers in its own order, so an exact match would reject correct code —
+   the failure mode §5.2 names explicitly. Each band is set at roughly four
+   standard errors of the simulated statistic, and each check states in an R
+   comment where the wrong answers fall relative to it. `m6-2-a` set this
+   precedent with its 25 per cent SE band.
+
+5. **Three checks loosen the tolerance from `1e-6`.** `m5-1-a`, `m5-2-a`,
+   `m5-2-b` and `m5-3-b` use `1e-3` and `m5-3-a` uses `1e-4`, because a student
+   who computes the SD with denominator *N* rather than `sd()`'s *n* − 1 differs
+   in the fifth significant figure, and failing that is failing arithmetic that
+   is not wrong. `m8-2-a` uses `1e-3` because a route that adds the two tails
+   separately can count a boundary shuffle differently, and one shuffle in 2000
+   is 5 × 10⁻⁴. Every one says so in a comment beside the comparison, as §5.2
+   requires.
+
+6. **Module 8 uses two different comparisons from one dataset.** `sleep_hours`
+   carries a real effect and `programme` carries none. Both were properties of
+   the committed population before this plan was written — neither was selected
+   after seeing a p-value — and having both is what lets 08-3 demonstrate the
+   Type I rate and the power of a design against the same 5000 students.
+
+**Open question carried forward**
+
+`m8-2-a`'s negative fixtures depend on the seeded study producing a p-value away
+from 0 and from .5 (M8 step 7). The band is wide and the step says what to do,
+but a worker who changes `STUDY_60`'s seed must re-read that step rather than
+assume the fixtures still discriminate. If the seed proves fragile in practice —
+if two or three seeds in a row land outside the band — the fallback is to raise
+the study to 90 students, which moves the typical p-value down to about .01 and
+narrows the spread, at the cost of making the result look more foregone than a
+real 60-person study would.

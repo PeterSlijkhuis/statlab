@@ -619,6 +619,14 @@ The full curriculum, ids frozen. Each module plan fills in one block.
 | | 14-2 | `glm` and log odds | `14-2-glm-and-log-odds` | m14-2-a, m14-2-b | broom |
 | | 14-3 | Odds ratios, and reporting | `14-3-odds-ratios-and-reporting` | m14-3-a | broom |
 
+> **Reading the Packages column.** It lists what a lesson's code attaches.
+> `dplyr`, `ggplot2`, `tidyr`, `readr` and `broom` are in `CORE_PACKAGES` and are
+> installed at boot, so a lesson need not declare them in its `packages` array —
+> the column records them because an author needs to know what a lesson uses.
+> Only `emmeans`, `car`, `lme4` and `lmerTest` must appear in a `packages` array
+> to be installed at all. Declaring a core package is harmless and a no-op; the
+> module plans differ on whether they do, and either is correct.
+
 Module titles, in order: First steps in R; Working with data; Describing data;
 Visualising data; The normal distribution; Sampling; Estimation; Hypothesis
 testing; Correlation and simple regression; Multiple regression; Categorical
