@@ -8,6 +8,9 @@ import { module01 } from './exercises/module-01';
 import { module02 } from './exercises/module-02';
 import { module03 } from './exercises/module-03';
 import { module04 } from './exercises/module-04';
+import { module05 } from './exercises/module-05';
+import { module07 } from './exercises/module-07';
+import { module08 } from './exercises/module-08';
 import { mdxComponents } from './mdxComponents';
 import { SIMULATION_NAMES } from '../sims/registry';
 
@@ -341,6 +344,137 @@ describe('lesson content', () => {
     for (const file of ['04-1-ggplot-layers', '04-3-scatter-and-apa']) {
       const source = sources[`./lessons/${file}.mdx`] ?? '';
       expect(source, `${file} uses %>% without attaching dplyr`).not.toMatch(/%>%/);
+    }
+  });
+});
+
+describe('Module 5', () => {
+  const lessons = ['05-1-density-and-area', '05-2-z-scores', '05-3-probabilities'];
+
+  test('its three lesson files exist and are live in MODULES', () => {
+    for (const file of lessons) expect(sources[`./lessons/${file}.mdx`], `missing ${file}`).toBeDefined();
+    expect(MODULES.map((m) => m.id)).toContain('module-05');
+  });
+
+  test('the distribution simulation is embedded, and only where planned', () => {
+    // 05-2 deliberately has none: standardising is arithmetic, not a picture.
+    expect(sources['./lessons/05-1-density-and-area.mdx']).toMatch(/<Simulation name="distribution" \/>/);
+    expect(sources['./lessons/05-3-probabilities.mdx']).toMatch(/<Simulation name="distribution" \/>/);
+    expect(sources['./lessons/05-2-z-scores.mdx']).not.toMatch(/<Simulation\b/);
+  });
+
+  test('no Module 5 lesson attaches a package beyond the core set', () => {
+    // The P3 table gives Module 5 no `packages`, so anything outside CORE_PACKAGES
+    // would never be installed for a student who opens this lesson first.
+    for (const file of lessons) {
+      for (const match of sources[`./lessons/${file}.mdx`].matchAll(/library\((\w+)\)/g)) {
+        expect(['dplyr', 'ggplot2'], `${file} attaches ${match[1]}`).toContain(match[1]);
+      }
+    }
+  });
+
+  test('every Module 5 exercise compares with a stated tolerance', () => {
+    // A check that reaches for == on a double is the defect this catches.
+    for (const exercise of module05) {
+      expect(exercise.check, `${exercise.id} has no all.equal comparison`).toMatch(/all\.equal\(/);
+      expect(exercise.check, `${exercise.id} compares doubles with ==`).not.toMatch(/==\s*(expected|want_)/);
+    }
+  });
+
+  test('Module 5 defines exactly the exercises the manifest lists', () => {
+    const planned = PLANNED_MODULES.find((m) => m.id === 'module-05')!;
+    expect(module05.map((e) => e.id)).toEqual(planned.lessons.flatMap((l) => l.exercises));
+  });
+});
+
+describe('Module 7', () => {
+  const lessons = [
+    '07-1-standard-error-to-interval',
+    '07-2-what-95-percent-means',
+    '07-3-error-bars',
+  ];
+
+  test('its three lesson files exist and are live in MODULES', () => {
+    for (const file of lessons) expect(sources[`./lessons/${file}.mdx`], `missing ${file}`).toBeDefined();
+    expect(MODULES.map((m) => m.id)).toContain('module-07');
+  });
+
+  test('the ci simulation is embedded in 07-2', () => {
+    expect(sources['./lessons/07-2-what-95-percent-means.mdx']).toMatch(/<Simulation name="ci" \/>/);
+  });
+
+  test('07-3 is the only Module 7 lesson that declares packages', () => {
+    const module = PLANNED_MODULES.find((m) => m.id === 'module-07')!;
+    expect(module.lessons.map((l) => l.packages ?? [])).toEqual([[], [], ['dplyr', 'ggplot2']]);
+  });
+
+  test('every Module 7 lesson distinguishes SD from SE in prose', () => {
+    // The module exists to separate these two. A lesson that never names both
+    // has lost the thread, and no other test would notice.
+    for (const file of lessons) {
+      const source = sources[`./lessons/${file}.mdx`];
+      expect(source, `${file} never mentions the standard error`).toMatch(/standard error/i);
+    }
+  });
+
+  test('no Module 7 exercise builds an interval with a hard-coded 1.96', () => {
+    // 1.96 is the normal quantile and belongs only in a wrong answer or a
+    // teaching message; a solution must reach for qt().
+    for (const exercise of module07) {
+      expect(exercise.solution, `${exercise.id} uses 1.96 in its solution`).not.toMatch(/1\.96/);
+      for (const alternate of exercise.alternateSolutions ?? []) {
+        expect(alternate, `${exercise.id} has an alternate using 1.96`).not.toMatch(/1\.96/);
+      }
+    }
+  });
+
+  test('Module 7 defines exactly the exercises the manifest lists', () => {
+    const planned = PLANNED_MODULES.find((m) => m.id === 'module-07')!;
+    expect(module07.map((e) => e.id)).toEqual(planned.lessons.flatMap((l) => l.exercises));
+  });
+});
+
+describe('Module 8', () => {
+  const lessons = ['08-1-null-distribution', '08-2-p-values-and-alpha', '08-3-errors-and-power'];
+
+  test('its three lesson files exist and are live in MODULES', () => {
+    for (const file of lessons) expect(sources[`./lessons/${file}.mdx`], `missing ${file}`).toBeDefined();
+    expect(MODULES.map((m) => m.id)).toContain('module-08');
+  });
+
+  test('the pvalue simulation is embedded in 08-2 and 08-3', () => {
+    expect(sources['./lessons/08-2-p-values-and-alpha.mdx']).toMatch(/<Simulation name="pvalue" \/>/);
+    expect(sources['./lessons/08-3-errors-and-power.mdx']).toMatch(/<Simulation name="pvalue" \/>/);
+  });
+
+  test('no Module 8 lesson contains a markdown table', () => {
+    // MDX runs without remark-gfm, so a pipe table renders as literal text.
+    // 08-3 is the lesson that wants one, for the two-by-two of errors.
+    for (const file of lessons) {
+      expect(sources[`./lessons/${file}.mdx`], `${file} has a pipe table`).not.toMatch(/^\s*\|.*\|\s*$/m);
+    }
+  });
+
+  test('every Module 8 Interpret block carries the two standard misreadings', () => {
+    // Spec §4.1: distractors are drawn from the standard misinterpretations.
+    // These two are the ones the module exists to kill, so their absence is a
+    // content regression no other test would catch.
+    const all = lessons.map((file) => sources[`./lessons/${file}.mdx`]).join('\n');
+    expect(all, 'no Interpret offers "p is the probability the null is true"').toMatch(
+      /probability that the null hypothesis is true/,
+    );
+    expect(all, 'no Interpret offers "a large p proves no effect"').toMatch(/no effect of .*p = \./);
+  });
+
+  test('Module 8 defines exactly the exercises the manifest lists', () => {
+    const planned = PLANNED_MODULES.find((m) => m.id === 'module-08')!;
+    expect(module08.map((e) => e.id)).toEqual(planned.lessons.flatMap((l) => l.exercises));
+  });
+
+  test('Part 2 is complete: Modules 5 to 8 are all live', () => {
+    const live = MODULES.map((m) => m.id);
+    for (const id of ['module-05', 'module-06', 'module-07', 'module-08']) {
+      expect(live, `${id} is not live`).toContain(id);
     }
   });
 });

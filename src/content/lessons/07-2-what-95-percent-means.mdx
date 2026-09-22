@@ -1,0 +1,116 @@
+Here is a sentence that appears in published papers, in textbooks, and in about
+nine out of ten student reports:
+
+> *"We are 95% confident that the true mean lies between 70.5 and 77.3, so
+> there is a 95% chance it is in that range."*
+
+The first half is standard usage. The second half is wrong, and this lesson is
+about why — not as a piece of pedantry, but because the correct version is what
+makes the interval useful.
+
+<Predict
+  id="p-meaning"
+  question="You compute one 95% confidence interval from one study. What is the probability that the population mean lies inside it?"
+  choices={[
+    { text: '95%', response: 'This is the intuitive answer and it is the one the lesson exists to correct. Keep reading — then come back and see whether you still believe it.' },
+    { text: 'Either 0 or 1, and you cannot tell which', correct: true, response: 'Yes. The population mean is a fixed number and your interval is fixed once computed, so it either contains it or it does not. The 95% is a property of the method across many studies.' },
+    { text: 'It depends on the sample size', response: 'Sample size changes the WIDTH of the interval, not whether this particular one happens to contain the mean.' },
+  ]}
+/>
+
+## A hundred studies
+
+We have a luxury no researcher has: we can run the study a hundred times and
+check every answer against the truth.
+
+<CodeBlock id="many" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+mu <- mean(population$exam_score)
+
+set.seed(72)
+intervals <- replicate(100, {
+  s <- sample(population$exam_score, 40)
+  ci <- mean(s) + c(-1, 1) * qt(0.975, df = 39) * sd(s) / sqrt(40)
+  c(lower = ci[1], upper = ci[2])
+})
+
+intervals <- as.data.frame(t(intervals))
+intervals$study <- 1:100
+intervals$captured <- intervals$lower <= mu & intervals$upper >= mu
+
+sum(intervals$captured)`} />
+
+Around 95 of the hundred contain μ. Around five do not. Now look at them.
+
+<CodeBlock id="plot" code={`library(ggplot2)
+
+intervals %>%
+  ggplot(aes(x = study, y = (lower + upper) / 2, colour = captured)) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) +
+  geom_hline(yintercept = mu, linetype = "dashed") +
+  labs(x = "Study", y = "95% CI for mean exam score", colour = "Contains mu") +
+  theme_classic()`} />
+
+Every one of those intervals was computed correctly, by the same method, from an
+honest random sample. The widths differ because each study has its own
+standard error: `sd(s) / sqrt(40)` is computed from that study's forty people
+and comes out a little different every time. But the five that miss are not the wide ones
+and they are not mistakes. They are the five per cent, and there is nothing
+about them — no warning sign, no unusual width, no flag — that distinguishes
+them from the other ninety-five. A researcher holding one of those five has no
+way to know.
+
+That is the whole point. **The 95 per cent lives in the procedure, not in the
+interval.** Run the method forever and 95 per cent of the intervals it produces
+will contain the parameter. Run it once and you get one interval, which either
+does or does not.
+
+## See it run
+
+Draw a hundred intervals and watch the misses appear. Draw another hundred and
+watch a different five miss.
+
+<Simulation name="ci" />
+
+<Exercise id="m7-2-a" />
+
+## What you may and may not say
+
+Three sentences, ranked:
+
+1. **"95% CI [70.5, 77.3]."** Always safe. Report the interval and let it speak.
+2. **"We are 95% confident the population mean lies in [70.5, 77.3]."**
+   Standard usage. "Confident" is a term of art here meaning "produced by a
+   procedure with 95 per cent coverage", and every reader in the field takes it
+   that way.
+3. **"There is a 95% chance the population mean lies in [70.5, 77.3]."** Wrong.
+   It puts the randomness in the parameter, which does not vary, instead of in
+   the interval, which does.
+
+A practical consequence, and the reason this is not just philosophy: a *wide*
+interval is informative. It tells you the study could not pin the mean down, and
+that is a finding about the study's precision — one you cannot read off a p-value
+at all.
+
+<Quiz
+  id="q-95"
+  question="Two studies of the same question report 95% CIs of [2, 8] and [4.8, 5.2]. What do you learn?"
+  choices={[
+    { text: 'The second study is more likely to be correct', response: 'Both procedures have the same 95 per cent coverage. Neither is more likely to have captured the parameter.' },
+    { text: 'Both were produced by a procedure with the same 95% coverage, but the second estimated the parameter far more precisely', correct: true, response: 'Right. Coverage is a property of the method and is identical; width is a property of the study, and the second one is much more informative.' },
+    { text: 'The first study has a 95% chance of containing the parameter and the second has a higher chance', response: 'Neither interval has a probability attached to it once it is computed. Width does not change coverage.' },
+    { text: 'The studies disagree, because the intervals have different widths', response: 'They agree rather well: both are consistent with a parameter near 5. One is simply more precise.' },
+  ]}
+/>
+
+<Interpret
+  id="i-7-2"
+  question="A reviewer asks you to explain, in the paper, what your confidence interval means. Which sentence goes in?"
+  choices={[
+    { text: 'Mean exam score was 73.9, 95% CI [70.5, 77.3]. Intervals constructed this way contain the population mean in 95% of repeated samples.', correct: true, response: 'Correct, and this is the form a methods reviewer is looking for: the coverage is attributed to the construction, across repeated samples.' },
+    { text: 'There is a 95% chance that the true mean is in this interval.', response: 'The classic misstatement. The true mean is fixed; this interval is fixed once computed. The 95% describes the procedure over repeated samples, not this one result.' },
+    { text: '95% of our sample scored between 70.5 and 77.3.', response: 'That describes students, and would need the SD. The interval describes the precision of the mean.' },
+    { text: 'We can be 95% certain that a replication would produce a mean inside this interval.', response: 'A prediction interval for a future study mean is a different and wider interval. A confidence interval is about the parameter, not about the next sample.' },
+  ]}
+/>

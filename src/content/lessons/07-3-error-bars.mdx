@@ -1,0 +1,103 @@
+Open any journal and you will find figures with little vertical bars on top of
+the bars or points. Open three journals and you will find that the bars mean
+three different things. This lesson builds all three from one table, so you can
+see how much the choice changes the picture — and why a caption that does not say
+which one it is, is not a caption.
+
+<CodeBlock id="table" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+set.seed(73)
+study <- population[sample(nrow(population), 120), ]
+
+summary_table <- study %>%
+  group_by(programme) %>%
+  summarise(mean_exam = mean(exam_score), sd_exam = sd(exam_score), n = n()) %>%
+  mutate(se = sd_exam / sqrt(n), ci = qt(0.975, df = n - 1) * se)
+
+summary_table`} />
+
+Three columns, three lengths, one dataset:
+
+- **`sd_exam`** — how much students differ from each other. About 12 points.
+- **`se`** — how much the group mean would differ from study to study. About
+  1.6 points, because it is the SD divided by √60.
+- **`ci`** — the half-width of the 95 per cent interval: the standard error
+  times `qt(0.975, df = n - 1)`, so a shade over twice the SE.
+
+<Predict
+  id="p-bars"
+  question="The same two means are about to be drawn three times, with SD bars, SE bars and CI bars. Which figure will make the two programmes look most similar?"
+  choices={[
+    { text: 'The SD bars, because they are the longest', correct: true, response: 'Yes. SD bars are about eight times longer than SE bars here, so any gap between the means disappears inside them.' },
+    { text: 'The SE bars, because they are the shortest', response: 'Short bars make a gap look large, not small. SE bars will make the two groups look as different as they ever will.' },
+    { text: 'All three, because the means are the same in every figure', response: 'The means are identical, but a reader judges a difference by comparing it with the bars. Change the bars and you change the impression.' },
+  ]}
+/>
+
+<CodeBlock id="bars" code={`library(ggplot2)
+
+bars <- bind_rows(
+  summary_table %>% mutate(kind = "SD", half = sd_exam),
+  summary_table %>% mutate(kind = "SE", half = se),
+  summary_table %>% mutate(kind = "95% CI", half = ci)
+)
+
+bars %>%
+  mutate(kind = factor(kind, levels = c("SD", "SE", "95% CI"))) %>%
+  ggplot(aes(x = programme, y = mean_exam)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = mean_exam - half, ymax = mean_exam + half), width = 0.15) +
+  facet_wrap(~ kind) +
+  labs(x = NULL, y = "Mean exam score") +
+  theme_classic()`} />
+
+Three honest figures. Identical data, identical means, and a reader would draw
+three different conclusions from them. Nobody falsified anything; somebody chose
+a bar.
+
+## Which one to use
+
+- **SD bars** when the figure is about the *data*: how spread out the
+  observations are. Common in descriptive figures and in clinical work.
+- **SE bars** when the figure is about the *precision of the means*. Widely used
+  and widely misread, because a reader who assumes CIs will read a 68 per cent
+  bar as a 95 per cent one and see differences that are not there.
+- **CI bars** when the figure is meant to support an inference. This is the
+  default for an APA figure, and it is the one to prefer unless you have a
+  reason not to.
+
+Whichever you pick, **the caption must say so**. "Error bars show 95% CIs" is
+six words and is the difference between a figure a reader can use and one they
+have to guess at.
+
+One caution while we are here, because it is the next mistake after choosing the
+bars: overlapping confidence intervals do **not** mean "no difference", and
+non-overlapping ones do not prove a difference either. Two 95 per cent intervals
+can overlap while the difference between the means is significant. The interval
+for a *difference* is a different interval, and Module 8 computes it.
+
+<Exercise id="m7-3-a" />
+
+<Quiz
+  id="q-bars"
+  question="A figure shows two means with error bars of about ±1.6 points and no caption explaining them. The group SDs are around 12 and each group has about 60 people. What are the bars almost certainly showing?"
+  choices={[
+    { text: 'Standard deviations', response: 'The SDs are about 12, so SD bars would be roughly eight times longer than the ones drawn.' },
+    { text: 'Standard errors', correct: true, response: 'Right: 12/√60 is about 1.6. You could reconstruct it because n and the SD happened to be reported — which is exactly the guessing a caption saves a reader from.' },
+    { text: '95% confidence intervals', response: 'Those would be about 2.0 times the standard error, so roughly ±3.2 points here.' },
+    { text: 'The range of the data', response: 'Exam scores run from the twenties to 100. A range bar would cover most of the figure.' },
+  ]}
+/>
+
+<Interpret
+  id="i-7-3"
+  question="Your figure shows Psychology at M = 74.8, 95% CI [71.8, 77.9] and Business at M = 72.1, 95% CI [68.8, 75.4]. Which caption and reading is right?"
+  choices={[
+    { text: 'Mean exam score by programme. Error bars show 95% confidence intervals. Psychology, M = 74.8, 95% CI [71.8, 77.9]; Business, M = 72.1, 95% CI [68.8, 75.4].', correct: true, response: 'Correct. It names what the bars are and reports both means with their intervals, which is what APA asks for and what lets a reader check the figure against the text.' },
+    { text: 'Mean exam score by programme. The intervals overlap, so the two programmes do not differ.', response: 'Overlapping 95% intervals do not establish the absence of a difference. The question is about the interval for the DIFFERENCE, which is not drawn here.' },
+    { text: 'Mean exam score by programme. Error bars show the range within which 95% of students in each programme scored.', response: 'That would be built from the SD and would span roughly 50 to 98. These bars are built from the standard error and describe the means.' },
+    { text: 'Mean exam score by programme, with standard error bars.', response: 'The bars shown are about twice the standard error, because they are CI bars. Labelling them SE would understate the uncertainty by half.' },
+  ]}
+/>
