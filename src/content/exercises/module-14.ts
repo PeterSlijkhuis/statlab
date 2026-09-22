@@ -10,8 +10,11 @@ export const module14: ExerciseDef[] = [
     solution:
       'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
     wrongAnswers: [
-      // Counting against the wrong range: a probability lives in 0 to 1.
-      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 | fitted(lpm) > 100)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
+      // & where | was meant: no fitted value can be below 0 AND above 1, so the
+      // count comes out 0. (Testing against 0 to 100 instead of 0 to 1 is the
+      // other classic slip, but on this data no fitted value exceeds 1, so it
+      // gives the right answer for the wrong reason and cannot be graded.)
+      'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(fitted(lpm) < 0 & fitted(lpm) > 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
       // Counting the leavers instead of the impossible predictions.
       'library(dplyr)\nlibrary(ggplot2)\nd <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)\nlpm <- lm(left_company ~ wellbeing, data = d)\nn_impossible <- sum(d$left_company == 1)\nrate_by_third <- d %>%\n  mutate(third = ntile(wellbeing, 3)) %>%\n  group_by(third) %>%\n  summarise(rate = mean(left_company), n = n())',
       // The thirds taken on the outcome, which makes the rates trivially 0 and 1.
@@ -54,7 +57,7 @@ export const module14: ExerciseDef[] = [
         } else if (isTRUE(all.equal(as.numeric(n_imp), as.numeric(sum(d$left_company)), tolerance = 1e-9, check.attributes = FALSE))) {
           list(pass = FALSE, message = paste0("That is the number of employees who left (", sum(d$left_company), "). The question is how many PREDICTIONS the line makes that no probability could take - count the fitted values below 0 or above 1."))
         } else if (isTRUE(all.equal(as.numeric(n_imp), 0, tolerance = 1e-9)) && exp_n > 0) {
-          list(pass = FALSE, message = paste0("You found none, but there are ", exp_n, ". Check the range you tested against: a predicted probability has to lie between 0 and 1, not between 0 and 100."))
+          list(pass = FALSE, message = paste0("You found none, but there are ", exp_n, ". A fitted value is impossible if it is below 0 OR above 1, so the two tests join with |, not with &: no number is both at once. Check the range too - a predicted probability lies between 0 and 1, not between 0 and 100."))
         } else if (!isTRUE(all.equal(as.numeric(n_imp), as.numeric(exp_n), tolerance = 1e-9, check.attributes = FALSE))) {
           list(pass = FALSE, message = paste0("n_impossible is ", n_imp, " but ", exp_n, " fitted values from lm(left_company ~ wellbeing) fall outside 0 to 1."))
         } else if (!is.data.frame(tbl) || nrow(tbl) != 3L) {

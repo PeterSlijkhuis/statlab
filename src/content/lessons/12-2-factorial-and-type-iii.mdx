@@ -5,7 +5,8 @@ table — and one argument without which the table is quietly wrong.
 > **This lesson installs `car`.** The status pill shows the download; it is
 > cached afterwards.
 
-<CodeBlock id="c-load" code={`library(broom)
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
 library(car)
 
 d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
