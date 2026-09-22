@@ -4,11 +4,48 @@
 **Status:** Approved design, ready for implementation planning
 **Amended:** 2026-09-15 — tidyverse and a linear-model-centred curriculum (§3.5, §4.2, §5.1, §7, §8.1, §10, §11),
 following the course team's R workshops; decisions recorded in §7.1
+**Reconciled:** 2026-09-22 — one authoritative version; see §0
+
+## 0. Reconciliation note
+
+Until this revision two live versions of this specification existed: the
+2026-09-14 original on `main` (twelve modules, base R, a "Which test should I
+use?" framing) and the 2026-09-15 amendment on the `feat/shell-and-module-06`
+branch (fourteen modules, tidyverse, a linear-model-centred curriculum). The
+application code was written against the amendment, and that branch merged on
+2026-09-22, bringing its copy of the amendment onto `main` unchanged.
+
+**This document supersedes both.** It takes the 2026-09-15 amendment as its
+base, because the course team's own R workshops, the implemented decision tree
+and 82 files of application code all follow it, while the original's curriculum
+has no implementation behind it. On that base it settles four things the two
+versions left inconsistent:
+
+1. **One name for the chooser** (§4.2). The page was titled "Which model should
+   I use?", routed at `/which-test` and implemented as `TestChooser.tsx` —
+   three names for one thing. The course teaches *models*, so *model* wins in
+   the code and the route; the student's word, *test*, is kept on the page and
+   as a redirect.
+2. **The purpose statement matches the curriculum** (§1, §11). Modules 13 and
+   14 teach mixed-effects and logistic regression, which "introductory" alone
+   does not describe.
+3. **The core package set matches what the content actually uses** (§3.5).
+   `readr` was listed but nothing reads data with it; lessons use
+   `read.csv(..., stringsAsFactors = TRUE)`.
+4. **Stale example data** (§3.5). An example referred to a `stress.csv` that
+   does not exist.
+
+§12 records the gaps between this specification and the code at the time of
+reconciliation, and when each was closed.
 
 ## 1. Purpose
 
-StatLab is a browser-based learning environment that teaches introductory
-statistics and R to university psychology and business students.
+StatLab is a browser-based learning environment that teaches statistics and R
+to university psychology and business students. It assumes no prior statistics
+and no prior programming, and carries a student from the first line of R as far
+as the models a bachelor's thesis actually needs: regression, factorial
+designs, repeated measures and binary outcomes (§7). *Introductory* describes
+where the course starts, not where it stops.
 
 Three commitments shape every decision below:
 
@@ -47,7 +84,7 @@ components are less code than the configuration those dependencies require.
       components/   CodeBlock, Exercise, Quiz, Predict, Interpret, OutputPane
       sims/         Six simulation components and their registry
       state/        Progress store
-      pages/        Home, Lesson, Playground, TestChooser
+      pages/        Home, Lesson, Playground, ModelChooser
     scripts/
       validate-content.mjs    CI content validation under Node
 
@@ -153,19 +190,29 @@ in their setup code.
   progress indicator. Theory prose, predictions, and quizzes are readable and
   usable before R is ready; only code blocks and exercises wait.
 - **Packages.** The course uses tidyverse packages (§7.1). A core set — `dplyr`,
-  `ggplot2`, `tidyr`, `readr`, `broom` (41 packages with dependencies, about 40 MB
-  from the webR binary repository, measured 2026-09-15) — installs in the
-  background after boot; code blocks needing it wait on that promise. Modelling
-  packages (`emmeans`, `car`, `lme4`, `lmerTest`; about 49 MB beyond the core)
-  install on demand, only when a lesson that declares them opens. The browser
-  caches every download.
+  `ggplot2`, `tidyr`, `broom` — installs in the background after boot; code
+  blocks needing it wait on that promise. Measured on 2026-09-15 that set plus
+  `readr` came to 41 packages and about 40 MB from the webR binary repository.
+  `readr` has since been dropped, because every lesson loads data with
+  `read.csv(..., stringsAsFactors = TRUE)` and nothing calls `read_csv`; the
+  figure above therefore overstates the current core slightly and is to be
+  re-measured whenever the core set changes. Modelling packages (`emmeans`,
+  `car`, `lme4`, `lmerTest`; about 49 MB beyond the core) install on demand,
+  only when a lesson that declares them opens. The browser caches every
+  download.
+- **The deferred half is deliberate.** A student's first visit pays for webR
+  plus the core set and nothing else; the modelling packages arrive only for
+  the student who reaches Modules 11–14. Adding a package to the core set moves
+  its cost onto every student's first load, so it is a decision to take
+  explicitly rather than by convenience.
 - **No `library(tidyverse)` in lessons.** The `tidyverse` meta-package adds about
   34 MB of packages the course never uses (googledrive, rvest, rmarkdown, …).
   Lessons attach the specific packages (`library(dplyr)`, `library(ggplot2)`);
   Module 1 explains that `library(tidyverse)` attaches the same packages in one
   line in RStudio, which is what students will see in their own projects.
-- **Datasets.** Course CSVs are fetched and written into webR's virtual file
-  system at boot, so `read.csv("data/stress.csv")` works as in any R session.
+- **Datasets.** Course CSVs (§7.2) are fetched and written into webR's virtual
+  file system at boot, so `read.csv("data/wellbeing-population.csv")` works as
+  in any R session.
 - **Boot failure** (unsupported browser, offline, CDN unreachable) shows a clear
   message stating requirements, with a retry control. The rest of the lesson
   remains usable.
@@ -208,10 +255,11 @@ students internalise the sequence rather than memorising commands:
 
 **Question → Assumptions → Choice of model → Computation → Interpretation → Report**
 
-A standalone **"Which model should I use?"** page (route `/which-test`) presents
-this as a navigable decision tree and links each leaf to the lesson that teaches
-it. It is reachable from anywhere and is the reference students will actually use
-during their own thesis work. The tree asks, in order:
+A standalone **"Which model should I use?"** page (route `/which-model`,
+component `ModelChooser.tsx`) presents this as a navigable decision tree and
+links each leaf to the lesson that teaches it. It is reachable from anywhere
+and is the reference students will actually use during their own thesis work.
+The tree asks, in order:
 
 1. **Outcome type** — a number (→ linear model) or a yes/no outcome (→ logistic
    regression, `glm(..., family = binomial)`).
@@ -229,6 +277,19 @@ Each leaf shows the model code in the course's style (for example
 `model %>% glance()`), and names the traditional test it is equivalent to with its
 R call (for example the independent-samples t-test,
 `t.test(score ~ group, data = d, var.equal = TRUE)`).
+
+**One name, in three places.** The page title, the route and the component all
+say *model*: "Which model should I use?", `/which-model`, `ModelChooser.tsx`.
+This is the course's own vocabulary (§7.1: regression, t-tests and ANOVA are
+one linear model under different names), and a route or filename that says
+*test* teaches the opposite of the curriculum every time a student or a
+maintainer reads it.
+
+Students, supervisors and journals do say *test*, so that word is kept where it
+helps rather than in the code: `/which-test` redirects permanently to
+`/which-model`, and every leaf names the traditional test it reproduces, with
+its R call. The page is found by the question a student arrives with and
+answers it in the vocabulary the course teaches.
 
 ## 5. Exercise checking
 
@@ -328,7 +389,9 @@ These follow the course team's own R workshops and were confirmed on 2026-09-15:
 
 - **Tidyverse style throughout.** Pipes, `group_by`/`summarise`, ggplot2, and
   `broom::tidy`/`glance` to read model output. Base R appears only where the
-  tidyverse has no equivalent (`t.test`, `exp`, `confint`).
+  tidyverse has no equivalent or the base call is the simpler teaching object:
+  `read.csv(..., stringsAsFactors = TRUE)` for loading data, and `t.test`,
+  `exp` and `confint`.
 - **One model, many names.** Regression, t-tests and ANOVA are taught as the
   general linear model (`lm`), repeated measures as mixed-effects models
   (`lmer`), and binary outcomes as the generalised linear model (`glm`). Where a
@@ -442,7 +505,29 @@ low-risk, and requiring no further architectural decisions.
 - No instructor dashboard, accounts, or server-side data (§9).
 - No free-text answer grading.
 - No statistics beyond the fourteen modules (for example mediation, moderation
-  beyond two-way interactions, structural equation models, or Bayesian methods).
+  beyond two-way interactions, structural equation models, or Bayesian
+  methods). The 2026-09-14 version put multiple regression, factorial designs
+  and repeated measures outside this boundary as "a natural second phase";
+  §7 brings them inside it, and they are no longer deferred.
 - No mobile-first design. The layout is responsive and readable on a tablet, but
   writing code needs a keyboard and the design assumes a laptop.
 - No offline/PWA support.
+
+## 12. Gaps at reconciliation, since closed
+
+When this specification was reconciled, only Module 6 existed and the code
+lagged it in five places. PR #4, merged on 2026-09-22, closed all five. They
+are kept here so the history is readable next to the decisions in §0.
+
+- **The chooser's names.** It was `src/pages/TestChooser.tsx` at `/which-test`.
+  It is now `src/pages/ModelChooser.tsx` at `/which-model`, and `/which-test`
+  redirects there.
+- **The core package set.** `src/r/session.ts` installed `dplyr` and `ggplot2`
+  only. It now installs the full §3.5 core set, `dplyr`, `ggplot2`, `tidyr` and
+  `broom`, and the modelling packages on demand.
+- **Leaf-to-lesson links.** No chooser leaf set a `lessonId`. All eight leaves
+  now link to the lesson that teaches them.
+- **Content.** `src/content/manifest.ts` held Module 6 only. It now holds all
+  fourteen modules of §7.
+- **Datasets.** Only `wellbeing-population.csv` existed. The workplace study of
+  §7.2 now ships as `workplace.csv`.
