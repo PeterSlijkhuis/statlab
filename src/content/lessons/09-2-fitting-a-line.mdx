@@ -1,0 +1,109 @@
+A correlation says how tightly the points follow a line. It does not say which
+line. For that you need a model — and the model is where the rest of this course
+lives.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>% summarise(mean_autonomy = mean(autonomy), mean_wellbeing = mean(wellbeing), n = n())`} />
+
+## Which line?
+
+A line through a cloud of points is a prediction rule: give it an autonomy
+score, it returns a predicted wellbeing score. For each employee, the gap
+between what the line predicted and what they actually reported is a
+**residual**.
+
+Infinitely many lines are available. The one R fits is the one that makes the
+**sum of the squared residuals** as small as it can be — the least-squares line.
+Squaring is what stops a line from paying for a large miss above with a large
+miss below, and it is why a single far-out point can pull the line noticeably.
+
+<Predict
+  id="p-outlier"
+  question="You drag one point far above the cloud, on the right-hand edge. What happens to the least-squares line?"
+  choices={[
+    { text: 'Nothing: one point out of 480 cannot matter', response: 'It can, and the further from the middle of x it sits, the more it matters. Try it in the simulation below.' },
+    { text: 'The line tilts towards it, and the more so the further out along x it sits', correct: true, response: 'Exactly. Squared residuals grow fast, and leverage grows with distance from the mean of x.' },
+    { text: 'The line moves up but keeps its slope', response: 'That is what would happen for a point at the middle of x. Out at the edge, the slope moves too.' },
+  ]}
+/>
+
+<Simulation name="leastsquares" />
+
+## Fitting it
+
+<CodeBlock id="c-fit" code={`model <- lm(wellbeing ~ autonomy, data = d)
+
+model`} />
+
+Read the formula out loud: **wellbeing is modelled by autonomy**. The outcome
+goes on the left of the tilde, the predictor on the right. Everything in Part 3
+is a variation on that one line: add a second predictor, make a predictor a
+factor, multiply two predictors together, add a random intercept, change the
+family. The formula is the model.
+
+Printing the model alone gives the two coefficients and nothing else. `tidy()`
+turns them into a proper table:
+
+<CodeBlock id="c-tidy" code={`model %>% tidy()`} />
+
+- **`(Intercept)`** is the predicted wellbeing of an employee whose autonomy is
+  0. No one in this study scores 0 on a 1–10 scale, so the intercept here is
+  where the line starts, not a fact about anybody.
+- **`autonomy`** is the slope *b*: the predicted change in wellbeing for each
+  extra point of autonomy.
+
+<Exercise id="m9-2-a" />
+
+## Using the line
+
+`predict()` runs the model forwards. Give it autonomy values, get predicted
+wellbeing back.
+
+<CodeBlock id="c-predict" code={`new_people <- data.frame(autonomy = c(3, 5, 8))
+
+new_people %>%
+  mutate(predicted_wellbeing = predict(model, newdata = new_people))`} />
+
+Those three numbers are evenly spaced, because the model is a straight line and a
+straight line has one slope everywhere. That is an assumption, not a discovery —
+the scatterplot in the previous lesson is where you check it is reasonable.
+
+## Residuals: what the line missed
+
+<CodeBlock id="c-resid" code={`model %>%
+  augment() %>%
+  select(wellbeing, autonomy, .fitted, .resid) %>%
+  head(8)`} />
+
+`.fitted` is the height of the line, `.resid` is the observed value minus the
+fitted one. A residual is not an error in the data; it is everything about that
+employee's wellbeing that autonomy does not account for — which, here, is most of
+it.
+
+<Exercise id="m9-2-b" />
+
+<Quiz
+  id="q-least-squares"
+  question="Why does the fitting criterion square the residuals rather than take their absolute values?"
+  choices={[
+    { text: 'To make every residual positive, which absolute values would not do', response: 'Absolute values also make every residual positive. That is not the reason.' },
+    { text: 'To penalise large misses much more than small ones, which gives one line with a closed-form solution', correct: true, response: 'Right. Squaring makes a miss of 4 cost sixteen times a miss of 1, and it makes the best line computable in one step rather than by search.' },
+    { text: 'Because residuals are normally distributed', response: 'Normality of residuals is an assumption used for the p values, not the reason for the fitting criterion.' },
+    { text: 'Because the outcome is squared in the formula', response: 'Nothing in the formula is squared. wellbeing ~ autonomy is linear in both.' },
+  ]}
+/>
+
+<Interpret
+  id="i-9-2"
+  question="A model of wellbeing on autonomy gives an intercept of 54.10 and a slope of 2.24 (SE = 0.20). A colleague writes: 'Employees with no autonomy have a wellbeing score of 54.10.' What is wrong, and what should be said instead?"
+  choices={[
+    { text: 'Nothing is wrong; 54.10 is the predicted score at autonomy = 0.', response: 'Arithmetically the intercept is that prediction, but autonomy is measured from 1 to 10, so the claim extrapolates beyond every observation in the study.' },
+    { text: 'Autonomy was a significant predictor of wellbeing, b = 2.24, SE = 0.20; the intercept (54.10) is the predicted value at autonomy = 0, which lies outside the observed 1-10 range and should not be interpreted as a group of employees.', correct: true, response: 'Correct. The intercept is reported as part of the fitted line and explicitly not interpreted, because no employee was observed there.' },
+    { text: 'The intercept is the mean wellbeing of the sample.', response: 'That is only true when the predictor is centred. Here the intercept is the prediction at autonomy = 0, which is not the average employee.' },
+    { text: 'The intercept should be dropped from the model because it cannot be interpreted.', response: 'Removing the intercept forces the line through the origin, which would badly distort the slope. An uninterpretable intercept is kept and left uninterpreted.' },
+  ]}
+/>

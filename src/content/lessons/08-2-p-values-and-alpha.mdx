@@ -1,0 +1,128 @@
+The null distribution is built; the observed difference is a dashed line in its
+tail. Turning that picture into a number takes one line of code, and
+interpreting the number takes the rest of the lesson.
+
+<CodeBlock id="rebuild" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+population$sleep_group <- ifelse(population$sleep_hours >= 7, "7 or more", "under 7")
+
+set.seed(8241)
+study <- population[sample(nrow(population), 60), ]
+observed <- mean(study$exam_score[study$sleep_group == "7 or more"]) -
+  mean(study$exam_score[study$sleep_group == "under 7"])
+
+set.seed(81)
+null_diffs <- replicate(2000, {
+  shuffled <- sample(study$exam_score)
+  mean(shuffled[study$sleep_group == "7 or more"]) -
+    mean(shuffled[study$sleep_group == "under 7"])
+})
+
+observed`} />
+
+<Predict
+  id="p-tail"
+  question="You are about to count the shuffles that were 'at least as extreme' as the observed difference. Which shuffles count?"
+  choices={[
+    { text: 'Only those with a difference larger than the observed one, in the same direction', response: 'That is a one-tailed count, and it halves the answer. You would only use it if you had committed to a direction before collecting data.' },
+    { text: 'Those at least as far from zero as the observed difference, in either direction', correct: true, response: 'Yes. Unless you predicted the direction in advance, a difference of the same size the other way is equally surprising, so both tails count.' },
+    { text: 'All of them, since every shuffle is a possible result', response: 'Then the answer would always be 1. The point is to count the extreme ones.' },
+  ]}
+/>
+
+<CodeBlock id="pval" code={`p_perm <- mean(abs(null_diffs) >= abs(observed))
+p_perm
+
+# The same thing, counted rather than averaged.
+sum(abs(null_diffs) >= abs(observed))`} />
+
+That is a **p-value**: the proportion of results at least as extreme as yours,
+*computed in a world where the null hypothesis is true*.
+
+## What a p-value is not
+
+Three sentences that are all wrong, all common, and all worth being able to
+refute:
+
+1. **"p is the probability the null hypothesis is true."** No. The p-value is
+   computed *assuming* the null is true — that assumption is an input, so the
+   answer cannot be a verdict on it. Getting the probability of a hypothesis
+   from data requires a prior, which is a different framework.
+2. **"p is the probability the result was due to chance."** Same error in
+   different clothes. Chance is assumed, not measured.
+3. **"A large p proves there is no effect."** A large p means the data are
+   compatible with the null. They are usually compatible with plenty of other
+   things too, including a real effect the study was too small to see. That is
+   the subject of the next lesson.
+
+What a p-value *does* say is narrow and useful: **if nothing were going on, data
+this extreme would turn up this often.**
+
+<Simulation name="pvalue" />
+
+<Exercise id="m8-2-a" />
+
+## α, and where it came from
+
+Nobody reports a p-value and stops. They compare it with a threshold, **α**,
+fixed before the data are seen, and call the result "significant" when the
+p-value falls below it.
+
+α is a choice, not a discovery. Setting `α = .05` says: *I am willing to be
+wrong, and claim an effect when there is none, one time in twenty.* Choose `.01`
+and you will make that mistake less often — at the cost of missing real effects
+more often. The next lesson prices that trade.
+
+Two things follow that students regularly get wrong:
+
+- α is chosen **in advance**. Moving it after seeing the p-value converts a
+  decision rule into a rationalisation.
+- `.05` has no mathematical standing whatsoever. It is a convention that stuck.
+  A result with `p = .049` and one with `p = .051` are the same result.
+
+## The shortcut
+
+Shuffling two thousand times is the honest construction, and it is how the idea
+should be learned. In practice a formula gets you there in one line, because the
+Central Limit Theorem already told us what the null distribution looks like.
+
+<CodeBlock id="ttest" code={`t.test(exam_score ~ sleep_group, data = study, var.equal = TRUE)`} />
+
+Read the output against what you built. The `t` statistic is the observed
+difference divided by its standard error — Module 7's standard error, applied to
+a difference. The degrees of freedom are `n − 2`. The p-value should sit very
+close to `p_perm`, because both are measuring the same tail area, one by
+simulating it and one by looking it up.
+
+<Exercise id="m8-2-b" />
+
+## Reporting it
+
+APA 7 wants the test, its degrees of freedom, the statistic, the p-value and an
+interval. Report `p` to three decimals with no leading zero, and when it is
+smaller than .001 write `p < .001` — never `p = 0`. A simulation with 2000
+shuffles cannot distinguish a p-value of .0004 from one of .00000001, and
+neither can a reader.
+
+<Quiz
+  id="q-alpha"
+  question="A study reports p = .06 with alpha set at .05. Which conclusion is defensible?"
+  choices={[
+    { text: 'The effect is not significant at the .05 level; the data are compatible with no effect, but do not establish it', correct: true, response: 'Right, and the second clause is the part usually left out. Failing to reject is not the same as accepting.' },
+    { text: 'There is no effect', response: 'A non-significant result does not establish the null. With a small sample it is exactly what a real effect often looks like.' },
+    { text: 'The effect is marginally significant', response: 'Either the threshold was .05 or it was not. "Marginally significant" moves alpha after the fact, which is the one thing a fixed threshold exists to prevent.' },
+    { text: 'There is a 6% chance the null hypothesis is true', response: 'The p-value is computed ASSUMING the null is true. It cannot also be the probability that it is.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-2"
+  question="Your test gave t(58) = 2.34, p = .023, with a 95% CI for the difference of [0.8, 10.6]. Which sentence belongs in the results section?"
+  choices={[
+    { text: 'Students sleeping seven hours or more scored higher on the exam than those sleeping less, t(58) = 2.34, p = .023, 95% CI [0.8, 10.6].', correct: true, response: 'Correct APA 7: direction of the effect, the test with its degrees of freedom, the exact p to three decimals with no leading zero, and the interval for the difference.' },
+    { text: 'There is a 2.3% probability that the null hypothesis is true, t(58) = 2.34, p = .023.', response: 'The p-value is computed assuming the null is true, so it cannot be the probability that the null is true. This is the single most common misreading in the literature.' },
+    { text: 'There is a 97.7% probability that the effect is real, t(58) = 2.34, p = .023.', response: 'The same error inverted. 1 - p is not the probability that an effect exists.' },
+    { text: 'Sleep had a significant effect on exam scores, p = .023, proving that sleep improves performance.', response: 'Two problems: "proving" overstates any single p-value, and this is an observational comparison, so it cannot establish that sleep caused the difference.' },
+  ]}
+/>

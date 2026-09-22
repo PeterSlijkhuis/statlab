@@ -1,0 +1,104 @@
+"Holding the others constant" is the phrase that makes multiple regression
+useful and the phrase that gets students into trouble. This lesson earns it and
+then fences it in.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+model3 <- lm(wellbeing ~ autonomy + workload + tenure_years, data = d)
+model3 %>% tidy()`} />
+
+## What the phrase means arithmetically
+
+Take the workload coefficient. Here is the same number, computed a completely
+different way: strip autonomy and tenure out of both workload and wellbeing, then
+regress what is left of one on what is left of the other.
+
+<CodeBlock id="c-partial" code={`resid_wellbeing <- residuals(lm(wellbeing ~ autonomy + tenure_years, data = d))
+resid_workload  <- residuals(lm(workload ~ autonomy + tenure_years, data = d))
+
+coef(lm(resid_wellbeing ~ resid_workload))[2]
+coef(model3)["workload"]`} />
+
+Those two numbers agree. That is what a multiple regression coefficient *is*: the
+relationship between the parts of the outcome and the predictor that the other
+predictors cannot account for. Nothing was held fixed in the world; something
+was subtracted out on paper.
+
+<Predict
+  id="p-holding"
+  question="The model says b = -3.09 for workload, holding autonomy and tenure constant. Which claim does that licence?"
+  choices={[
+    { text: 'Cutting the workload of an employee by one point would raise their wellbeing by about 3 points', response: 'That is a claim about an intervention. This design observed employees; it never changed the workload of anyone.' },
+    { text: 'Among employees with the same autonomy and tenure, one point more workload goes with about 3 points less wellbeing', correct: true, response: 'Exactly - a comparison between people, in the data as collected.' },
+    { text: 'Workload is three times as important as autonomy', response: 'The two are on the same 1-10 scale here, so the sizes are comparable, but "three times as important" is not what a ratio of slopes measures.' },
+  ]}
+/>
+
+## Seeing the coefficient move
+
+<Exercise id="m10-2-a" />
+
+## A factor among the predictors
+
+Predictors do not have to be numbers. Put a two-level factor in the formula and
+`lm()` codes it for you.
+
+<CodeBlock id="c-remote" code={`levels(d$remote)
+
+model_remote <- lm(wellbeing ~ autonomy + workload + remote, data = d)
+model_remote %>% tidy()`} />
+
+The coefficient is called `remoteYes`, not `remote`. R took the first level —
+`No` — as the **reference**, and the coefficient is how much the other level
+differs from it. Module 11 is about nothing else; for now, notice that a factor
+costs one coefficient per level beyond the first.
+
+And look at the means beside it, every time:
+
+<CodeBlock id="c-remote-means" code={`d %>%
+  group_by(remote) %>%
+  summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())`} />
+
+The raw gap between those two means and the `remoteYes` coefficient are different
+numbers, and they should be: the coefficient is the gap among employees matched
+on autonomy and workload, the raw means are the gap among everybody. If they ever
+point in **opposite** directions, something important is going on — the
+adjustment has reversed the comparison — and you report both, not just the one
+you prefer.
+
+<Exercise id="m10-2-b" />
+
+## What the phrase does not mean
+
+1. **Not causal.** Adjusting for workload removes workload. It does nothing about
+   the confounders you did not measure, and in this study that is most of them.
+2. **Not an intervention.** "If we reduced workload" is a claim about a world
+   where somebody acted. This model describes a world where nobody did.
+3. **Not a licence to add everything.** Adjusting for a variable that sits
+   *between* the predictor and the outcome on the causal path removes part of the
+   very effect you are trying to see.
+
+<Quiz
+  id="q-controlling"
+  question="You are studying whether autonomy predicts performance, and you add engagement_t2 to the model as a control. Engagement is plausibly one of the ways autonomy improves performance. What have you done?"
+  choices={[
+    { text: 'Improved the model by removing a confounder', response: 'A confounder causes both the predictor and the outcome. Engagement here is caused by the predictor, which is a different animal.' },
+    { text: 'Removed part of the effect you were trying to measure, because you adjusted for a variable on the causal path', correct: true, response: 'Correct. Adjusting for a mediator answers "the effect of autonomy other than through engagement", which is rarely the question asked.' },
+    { text: 'Nothing: extra predictors are always safe', response: 'They are not. Which variables to adjust for is a question about causal structure, and no statistic in the output can answer it for you.' },
+    { text: 'Created multicollinearity, which invalidates the model', response: 'The correlation involved is nowhere near high enough for that, and the problem here is not collinearity but what the adjustment means.' },
+  ]}
+/>
+
+<Interpret
+  id="i-10-2"
+  question="Your model gives, for remote working, b = 1.87, SE = 0.52, t(476) = 3.60, p < .001, with autonomy and workload also in the model. Which sentence reports it correctly?"
+  choices={[
+    { text: 'Remote working caused a 1.87-point increase in wellbeing, b = 1.87, SE = 0.52, t(476) = 3.60, p < .001.', response: 'Employees were not assigned to remote working; they chose it or their role imposed it. The statistics are right and the verb is not.' },
+    { text: 'Controlling for autonomy and workload, remote employees reported higher wellbeing than office-based employees, b = 1.87, SE = 0.52, t(476) = 3.60, p < .001.', correct: true, response: 'Correct: the comparison is named, the reference group is explicit, and "reported higher" stays at the level the design supports.' },
+    { text: 'Remote working was significantly associated with wellbeing, p < .001.', response: 'A p value alone is not a report. The reader cannot tell the direction, the size or the precision from this sentence.' },
+    { text: 'Remote employees scored 1.87 points higher on wellbeing than office-based employees, b = 1.87, SE = 0.52, t(476) = 3.60, p < .001.', response: 'This drops the adjustment. 1.87 is the difference among employees matched on autonomy and workload, not the raw difference between the two groups.' },
+  ]}
+/>

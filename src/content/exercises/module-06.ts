@@ -104,6 +104,18 @@ export const module06: ExerciseDef[] = [
       'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- replicate(1000, mean(sample(population$stress, 100)))',
       'population <- read.csv("data/wellbeing-population.csv")\nset.seed(42)\nmeans <- sample(population$stress, 1000)',
     ],
+    alternateSolutions: [
+      // sapply() over the repetition index: the same loop, spelled out.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(42)\nmeans <- sapply(1:1000, function(i) mean(sample(population$stress, 10)))',
+      // A for loop into a pre-allocated vector, which is how a student who has
+      // not met replicate() will write it.
+      'population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(42)\nmeans <- numeric(1000)\nfor (i in 1:1000) means[i] <- mean(sample(population$stress, 10))',
+      // slice_sample() rather than sample(), on the data frame. Deliberately not
+      // a thousand dplyr pipelines: this draws all 10000 rows at once and takes
+      // the means group by group, which is the only tidyverse route fast enough
+      // to run a thousand times inside the validator.
+      'library(dplyr)\npopulation <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)\nset.seed(42)\nmeans <- population %>%\n  slice_sample(n = 10000, replace = TRUE) %>%\n  mutate(draw = rep(1:1000, each = 10)) %>%\n  group_by(draw) %>%\n  summarise(m = mean(stress)) %>%\n  pull(m)',
+    ],
     check: `
       if (!has_answer("means")) {
         list(pass = FALSE, message = "I could not find an object called means.")

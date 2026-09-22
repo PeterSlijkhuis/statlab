@@ -1,0 +1,108 @@
+You now have everything you need to produce a summary table. This lesson is
+about the moment where the table is right and the conclusion drawn from it is
+wrong.
+
+<CodeBlock id="setup" code={`library(dplyr)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## A table of means
+
+<CodeBlock id="means" code={`employees %>%
+  group_by(department) %>%
+  summarise(mean_wellbeing = mean(wellbeing), n = n()) %>%
+  arrange(desc(mean_wellbeing))`} />
+
+<Predict
+  id="p-engineering"
+  question="Engineering sits in the middle of that table. Which of these would you be willing to write in a report on the strength of it?"
+  choices={[
+    { text: 'Engineering employees have middling wellbeing compared with other departments', response: 'It is the natural reading, and it is the one this lesson is about to undermine. A mean is a single summary of a whole distribution.' },
+    { text: 'Nothing yet - a mean can sit mid-table for more than one reason', correct: true, response: 'Right. A middling mean can come from a middling department, or from a department where most people are doing well and a minority are doing very badly. Those call for completely different responses.' },
+    { text: 'Engineering is the healthiest department, because engineers have the most autonomy', response: 'That reasoning skips the data entirely. Whatever autonomy does, the table in front of you does not say this.' },
+  ]}
+/>
+
+## Add the median
+
+The **median** is the score in the middle when everyone is lined up: half the
+department is above it, half below. Unlike the mean, it does not care how far
+away the extremes are.
+
+<CodeBlock id="both" code={`employees %>%
+  group_by(department) %>%
+  summarise(
+    mean_wellbeing = mean(wellbeing),
+    median_wellbeing = median(wellbeing),
+    n = n()
+  ) %>%
+  arrange(desc(median_wellbeing))`} />
+
+Engineering has the **highest median wellbeing of the four departments**, and a
+mean that sits in the middle of the table. Both numbers are correct. They
+describe the same 128 people. They support opposite headlines.
+
+## Why the two disagree
+
+A mean sits below a median when a long tail pulls it down. So look at what the
+department is made of:
+
+<CodeBlock id="why" code={`employees %>%
+  group_by(department) %>%
+  summarise(
+    mean_workload = mean(workload),
+    mean_autonomy = mean(autonomy),
+    q10 = quantile(wellbeing, 0.10),
+    q90 = quantile(wellbeing, 0.90)
+  )`} />
+
+Engineering has the highest workload **and** the highest autonomy in the
+company. Autonomy lifts wellbeing and workload pushes it down, so the department
+contains both the best-off people in the company and a heavy tail of people who
+are not coping. The typical engineer is doing well — that is the median. The
+average engineer is dragged down by the tail — that is the mean.
+
+<CodeBlock id="tail" code={`cutoff <- quantile(employees$wellbeing, 0.10)
+
+employees %>%
+  group_by(department) %>%
+  summarise(in_bottom_tenth = sum(wellbeing < cutoff), n = n())`} />
+
+Count how many of each department fall in the worst-off tenth of the company.
+A department can hold more than its share of them and still have the highest
+typical score.
+
+<Exercise id="m3-3-a" />
+
+## What to do about it
+
+Three rules, and you will use all of them for the rest of the course.
+
+1. **Report both** when they disagree, and say which one your conclusion rests
+   on.
+2. **Look at the distribution**, not only at summaries of it. Module 4 draws
+   this department in one boxplot, and the shape is obvious in a second.
+3. **Say what the summary is of.** "Typical" and "average" are different claims
+   about different people.
+
+<Interpret
+  id="i-3-3"
+  question="You have to write one sentence about Engineering for a management report. Which is defensible on the summaries you have computed?"
+  choices={[
+    { text: 'Engineering has average wellbeing and needs no attention.', response: 'It rests on the mean alone and then adds a recommendation the data does not support. The tail is precisely the group that needs attention.' },
+    { text: 'Engineering has the highest median wellbeing of the four departments, but also a longer lower tail: its mean is pulled below Marketing by a minority of employees reporting very low scores.', correct: true, response: 'Correct. It names both summaries, says which people cause the gap between them, and makes a claim that someone could check against the data.' },
+    { text: 'Engineering has the highest wellbeing in the company.', response: 'True of the median and false of the mean, and the sentence does not say which it means. A reader will assume the average.' },
+    { text: 'The Engineering data are unreliable, because the mean and the median disagree.', response: 'The disagreement is information about the shape of the distribution, not evidence of bad data. Skewed distributions are normal and honest.' },
+  ]}
+/>
+
+<Quiz
+  id="q-3-3"
+  question="For which of these would the mean and the median of a column be closest to each other?"
+  choices={[
+    { text: 'Tenure in years, where most employees are new and a few have been there 30 years', response: 'That is a long right tail, which pulls the mean above the median. It is exactly the shape tenure_years has in this dataset.' },
+    { text: 'A wellbeing score with a roughly symmetric distribution and no extreme values', correct: true, response: 'Right. When the distribution is symmetric the two summaries land in almost the same place, and it does not much matter which you report.' },
+    { text: 'Annual salaries in a company with three very highly paid directors', response: 'Three extreme values move the mean and leave the median alone - the textbook example of why median income is reported rather than mean income.' },
+    { text: 'Any column with at least 400 values', response: 'Sample size does not make a distribution symmetric. A skewed column stays skewed however many rows you add.' },
+  ]}
+/>

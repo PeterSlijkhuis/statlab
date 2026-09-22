@@ -1,0 +1,114 @@
+A study finds that students who sleep seven hours or more score higher on the
+exam than students who sleep less. The gap is about six points. Before anyone
+can say whether that means anything, one question has to be answered:
+
+> **How big a gap would this study have produced if sleep made no difference at
+> all?**
+
+That is the entire logic of a hypothesis test, and everything else in this
+module is machinery for answering it.
+
+<CodeBlock id="study" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+population$sleep_group <- ifelse(population$sleep_hours >= 7, "7 or more", "under 7")
+
+set.seed(8241)
+study <- population[sample(nrow(population), 60), ]
+
+study %>%
+  group_by(sleep_group) %>%
+  summarise(mean_exam = mean(exam_score), sd_exam = sd(exam_score), n = n())`} />
+
+<CodeBlock id="observed" code={`observed <- mean(study$exam_score[study$sleep_group == "7 or more"]) -
+  mean(study$exam_score[study$sleep_group == "under 7"])
+
+observed`} />
+
+Keep that number. It is what actually happened, and it is not in dispute. The
+question is what to make of it.
+
+<Predict
+  id="p-null"
+  question="Suppose sleep genuinely had no effect on exam scores. What difference would you expect this study to find between the two groups?"
+  choices={[
+    { text: 'Exactly zero', response: 'Only on average, over many studies. Module 6 showed that any one sample lands near the truth rather than on it.' },
+    { text: 'Zero on average, but rarely zero in any one study', correct: true, response: 'Exactly. Sampling error puts a gap there even when nothing is going on, and the size of that gap is what we need to know.' },
+    { text: 'Something too unpredictable to say anything about', response: 'It is random, but its distribution is not a mystery - we can build it, and that is what the rest of the lesson does.' },
+  ]}
+/>
+
+## Building the null model
+
+Here is the trick. If sleep really made no difference, then which label a
+student carries — "7 or more" or "under 7" — would be irrelevant to their exam
+score. The labels would be interchangeable.
+
+So make them interchangeable. Shuffle the sixty exam scores across the sixty
+students, keep the labels where they are, and take the difference again. That is
+one study from a world where the null hypothesis is exactly true.
+
+<CodeBlock id="one-shuffle" code={`set.seed(3)
+shuffled <- sample(study$exam_score)
+
+mean(shuffled[study$sleep_group == "7 or more"]) -
+  mean(shuffled[study$sleep_group == "under 7"])`} />
+
+Not zero. Run it with another seed and you get a different not-zero. Do it two
+thousand times and you have the **null distribution**: every difference this
+study could have produced if sleep meant nothing.
+
+<CodeBlock id="null" code={`library(ggplot2)
+
+set.seed(81)
+null_diffs <- replicate(2000, {
+  shuffled <- sample(study$exam_score)
+  mean(shuffled[study$sleep_group == "7 or more"]) -
+    mean(shuffled[study$sleep_group == "under 7"])
+})
+
+tibble(difference = null_diffs) %>%
+  ggplot(aes(x = difference)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = observed, linetype = "dashed", linewidth = 1) +
+  labs(x = "Difference in mean exam score under the null", y = "Shuffles") +
+  theme_classic()`} />
+
+It is centred on zero, it is roughly normal — Module 6 said it would be — and
+the dashed line is what your study actually found. The whole of hypothesis
+testing is looking at that picture and asking how surprising the dashed line is.
+
+## What this distribution is, and is not
+
+- It is **not** the distribution of exam scores. It is the distribution of a
+  *difference between two means*, which is a much narrower thing.
+- It is **not** built from any assumption about sleep. It is built from the
+  assumption that sleep does not matter — which is the hypothesis being put on
+  trial, not one being believed.
+- A value in its far tail does **not** prove the null is false. It says the
+  result would be unusual if the null were true. Those are different statements,
+  and the next lesson is careful about the difference.
+
+<Exercise id="m8-1-a" />
+
+<Quiz
+  id="q-null"
+  question="Why are the exam scores shuffled rather than redrawn from the population?"
+  choices={[
+    { text: 'Because shuffling is faster than sampling', response: 'Speed is not the reason, and at this size neither is noticeably slow.' },
+    { text: 'Because it keeps the actual 60 scores and asks only whether the labels carry information', correct: true, response: 'Right. Shuffling holds everything about the data fixed except the one thing under test - which group each score belongs to.' },
+    { text: 'Because sampling from the population would be cheating, since we would be using data we do not have', response: 'A fair point about real research, but it is not the reason shuffling works. In a real study you have no population to draw from at all - and shuffling still works.' },
+    { text: 'Because the population is not normally distributed', response: 'The shuffling approach makes no normality assumption either way. That is one of its attractions, not a reason it is required here.' },
+  ]}
+/>
+
+<Interpret
+  id="i-8-1"
+  question="How should the null distribution you just built be described in a results section?"
+  choices={[
+    { text: 'Students sleeping seven hours or more scored higher (M = 76.4) than those sleeping less (M = 70.7). In 2000 random reallocations of the sleep labels, 1.3% of reallocations produced a difference at least this large in absolute value.', correct: true, response: 'Correct. It reports the observed means, names the procedure and the number of reallocations, and states the tail proportion as a property of the reallocations - not as a probability about the hypothesis.' },
+    { text: 'The null distribution shows that the observed difference was due to chance.', response: 'The null distribution shows what chance ALONE would produce. The observed difference sitting in its tail is evidence against that account, not for it.' },
+    { text: 'The null distribution of exam scores was approximately normal, centred on zero.', response: 'Exam scores centre on 73, not on zero. What centres on zero is the distribution of the DIFFERENCE between two group means under the null.' },
+    { text: 'Because the observed difference fell in the tail of the null distribution, the null hypothesis is false.', response: 'Falls in the tail means "would be unusual if the null were true". Unusual things happen; one study in twenty produces a tail result with no effect present at all.' },
+  ]}
+/>

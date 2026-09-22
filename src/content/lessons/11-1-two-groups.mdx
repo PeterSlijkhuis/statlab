@@ -1,0 +1,103 @@
+You have almost certainly been taught the independent-samples *t*-test as its own
+procedure, with its own formula and its own place in a flowchart. This lesson
+shows you that it is a linear model with one two-level predictor, and that R will
+give you the same *t* and the same *p* either way.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+d %>%
+  group_by(remote) %>%
+  summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())`} />
+
+Descriptives first, as always. Two groups, two means, two SDs and two group
+sizes: everything that follows is an answer to "is that gap bigger than sampling
+error would produce".
+
+<Predict
+  id="p-coef"
+  question="You are about to fit lm(wellbeing ~ remote). The model will have an intercept and one coefficient. What will the intercept be?"
+  choices={[
+    { text: 'The mean of all 480 employees', response: 'That would be true with sum-to-zero coding, which Module 12 uses. R\'s default is different.' },
+    { text: 'The mean of the office-based employees, because No is the first level', correct: true, response: 'Exactly. The intercept is the reference group\'s mean, and the coefficient is how far the other group sits from it.' },
+    { text: 'Zero, because remote is not a number', response: 'R turns the factor into a 0/1 column for you. The intercept is the prediction when that column is 0.' },
+    { text: 'The difference between the two means', response: 'That is the coefficient, not the intercept.' },
+  ]}
+/>
+
+## The model
+
+<CodeBlock id="c-fit" code={`model_remote <- lm(wellbeing ~ remote, data = d)
+
+model_remote %>% tidy()`} />
+
+Behind the scenes R built a column that is 0 for `No` and 1 for `Yes` — a **dummy
+variable** — and fitted the same straight line as Module 9. With x only ever 0 or
+1, the line has just two heights:
+
+- intercept = predicted wellbeing when the dummy is 0 = the office-based mean;
+- intercept + `remoteYes` = predicted wellbeing when the dummy is 1 = the remote mean.
+
+<CodeBlock id="c-means-match" code={`coef(model_remote)
+
+d %>%
+  group_by(remote) %>%
+  summarise(mean_wellbeing = mean(wellbeing)) %>%
+  mutate(from_model = c(coef(model_remote)[[1]], sum(coef(model_remote))))`} />
+
+## The same test under its old name
+
+<CodeBlock id="c-ttest" code={`t.test(wellbeing ~ remote, data = d, var.equal = TRUE)
+
+model_remote %>% tidy() %>% filter(term == "remoteYes")`} />
+
+Compare them number by number: the same *t* in size, the same degrees of freedom,
+the same *p*. Two details matter and both bite students:
+
+1. **`var.equal = TRUE` is required.** Without it `t.test()` runs Welch's test,
+   which estimates the two variances separately and will not match the model. The
+   numbers come out close, and close is not the same.
+2. **The sign flips.** `t.test(y ~ g)` computes the first level minus the second;
+   `lm` codes the second relative to the first. Same comparison, opposite
+   subtraction. Read the group means and you will never report it backwards.
+
+<Exercise id="m11-1-a" />
+
+<Exercise id="m11-1-b" />
+
+## Assumptions, and when to worry
+
+The model assumes similar spread in the two groups and roughly normal residuals.
+Look at the SDs you printed at the top: if one is more than about twice the
+other, and the groups are also unequal in size, the pooled test is the wrong
+tool and Welch's version is the honest one. Normality matters mainly at small
+*n*; with 480 employees the Central Limit Theorem from Module 6 covers moderate
+skew.
+
+For a small sample with clear skew or extreme outliers, the rank-based
+alternative is the Mann-Whitney test, `wilcox.test(wellbeing ~ remote, data = d)`
+— one line in the chooser, and not what this course teaches as its default.
+
+<Quiz
+  id="q-equivalence"
+  question="Why does this course teach lm() rather than t.test() for a two-group comparison?"
+  choices={[
+    { text: 'Because t.test() is outdated and no longer recommended', response: 'It is neither. It is a perfectly good function that answers one specific question.' },
+    { text: 'Because the same framework then extends to more groups, several predictors, covariates and interactions without learning a new procedure each time', correct: true, response: 'Right. The t-test is the end of its own road; lm() is the beginning of Modules 10 to 14.' },
+    { text: 'Because lm() makes fewer assumptions', response: 'The assumptions are identical - they are the same model.' },
+    { text: 'Because lm() gives a smaller p value', response: 'It gives exactly the same p value, which is the point of this lesson.' },
+  ]}
+/>
+
+<Interpret
+  id="i-11-1"
+  question="Your output gives office-based M = 62.41 (SD = 8.92, n = 298) and remote M = 64.28 (SD = 8.64, n = 182), with b = 1.87, SE = 0.83, t(478) = 2.25, p = .025. Which sentence reports it correctly in APA 7?"
+  choices={[
+    { text: 'Remote employees reported higher wellbeing (M = 64.28, SD = 8.64) than office-based employees (M = 62.41, SD = 8.92), b = 1.87, SE = 0.83, t(478) = 2.25, p = .025.', correct: true, response: 'Correct. The means and SDs come first, the direction is explicit, and the coefficient is the difference between those means.' },
+    { text: 'There was a significant difference between remote and office-based employees, t(478) = 2.25, p = .025.', response: 'No means, no SDs, no direction. A reader cannot tell which group was higher or by how much.' },
+    { text: 'Working remotely increased wellbeing by 1.87 points, t(478) = 2.25, p = .025.', response: 'Nobody was assigned to remote working, so "increased" claims more than the design supports.' },
+    { text: 'Remote employees reported higher wellbeing, t(478) = 2.25, p = .025, a large effect.', response: 'A difference of 1.87 points against SDs near 8.8 is about 0.21 SD - small. p does not measure effect size.' },
+  ]}
+/>
