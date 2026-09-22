@@ -4,13 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
 import { findLesson } from '../content/manifest';
-import TestChooser, { TREE, type Node } from './TestChooser';
+import ModelChooser, { TREE, type Node } from './ModelChooser';
 
 function renderChooser() {
   return render(
     <StrictMode>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <TestChooser />
+        <ModelChooser />
       </MemoryRouter>
     </StrictMode>,
   );
@@ -22,50 +22,58 @@ function heading() {
 
 // Written out by hand, not derived from TREE: a path that silently disappears
 // from the tree must fail here.
-const PATHS: { clicks: RegExp[]; model: string; code: string }[] = [
+const PATHS: { clicks: RegExp[]; model: string; code: string; lessonId: string }[] = [
   {
     clicks: [/^a number/i, /different people/i, /one continuous predictor/i],
     model: 'Simple linear regression',
     code: 'lm(outcome ~ predictor, data = d)',
+    lessonId: '09-2',
   },
   {
     clicks: [/^a number/i, /different people/i, /several predictors/i],
     model: 'Multiple linear regression',
     code: 'outcome ~ predictor1 + predictor2',
+    lessonId: '10-1',
   },
   {
     clicks: [/^a number/i, /different people/i, /with two groups/i],
     model: 'Linear model with a two-group predictor',
     code: 'group_by(group) %>% summarise(',
+    lessonId: '11-1',
   },
   {
     clicks: [/^a number/i, /different people/i, /three or more groups/i],
     model: 'Linear model with a categorical predictor',
     code: 'emmeans(model, pairwise ~ group, adjust = "tukey")',
+    lessonId: '11-2',
   },
   {
     clicks: [/^a number/i, /different people/i, /two grouping variables/i],
     model: 'Linear model with an interaction (factorial design)',
     code: 'contrasts = list(factor1 = contr.sum, factor2 = contr.sum)',
+    lessonId: '12-2',
   },
   {
     clicks: [/^a number/i, /measured more than once/i],
     model: 'Linear mixed-effects model',
     code: 'pivot_longer',
+    lessonId: '13-2',
   },
   {
     clicks: [/^a number/i, /teams, classes or sites/i],
     model: 'Linear mixed-effects model with a grouping factor',
     code: '(1 | site)',
+    lessonId: '13-3',
   },
   {
     clicks: [/^yes or no/i],
     model: 'Logistic regression',
     code: 'family = binomial',
+    lessonId: '14-2',
   },
 ];
 
-describe('TestChooser', () => {
+describe('ModelChooser', () => {
   test('lands on the first question under the page title', () => {
     renderChooser();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Which model should I use?');
@@ -78,7 +86,7 @@ describe('TestChooser', () => {
       await userEvent.click(screen.getByRole('button', { name }));
     }
     expect(heading().textContent).toBe(model);
-    expect(document.querySelector('.test-chooser-answer pre code')?.textContent).toContain(code);
+    expect(document.querySelector('.model-chooser-answer pre code')?.textContent).toContain(code);
     expect(screen.getByText('Check first:')).toBeTruthy();
   });
 
@@ -156,7 +164,53 @@ describe('TestChooser', () => {
     await userEvent.click(screen.getByRole('button', { name: /start over/i }));
 
     expect(heading().textContent).toMatch(/what kind of outcome/i);
-    expect(document.querySelector('.test-chooser-trail')).toBeNull();
+    expect(document.querySelector('.model-chooser-trail')).toBeNull();
     expect(document.activeElement).toBe(heading());
+  });
+});
+
+describe('leaf links', () => {
+  test.each(PATHS)('$model links to lesson $lessonId', async ({ clicks, lessonId }) => {
+    renderChooser();
+    for (const name of clicks) {
+      await userEvent.click(screen.getByRole('button', { name }));
+    }
+    const link = screen.getByRole('link', { name: /go to the lesson/i });
+    expect(link.getAttribute('href')).toBe(`/lesson/${lessonId}`);
+  });
+
+  test('every leaf of the tree links to a lesson', () => {
+    // Spec 4.2: the chooser "links each leaf to the lesson that teaches it".
+    // A leaf with no lessonId is a dead end for the student who reached it.
+    const answers: Extract<Node, { kind: 'answer' }>[] = [];
+    (function walk(node: Node) {
+      if (node.kind === 'answer') answers.push(node);
+      else node.options.forEach((option) => walk(option.next));
+    })(TREE);
+
+    expect(answers.length).toBe(PATHS.length);
+    for (const answer of answers) {
+      expect(answer.lessonId, `${answer.model} has no lessonId`).toBeDefined();
+    }
+  });
+
+  test('every lessonId resolves to a lesson a student can open', () => {
+    // findLesson reads MODULES, which holds a module only once all its lesson
+    // files exist. This test therefore also proves Modules 9 to 14 are complete.
+    (function walk(node: Node) {
+      if (node.kind === 'answer') {
+        if (node.lessonId) {
+          expect(findLesson(node.lessonId), `${node.model} -> ${node.lessonId}`).toBeDefined();
+        }
+        return;
+      }
+      node.options.forEach((option) => walk(option.next));
+    })(TREE);
+  });
+
+  test('the link names the lesson it goes to', async () => {
+    renderChooser();
+    await userEvent.click(screen.getByRole('button', { name: /^yes or no/i }));
+    expect(screen.getByRole('link', { name: /go to the lesson: glm and log odds/i })).toBeTruthy();
   });
 });

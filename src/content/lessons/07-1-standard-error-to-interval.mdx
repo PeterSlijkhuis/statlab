@@ -1,0 +1,107 @@
+Module 6 finished with a formula: the standard error of the mean is **σ/√n**.
+It also quietly cheated. We had all 5000 students, so σ was there for the
+taking. No real study has that. You have one sample, you have no idea what σ is,
+and you still have to say how precise your estimate is.
+
+This lesson is about what you do instead, and what it costs.
+
+<CodeBlock id="study" code={`library(dplyr)
+
+population <- read.csv("data/wellbeing-population.csv", stringsAsFactors = TRUE)
+
+set.seed(2607)
+study <- population[sample(nrow(population), 50), ]
+
+study %>% summarise(mean_exam = mean(exam_score), sd_exam = sd(exam_score), n = n())`} />
+
+From here on, pretend the `population` object does not exist. You have `study`:
+fifty students, a mean, and a standard deviation. Everything must be built from
+those.
+
+## s in place of σ
+
+The substitution is the obvious one. You cannot have σ, so you use `s`, the
+standard deviation of your own fifty students, and the standard error becomes
+**s/√n**.
+
+<CodeBlock id="se" code={`sample_mean <- mean(study$exam_score)
+se_mean <- sd(study$exam_score) / sqrt(nrow(study))
+
+sample_mean
+se_mean`} />
+
+Two numbers that do different jobs, and confusing them is the single most common
+error in this module:
+
+- **`sd(study$exam_score)`** says how much *students* differ from each other. It
+  is a fact about people, and collecting more of them does not shrink it.
+- **`se_mean`** says how much the *sample mean* would differ from study to
+  study. It is a fact about the procedure, and it shrinks as √n grows.
+
+<Exercise id="m7-1-a" />
+
+<Predict
+  id="p-price"
+  question="You estimated the SD from 50 students rather than knowing it. What should that cost you?"
+  choices={[
+    { text: 'Nothing, because 50 is a reasonably large sample', response: 'It costs something at every n. The cost is small at 50 and large at 5, but it is never zero.' },
+    { text: 'A slightly wider interval, to allow for the fact that s is itself uncertain', correct: true, response: 'Exactly. The t distribution has heavier tails than the normal, which pushes the multiplier above 1.96.' },
+    { text: 'A narrower interval, because the sample SD is smaller than the population SD', response: 'It is not systematically smaller, and uncertainty never buys you precision.' },
+  ]}
+/>
+
+## Why t, and not 1.96
+
+Module 5 found 1.96: the point with 2.5 per cent of a normal curve beyond it.
+That number is correct when you *know* σ. When you have estimated it, the right
+curve is Student's **t** with `n − 1` degrees of freedom — same shape, fatter
+tails — and its 97.5th percentile is bigger.
+
+<CodeBlock id="tvsz" code={`qnorm(0.975)            # if sigma were known
+qt(0.975, df = 49)      # 50 students, sigma estimated
+qt(0.975, df = 9)       # 10 students
+qt(0.975, df = 4)       # 5 students`} />
+
+At 50 students the penalty is 2.01 against 1.96 — about 2.5 per cent wider. At
+five students it is 2.78, and the interval is forty per cent wider. The smaller
+your sample, the less you know about how variable your data are, and the more
+you pay for that ignorance.
+
+## The interval
+
+The estimate, plus and minus a multiple of its standard error.
+
+<CodeBlock id="ci" code={`ci_95 <- sample_mean + c(-1, 1) * qt(0.975, df = nrow(study) - 1) * se_mean
+ci_95
+
+# t.test() computes the same interval, which is worth knowing
+# because that is where you will usually read it off.
+t.test(study$exam_score)$conf.int`} />
+
+> **Change the sample size.** Go back to the `study` block, change `50` to
+> `200`, and run everything again. The interval should be about half as wide,
+> because the standard error fell by √4.
+
+<Exercise id="m7-1-b" />
+
+<Quiz
+  id="q-se-sd"
+  question="A journal asks you to report 'the variability of exam scores in your sample'. Which number do you give?"
+  choices={[
+    { text: 'The standard error, because it is the more precise quantity', response: 'It is smaller, which is not the same as more appropriate. The standard error describes the mean, not the students.' },
+    { text: 'The standard deviation, because the question is about how much students differ', correct: true, response: 'Right. SD describes the data; SE describes the estimate. The question asked about the data.' },
+    { text: 'Either, since they differ only by a constant', response: 'They differ by √n, which is not a constant across studies, and they answer different questions.' },
+    { text: 'The confidence interval, because it contains both', response: 'A CI is a statement about the population mean. It says nothing directly about how spread out the students are.' },
+  ]}
+/>
+
+<Interpret
+  id="i-7-1"
+  question="Your study of 50 students gave M = 73.9, SD = 12.1, and a 95% confidence interval of [70.5, 77.3]. Which sentence reports it correctly?"
+  choices={[
+    { text: 'Mean exam score was 73.9 (SD = 12.1, n = 50), 95% CI [70.5, 77.3]. The interval was produced by a procedure that captures the population mean in 95% of studies.', correct: true, response: 'Correct. It reports the estimate, its spread, its sample size and the interval, and locates the 95% in the procedure rather than in this one interval.' },
+    { text: 'There is a 95% chance that the population mean lies between 70.5 and 77.3.', response: 'The population mean is a fixed number: it is either in this interval or it is not. The 95% describes how often the method works, not this interval. The next lesson is entirely about this sentence.' },
+    { text: '95% of students scored between 70.5 and 77.3.', response: 'That would need the SD, not the SE. With SD = 12.1, the middle 95% of students spans roughly 50 to 98 - far wider.' },
+    { text: 'The sample mean of 73.9 is accurate to within 3.4 points.', response: '"Accurate to within" claims a guarantee the interval does not give. One study in twenty produces an interval that misses the population mean entirely.' },
+  ]}
+/>

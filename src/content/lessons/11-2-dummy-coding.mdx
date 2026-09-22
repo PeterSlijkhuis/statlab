@@ -1,0 +1,106 @@
+Two groups needed one dummy variable. Four groups need three, and understanding
+which three is the difference between reading your own output and guessing at it.
+
+<CodeBlock id="c-load" code={`library(dplyr)
+library(broom)
+
+d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+levels(d$department)
+
+d %>%
+  group_by(department) %>%
+  summarise(mean_wellbeing = mean(wellbeing), sd_wellbeing = sd(wellbeing), n = n())`} />
+
+R orders factor levels alphabetically unless you tell it otherwise, so the
+reference here is **Engineering**. Nothing about Engineering makes it the natural
+baseline; it simply sorts first. If a different department is the sensible
+comparison for your research question, say so with
+`relevel(d$department, ref = "Sales")` and report which one you chose.
+
+<Predict
+  id="p-count"
+  question="How many coefficients will lm(wellbeing ~ department) produce for four departments?"
+  choices={[
+    { text: 'Four, one per department', response: 'That would be one too many: with an intercept as well, the model could not tell them apart.' },
+    { text: 'Three, plus an intercept', correct: true, response: 'Right - k levels cost k - 1 coefficients. The missing one is the reference, and the intercept carries it.' },
+    { text: 'One, because department is one variable', response: 'One variable, but three dummy columns. A factor is not a single slope.' },
+    { text: 'Five, one per department plus an intercept', response: 'Five parameters cannot be estimated from four group means. The model would be unidentifiable.' },
+  ]}
+/>
+
+## The model
+
+<CodeBlock id="c-fit" code={`model_dept <- lm(wellbeing ~ department, data = d)
+
+model_dept %>% tidy()`} />
+
+Read that table carefully, because every row means something different from what
+a beginner expects:
+
+- **`(Intercept)`** is Engineering's mean. Not the grand mean, not a baseline in
+  any deeper sense — one group's mean.
+- **`departmentMarketing`** is Marketing's mean **minus Engineering's**. The *t*
+  and *p* beside it test that one comparison, not Marketing against everybody.
+- There is no `departmentEngineering` row. Its comparison with itself would be
+  zero.
+
+<CodeBlock id="c-rebuild" code={`b <- coef(model_dept)
+
+data.frame(
+  department = levels(d$department),
+  from_model = c(b[[1]], b[[1]] + b[[2]], b[[1]] + b[[3]], b[[1]] + b[[4]]),
+  observed = as.vector(tapply(d$wellbeing, d$department, mean))
+)`} />
+
+Four coefficients, four group means, nothing lost. A one-factor linear model is
+the group means written in a different coordinate system.
+
+<Exercise id="m11-2-a" />
+
+## The overall test
+
+The three *t*s test three specific comparisons with Engineering. To ask whether
+department matters **at all** you need one test of all three coefficients at
+once — which is the model *F* from Module 10, and which is what a one-way ANOVA
+reports.
+
+<CodeBlock id="c-f" code={`model_dept %>% glance() %>% select(r.squared, statistic, df, df.residual, p.value)
+
+summary(aov(wellbeing ~ department, data = d))`} />
+
+Same *F*, same degrees of freedom, same *p*. "One-way ANOVA" is the traditional
+name for the *F* test of a linear model with one factor, and if a supervisor asks
+for one, this is it.
+
+## When the mean is the wrong summary
+
+<Exercise id="m11-2-b" />
+
+The model you just fitted compares **means**, because that is what least squares
+does. When a group's distribution is skewed or pulled apart at both ends, its
+mean and its typical member part company, and the model will faithfully report a
+difference in means that no employee would recognise. Report the medians beside
+the means whenever they disagree, and say which one your conclusion rests on.
+
+<Quiz
+  id="q-reference"
+  question="You refit the model after relevel(d$department, ref = 'Support'). What changes?"
+  choices={[
+    { text: 'The overall F and R-squared change', response: 'Neither moves. Recoding a factor rewrites the same fitted values in different coordinates.' },
+    { text: 'The coefficients and their p values change, because they now compare each department with Support', correct: true, response: 'Correct - and the model fit, the fitted values and the residuals are all identical.' },
+    { text: 'Nothing changes at all', response: 'The coefficient table changes completely. Only the fit is invariant.' },
+    { text: 'The model becomes invalid because Support is not alphabetically first', response: 'Any level can be the reference. Alphabetical is a default, not a rule.' },
+  ]}
+/>
+
+<Interpret
+  id="i-11-2"
+  question="For the four-department model you have F(3, 476) = 9.84, p < .001, R-squared = .058; the Marketing coefficient is b = -1.22, SE = 1.12, t = -1.09, p = .276. Which reading is correct?"
+  choices={[
+    { text: 'Wellbeing differed across departments, F(3, 476) = 9.84, p < .001, R-squared = .058. Marketing did not differ significantly from the reference department, Engineering, b = -1.22, SE = 1.12, t(476) = -1.09, p = .276.', correct: true, response: 'Correct. The omnibus test and the single comparison are reported separately, and the comparison names its reference group.' },
+    { text: 'Marketing employees have the same wellbeing as Engineering employees, p = .276.', response: 'A non-significant comparison is not evidence of equality. The confidence interval here spans roughly -3.4 to +1.0, which is not "the same".' },
+    { text: 'Department explains 5.8 % of wellbeing, and Marketing is the worst department, b = -1.22.', response: 'R-squared is a share of variance, not of wellbeing, and one non-significant coefficient relative to one reference group does not rank the four departments.' },
+    { text: 'Wellbeing differed across departments, F(3, 476) = 9.84, p < .001, so every department differs from every other.', response: 'The omnibus F says at least one difference exists somewhere. Which ones is the question lesson 11-3 answers.' },
+  ]}
+/>

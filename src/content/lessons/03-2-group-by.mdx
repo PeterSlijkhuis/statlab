@@ -1,0 +1,95 @@
+A single mean for 480 employees answers almost no question anyone asks. The
+questions people actually ask are comparisons: do remote employees report higher
+wellbeing than office-based ones, and is Engineering really worse off than
+Sales?
+
+Each of those is the same summary, computed once per group.
+
+<CodeBlock id="setup" code={`library(dplyr)
+
+employees <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)`} />
+
+## group_by() then summarise()
+
+`group_by()` changes nothing by itself. It attaches a note to the table saying
+"from here on, work inside each department separately", and the next verb obeys
+it.
+
+<CodeBlock id="group" code={`employees %>%
+  group_by(department) %>%
+  summarise(mean_wellbeing = mean(wellbeing))`} />
+
+Four rows instead of one, and the grouping column came along so you can tell
+which is which.
+
+<Predict
+  id="p-groups"
+  question="You group by site instead, and the company has six sites. How many rows does summarise() return?"
+  choices={[
+    { text: '480, one per employee', response: 'That is what the grouped table still holds internally, but summarise() collapses each group to a single row.' },
+    { text: '6, one per site', correct: true, response: 'Yes. One row per group, always - which means the number of rows tells you how many groups you asked for.' },
+    { text: '1, because summarise() always returns one row', response: 'Ungrouped it does. Grouped, it returns one row per group, and that is the whole trick.' },
+  ]}
+/>
+
+## A summary worth reading
+
+Add the SD and the group size, then sort.
+
+<CodeBlock id="full" code={`employees %>%
+  group_by(department) %>%
+  summarise(
+    mean_wellbeing = mean(wellbeing),
+    sd_wellbeing = sd(wellbeing),
+    n = n()
+  ) %>%
+  arrange(desc(mean_wellbeing))`} />
+
+Read the SD column beside the means. The departments differ by a few points on
+average, and individuals within each department differ by far more than that.
+Keeping both numbers in view is what stops a small difference between groups
+from sounding like a big one.
+
+## n() knows about the grouping; nrow() does not
+
+<CodeBlock id="n-trap" code={`employees %>%
+  group_by(department) %>%
+  summarise(with_n = n(), with_nrow = nrow(employees))`} />
+
+`n()` counts the rows of the group it is called in. `nrow(employees)` reaches
+outside and counts the whole company, four times. Nothing errors; the column is
+simply wrong, and a reader who trusts it concludes that every department has 480
+people.
+
+<Exercise id="m3-2-a" />
+
+## Two groups
+
+The same machinery answers a two-group question, and the difference between the
+two means is the quantity every test in Part 2 is really about.
+
+<CodeBlock id="remote" code={`employees %>%
+  group_by(remote) %>%
+  summarise(
+    mean_wellbeing = mean(wellbeing),
+    sd_wellbeing = sd(wellbeing),
+    n = n()
+  )`} />
+
+Before you read anything into the gap: it is a description of these 480 people.
+Whether it says anything about employees in general is a different question, and
+Modules 7 and 8 exist to answer it. Module 11 fits exactly this comparison as a
+model and gets the same two means back.
+
+<Exercise id="m3-2-b" />
+
+<Quiz
+  id="q-3-2"
+  question="A pipeline reads group_by(department, remote) %>% summarise(m = mean(wellbeing)). How many rows come back, with four departments and two levels of remote?"
+  choices={[
+    { text: '4, because department is the first grouping variable', response: 'Every grouping variable counts. The second one splits each department in two.' },
+    { text: '6, four departments plus two remote levels', response: 'Groups multiply rather than add: each department is split by remote, not listed beside it.' },
+    { text: '8, one per combination that occurs in the data', correct: true, response: 'Right - four departments times two levels. A combination that no employee has would simply be absent, so you always check the row count against what you expected.' },
+    { text: '480, because two grouping variables cancel out', response: 'Grouping never returns the original rows. summarise() always collapses each group to one row.' },
+  ]}
+/>

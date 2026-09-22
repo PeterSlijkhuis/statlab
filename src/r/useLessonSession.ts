@@ -1,15 +1,27 @@
 import { useEffect, useState } from 'react';
 import type { RObject, WebR } from 'webr';
 import { createLessonEnv, destroyEnv } from './environments';
-import { fetchDataset, prepareSession } from './session';
+import { ensurePackages, fetchDataset, prepareSession } from './session';
 import { getWebR, setStatus } from './webrClient';
 
+/** What the hook needs from a lesson: its identity, and what it must attach. */
+export type SessionLesson = { id: string; packages?: string[] };
+
 /**
- * Owns one R environment for the page identified by `key`: created once the
- * session is prepared, destroyed when `key` changes or the page unmounts.
- * Pass null to hold no environment (for example, an unknown lesson id).
+ * Owns one R environment for the page identified by `lesson.id`: created once
+ * the session is prepared and the lesson's declared packages are installed,
+ * destroyed when the id changes or the page unmounts. Pass null to hold no
+ * environment (for example, an unknown lesson id).
  */
-export function useLessonSession(key: string | null): { webR: WebR | null; env: RObject | null } {
+export function useLessonSession(
+  lesson: SessionLesson | null,
+): { webR: WebR | null; env: RObject | null } {
+  // The effect keys on the id alone. A manifest entry's `packages` is a new
+  // array literal on every render, so keying on the object or the array would
+  // rebuild the lesson environment on every render and discard the student's
+  // objects mid-lesson.
+  const key = lesson ? lesson.id : null;
+  const packages = lesson?.packages;
   const [webR, setWebR] = useState<WebR | null>(null);
   const [env, setEnv] = useState<RObject | null>(null);
 
@@ -23,6 +35,9 @@ export function useLessonSession(key: string | null): { webR: WebR | null; env: 
       try {
         const instance = await getWebR();
         await prepareSession(instance, fetchDataset);
+        if (packages?.length) {
+          await ensurePackages(instance, packages);
+        }
         const lessonEnv = await createLessonEnv(instance);
         if (!live) {
           await destroyEnv(instance, lessonEnv);
