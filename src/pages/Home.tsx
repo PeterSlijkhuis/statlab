@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Credits from '../components/Credits';
 import Logo from '../components/Logo';
 import { ALL_LESSONS, findLesson, MODULES } from '../content/manifest';
 import { PARTS } from '../content/parts';
@@ -128,6 +129,8 @@ export default function Home() {
           </label>
         </div>
       </section>
+
+      <Credits />
     </div>
   );
 }
