@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { findLesson } from '../content/manifest';
-import { ON_DEMAND_PACKAGES } from '../r/session';
-import { allAnswers, follow, packagesIn, packagesMissingHere, pathTo, SHIPS_WITH_R, type Answer } from './modelTree';
+import { allAnswers, follow, GROUPS, packagesDownloaded, packagesMissingHere, pathTo, SHIPS_WITH_R, type Answer } from './modelTree';
 
 export { TREE, type Answer, type Node } from './modelTree';
 
@@ -35,14 +34,14 @@ function list(names: string[]): string {
 }
 
 /** Where the snippet runs, and what it takes to get there. */
-function WhereItRuns({ answer }: { answer: Answer }) {
+export function WhereItRuns({ answer }: { answer: Answer }) {
   const missing = packagesMissingHere(answer);
   if (missing.length === 0) {
-    const installs = packagesIn(answer.rCode).filter((name) => (ON_DEMAND_PACKAGES as readonly string[]).includes(name));
+    const installs = packagesDownloaded(answer);
     return (
       <p>
         <strong>Where to run it:</strong> in the <Link to="/workspace">R Workspace</Link>, once d holds your data.
-        {installs.length > 0 && ` The first run installs ${list(installs)}, which takes a moment.`}
+        {installs.length > 0 && ` The first run downloads ${list(installs)}, which takes a moment.`}
       </p>
     );
   }
@@ -123,29 +122,81 @@ function AnswerCard({ answer }: { answer: Answer }) {
   );
 }
 
-/** Every answer, grouped, so a student can browse instead of answering questions. */
+type Filter = 'all' | 'taught' | 'beyond';
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'taught', label: 'Taught in this course' },
+  { id: 'beyond', label: 'Beyond this course' },
+];
+
+/** Lowercase and without accents, so "Kaplan" finds "Kaplan-Meier" and "cronbach" finds "Cronbach's". */
+const fold = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/**
+ * Every answer as a card, in sections that follow the order of the questions,
+ * so a student who already knows what they need can go straight to it.
+ */
 function Index({ onPick }: { onPick: (id: string) => void }) {
-  const groups = useMemo(() => {
-    const byGroup = new Map<string, Answer[]>();
-    for (const { answer, group } of allAnswers()) byGroup.set(group, [...(byGroup.get(group) ?? []), answer]);
-    return [...byGroup];
-  }, []);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const entries = useMemo(() => allAnswers(), []);
+
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const shown = entries.filter(({ answer }) => {
+    if (filter === 'taught' && !answer.lessonId) return false;
+    if (filter === 'beyond' && answer.lessonId) return false;
+    const haystack = fold(`${answer.model} ${answer.when} ${answer.traditional ?? ''} ${answer.check}`);
+    return words.every((word) => haystack.includes(word));
+  });
+  const sections = GROUPS.map((group) => ({ ...group, answers: shown.filter((entry) => entry.group === group.name).map((entry) => entry.answer) })).filter(
+    (section) => section.answers.length > 0,
+  );
 
   return (
-    <section className="model-chooser-index" aria-labelledby="model-chooser-index-title">
-      <h2 id="model-chooser-index-title">Every model on this page</h2>
-      <p>Already know what you need? Jump straight to it.</p>
-      {groups.map(([group, answers]) => (
-        <div key={group}>
-          <h3>{group}</h3>
-          <ul>
-            {answers.map((answer) => (
-              <li key={answer.id}>
-                <button type="button" className="link-button" onClick={() => onPick(answer.id)}>
+    <section className="model-index" aria-labelledby="model-index-title">
+      <div className="model-index-head">
+        <h2 id="model-index-title">Browse all {entries.length} models</h2>
+        <p>Already know what you need? Search by name, or by the test you know it as.</p>
+      </div>
+      <div className="model-index-tools">
+        <label className="model-index-search">
+          <span className="visually-hidden">Search the models</span>
+          <svg aria-hidden="true" viewBox="0 0 20 20" width="18" height="18">
+            <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M13 13l4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search, for example t-test or mediation" />
+        </label>
+        <div className="model-index-filters" role="group" aria-label="Show">
+          {FILTERS.map((option) => (
+            <button key={option.id} type="button" aria-pressed={filter === option.id} onClick={() => setFilter(option.id)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {sections.length === 0 && <p className="model-index-empty">No model matches. Try another word, or answer the questions above.</p>}
+
+      {sections.map((section) => (
+        <div key={section.name} className="model-index-section">
+          <h3>
+            {section.name} <span className="model-index-count">{section.answers.length}</span>
+          </h3>
+          <p className="model-index-blurb">{section.blurb}</p>
+          <ul className="model-cards">
+            {section.answers.map((answer) => (
+              <li key={answer.id} className={`model-card ${answer.lessonId ? 'taught' : 'beyond'}`}>
+                <button type="button" onClick={() => onPick(answer.id)}>
                   {answer.model}
-                </button>{' '}
-                <span className="model-chooser-index-tags">
-                  {answer.lessonId ? 'taught' : 'beyond the course'}, {packagesMissingHere(answer).length ? 'RStudio' : 'R Workspace'}
+                </button>
+                <span className="model-card-when">{answer.when}</span>
+                <span className="model-card-tags">
+                  <span className={`model-badge ${answer.lessonId ? 'taught' : 'beyond'}`}>
+                    {answer.lessonId ? `Taught, lesson ${answer.lessonId}` : 'Beyond the course'}
+                  </span>
+                  {packagesMissingHere(answer).length > 0 && <span className="model-badge rstudio">Needs RStudio</span>}
                 </span>
               </li>
             ))}
@@ -202,17 +253,20 @@ export default function ModelChooser() {
               <li key={label}>{label}</li>
             ))}
           </ol>
-          <button type="button" onClick={() => go(path.slice(0, -1))} className="link-button">
-            Back
-          </button>{' '}
-          <button type="button" onClick={() => go([])} className="link-button">
-            Start over
-          </button>
+          <div className="model-chooser-trail-actions">
+            <button type="button" onClick={() => go(path.slice(0, -1))}>
+              Back
+            </button>
+            <button type="button" onClick={() => go([])}>
+              Start over
+            </button>
+          </div>
         </nav>
       )}
 
       {node.kind === 'question' ? (
         <>
+          <p className="model-chooser-step">Question {path.length + 1}</p>
           <h2 ref={headingRef} tabIndex={-1}>
             {node.text}
           </h2>
