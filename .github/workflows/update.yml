@@ -1,0 +1,142 @@
+name: Weekly update
+
+# Once a week, move webR to its newest release and every npm package to its
+# newest version within the ranges in package.json, then run the same checks as
+# the deploy, lessons in real R included. The update lands on main only if every
+# check passes; anything else opens an issue and main stays as it was.
+#
+# The checks run even when nothing needs updating: students install R packages
+# from webR's live repository, so a lesson can break without any change here.
+#
+# Major versions (React, Vite, React Router and so on) are left to a person,
+# because they can need code changes. The commit is authored as the owner.
+
+on:
+  schedule:
+    # Mondays at 05:17 UTC, off the hour when scheduled runs queue up.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      # Push the update to main.
+      contents: write
+      # Start the deploy: a push made with this token does not trigger workflows.
+      actions: write
+      # Open, update and close the failure issue.
+      issues: write
+    env:
+      CI: true
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_TITLE: Weekly update failed
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Update webR and the npm packages
+        id: bump
+        run: |
+          current=$(node -p "require('./package.json').dependencies.webr")
+          latest=$(npm view webr version)
+          if [ "$current" != "$latest" ]; then
+            # webR stays pinned exactly: the site loads the runtime for this
+            # version from the CDN, so the two must match.
+            npm pkg set "dependencies.webr=$latest"
+          fi
+          # npm 10 crashes resolving vitest's optional peer dependencies during an
+          # update; npm 11 does not. Only the lockfile is written here.
+          npx --yes npm@11 update --package-lock-only --ignore-scripts
+          node scripts/dependency-changes.mjs > "$RUNNER_TEMP/changes.txt"
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing to update." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            { echo "Updates:"; echo; sed 's/^/- /' "$RUNNER_TEMP/changes.txt"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The install also reapplies the Windows path fix to webR's worker
+      # (scripts/patch-webr.mjs), and stops here if a new webR no longer fits it.
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Validate content statically
+        run: npm run validate:static
+      - name: Check the workplace dataset's built-in effects
+        run: npm run check:data
+      - name: Unit tests
+        run: npx vitest run --exclude '**/*.itest.ts'
+      - name: Validate content against real R
+        timeout-minutes: 45
+        run: npm run validate:r
+      - run: npx playwright install --with-deps chromium
+      - name: Smoke test the built site in a real browser
+        timeout-minutes: 20
+        run: npx playwright test
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+      - name: Land the update on main and deploy it
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          summary=$(head -n 3 "$RUNNER_TEMP/changes.txt" | paste -sd ',' - | sed 's/,/, /g')
+          [ -n "$summary" ] || summary="indirect packages only"
+          export GIT_AUTHOR_NAME="Peter Slijkhuis" GIT_AUTHOR_EMAIL="peter@slijkhuis.one"
+          export GIT_COMMITTER_NAME="Peter Slijkhuis" GIT_COMMITTER_EMAIL="peter@slijkhuis.one"
+          git add package.json package-lock.json
+          git commit --quiet --file - <<EOF
+          Update dependencies: $summary
+
+          $(cat "$RUNNER_TEMP/changes.txt")
+          EOF
+          git push origin HEAD:main
+          gh workflow run deploy.yml --ref main
+
+      - name: Close the failure issue
+        if: success()
+        run: |
+          for n in $(gh issue list --state open --search "\"$ISSUE_TITLE\" in:title" --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "The weekly update passed again: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          done
+
+      - name: Report the failure
+        if: failure()
+        run: |
+          run="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            echo "The weekly update failed, so nothing was changed on main and the site keeps running the last version that passed."
+            echo
+            if [ -s "$RUNNER_TEMP/changes.txt" ]; then
+              echo "It was trying these updates:"
+              echo
+              sed 's/^/- /' "$RUNNER_TEMP/changes.txt"
+            else
+              echo "No package changed, so the cause is outside this repository, most likely an R package in webR's repository."
+            fi
+            echo
+            echo "The failing step is in the run log: $run"
+            echo
+            echo "This issue closes itself when a later weekly run passes."
+          } > "$RUNNER_TEMP/issue.md"
+          existing=$(gh issue list --state open --search "\"$ISSUE_TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/issue.md"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/issue.md"
+          fi

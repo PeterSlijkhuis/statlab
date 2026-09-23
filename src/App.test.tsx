@@ -21,7 +21,7 @@ vi.mock('./r/session', async (importOriginal) => ({
 describe('app boot', () => {
   test('starts and prepares the R session on first load, before any lesson opens', async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <App />
       </MemoryRouter>,
     );

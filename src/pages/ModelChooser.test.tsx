@@ -18,7 +18,7 @@ function Location() {
 function renderChooser(url = '/which-model') {
   return render(
     <StrictMode>
-      <MemoryRouter initialEntries={[url]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={[url]}>
         <ModelChooser />
         <Location />
       </MemoryRouter>

@@ -1,6 +1,12 @@
 import { WebR } from 'webr';
+import { dependencies } from '../../package.json';
 
-export const WEBR_VERSION = 'v0.6.0';
+/**
+ * The webR release in package.json, so bumping it there is the only edit. The
+ * npm package and the runtime on the CDN must be the same release, which is
+ * why package.json pins it exactly.
+ */
+export const WEBR_VERSION = `v${dependencies.webr}`;
 export const WEBR_BASE_URL = `https://webr.r-wasm.org/${WEBR_VERSION}/`;
 
 export type RStatus = {

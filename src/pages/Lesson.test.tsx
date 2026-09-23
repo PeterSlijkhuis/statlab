@@ -86,10 +86,7 @@ function NavigateButton() {
 
 function Harness({ initialPath, withNav }: { initialPath: string; withNav?: boolean }) {
   return (
-    <MemoryRouter
-      initialEntries={[initialPath]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialPath]}>
       {withNav && <NavigateButton />}
       <Routes>
         <Route path="/lesson/:lessonId" element={<Lesson />} />

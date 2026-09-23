@@ -1,15 +1,25 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { WEBR_BASE_URL, WEBR_VERSION } from './webrClient';
 
 vi.mock('webr');
 
+/** The version npm installed (Vitest runs from the repository root). */
+const installed = JSON.parse(
+  readFileSync('node_modules/webr/package.json', 'utf8'),
+).version as string;
+
 describe('webR version pin', () => {
-  test('pins an explicit version', () => {
-    expect(WEBR_VERSION).toBe('v0.6.0');
+  test('pins an exact version, not a range', () => {
+    expect(WEBR_VERSION).toMatch(/^v\d+\.\d+\.\d+$/);
+  });
+
+  test('the CDN runtime matches the installed npm package', () => {
+    expect(WEBR_VERSION).toBe(`v${installed}`);
   });
 
   test('base URL targets the pinned version, never latest', () => {
-    expect(WEBR_BASE_URL).toBe('https://webr.r-wasm.org/v0.6.0/');
+    expect(WEBR_BASE_URL).toBe(`https://webr.r-wasm.org/v${installed}/`);
     expect(WEBR_BASE_URL).not.toContain('latest');
   });
 
@@ -78,9 +88,10 @@ describe('singleton and retry', () => {
     const { WebR } = await import('webr');
     const MockedWebR = vi.mocked(WebR);
     const mockInit = vi.fn().mockResolvedValue(undefined);
-    MockedWebR.mockImplementation(() => ({
-      init: mockInit,
-    } as any));
+    // A function, not an arrow: webrClient calls it with `new`.
+    MockedWebR.mockImplementation(function () {
+      return { init: mockInit } as any;
+    });
 
     const { getWebR } = await import('./webrClient');
 
@@ -97,9 +108,10 @@ describe('singleton and retry', () => {
     const { WebR } = await import('webr');
     const MockedWebR = vi.mocked(WebR);
     const mockInit = vi.fn().mockResolvedValue(undefined);
-    MockedWebR.mockImplementation(() => ({
-      init: mockInit,
-    } as any));
+    // A function, not an arrow: webrClient calls it with `new`.
+    MockedWebR.mockImplementation(function () {
+      return { init: mockInit } as any;
+    });
 
     const { getWebR, WEBR_BASE_URL } = await import('./webrClient');
 
@@ -115,9 +127,10 @@ describe('singleton and retry', () => {
       .mockRejectedValueOnce(new Error('init failed'))
       .mockResolvedValueOnce(undefined);
 
-    MockedWebR.mockImplementation(() => ({
-      init: mockInit,
-    } as any));
+    // A function, not an arrow: webrClient calls it with `new`.
+    MockedWebR.mockImplementation(function () {
+      return { init: mockInit } as any;
+    });
 
     const { getWebR, getStatus } = await import('./webrClient');
 

@@ -14,7 +14,7 @@
     "validate:r": "vitest run src/content/exercises/validate.itest.ts",
     "validate": "npm run check:data && npm run validate:static && npm run validate:r",
     "e2e": "playwright test",
-    "postinstall": "patch-package"
+    "postinstall": "node scripts/patch-webr.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -26,7 +26,7 @@
     "codemirror": "^6.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.30.0",
+    "react-router-dom": "^7.18.4",
     "webr": "0.6.0"
   },
   "devDependencies": {
@@ -40,10 +40,12 @@
     "@types/react-dom": "^18.3.6",
     "@vitejs/plugin-react": "^4.4.1",
     "jsdom": "^26.1.0",
-    "patch-package": "^8.0.1",
     "remark-gfm": "^4.0.1",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.1.3"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "react-data-grid": "7.0.0-beta.47"
   }
 }

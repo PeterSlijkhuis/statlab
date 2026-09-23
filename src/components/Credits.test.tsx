@@ -27,7 +27,7 @@ describe('Credits', () => {
   // link never sees it, so the credit has to be on every page.
   test('shows at the foot of the sidebar, which every page has', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Sidebar />
       </MemoryRouter>,
     );

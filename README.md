@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="https://github.com/PeterSlijkhuis/statlab/actions/workflows/deploy.yml"><img alt="Deploy status" src="https://github.com/PeterSlijkhuis/statlab/actions/workflows/deploy.yml/badge.svg?branch=main"></a>
-  <img alt="webR 0.6.0" src="https://img.shields.io/badge/webR-0.6.0-276DC3?logo=r&logoColor=white">
+  <img alt="webR version" src="https://img.shields.io/github/package-json/dependency-version/PeterSlijkhuis/statlab/webr?label=webR&logo=r&logoColor=white&color=276DC3">
   <img alt="React 18 and TypeScript" src="https://img.shields.io/badge/React_18-TypeScript-3178C6?logo=typescript&logoColor=white">
 </p>
 
@@ -156,7 +156,7 @@ linear-model part has a real effect to find.
 You need Node 22 or newer.
 
 ```bash
-npm ci        # install, and apply patches/webr+0.6.0.patch
+npm ci        # install, and apply the webR fix in scripts/patch-webr.mjs
 npm run dev   # start the development server
 ```
 
@@ -226,6 +226,25 @@ pull request and every push to `main`:
 Anything red in the first two jobs blocks the deploy. The live site is at
 **https://peterslijkhuis.github.io/statlab/**.
 
+### Weekly updates
+
+[`update.yml`](.github/workflows/update.yml) runs every Monday, and on demand
+from the Actions tab. It moves webR to its newest release and every npm package
+to its newest version within the ranges in `package.json`, then runs all the
+checks above, lessons in real R included. If everything passes it commits the
+update to `main` as the owner and starts the deploy. If anything fails, `main`
+is left alone and the run opens an issue titled "Weekly update failed", which
+closes itself once a later run passes.
+
+It runs the checks even when nothing needs updating, because students install
+R packages from webR's live repository and a lesson can break without any
+change here. Major versions (React, Vite, React Router) are left to a person,
+since they can need code changes.
+
+The site never loads "the newest R" by itself: webR is pinned to one exact
+version, and the browser loads the runtime for that version from the CDN. A new
+release reaches students only after the validator has run every lesson on it.
+
 Two settings live outside the repository:
 
 - **Pages must deploy from GitHub Actions** (Settings, then Pages, then Source).
@@ -236,13 +255,15 @@ Two settings live outside the repository:
 Vite is configured with `base: '/statlab/'` and the router uses the same
 basename. Both are needed, or the deployed site renders blank.
 
-### The webR patch
+### The webR fix
 
-`patches/webr+0.6.0.patch` is applied by `patch-package` on install. It makes
-one change to webR's worker: the Node code path wraps a resolved filesystem path
-in `pathToFileURL` before importing it, because Node's ESM loader rejects a
-Windows path such as `C:\...`. It affects only Node, where the content validator
-runs, not the browser.
+[`scripts/patch-webr.mjs`](scripts/patch-webr.mjs) runs after every install. It
+makes one change to webR's worker: the Node code path wraps a resolved
+filesystem path in `pathToFileURL` before importing it, because Node's ESM
+loader rejects a Windows path such as `C:\...`. It affects only Node, where the
+content validator runs, not the browser. It finds the code by pattern rather
+than by line, so it survives a webR upgrade; if a new release changes that
+code, the install stops with a message saying so.
 
 ## Project layout
 
