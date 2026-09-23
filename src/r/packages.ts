@@ -94,6 +94,9 @@ export const NOT_IN_BROWSER: Record<string, string> = {
  */
 export const TIDYVERSE_CORE = ['dplyr', 'readr', 'forcats', 'stringr', 'ggplot2', 'tibble', 'lubridate', 'tidyr', 'purrr'] as const;
 
+/** Part of R itself: always there, in the browser too. */
+export const BASE_PACKAGES = ['base', 'compiler', 'datasets', 'grDevices', 'graphics', 'grid', 'methods', 'parallel', 'splines', 'stats', 'stats4', 'tcltk', 'tools', 'utils'];
+
 export const RECOMMENDED_NAMES: readonly string[] = [...new Set(RECOMMENDED.flatMap((group) => group.packages.map((p) => p.name)))];
 
 /**
@@ -105,7 +108,7 @@ export const RECOMMENDED_NAMES: readonly string[] = [...new Set(RECOMMENDED.flat
 export type BrowserSupport = 'installed' | 'recommended' | 'unavailable' | 'unknown';
 
 export function browserSupport(name: string): BrowserSupport {
-  if ((CORE_PACKAGES as readonly string[]).includes(name)) return 'installed';
+  if ((CORE_PACKAGES as readonly string[]).includes(name) || BASE_PACKAGES.includes(name)) return 'installed';
   if (name in NOT_IN_BROWSER) return 'unavailable';
   if ((KNOWN_PACKAGES as readonly string[]).includes(name) || RECOMMENDED_NAMES.includes(name) || name === 'tidyverse') return 'recommended';
   return 'unknown';
@@ -204,6 +207,16 @@ export async function installPackageShims(webR: WebR, env: RObject): Promise<voi
       }
 
       parent.env(target) <- shims
+
+      # WebAssembly R cannot count CPU cores, so detectCores() returns NA, and
+      # packages that size a thread pool from it, lavaan among them, stop.
+      # One core is the truth in a browser.
+      if (is.na(parallel::detectCores())) local({
+        ns <- asNamespace("parallel")
+        unlockBinding("detectCores", ns)
+        assign("detectCores", function(...) 1L, envir = ns)
+        lockBinding("detectCores", ns)
+      })
       invisible()
     })(environment(), ${rNamed(Object.entries(NOT_IN_BROWSER))}, ${`c(${TIDYVERSE_CORE.map(rString).join(', ')})`})`,
     { env },

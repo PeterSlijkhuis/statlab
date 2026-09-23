@@ -175,7 +175,7 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     if (!webR) return;
     const wanted = packagesIn(code)
       .flatMap((name) => (name === 'tidyverse' ? [...TIDYVERSE_CORE] : [name]))
-      .filter((name) => browserSupport(name) !== 'unavailable');
+      .filter((name) => browserSupport(name) === 'recommended' || browserSupport(name) === 'unknown');
     if (!wanted.length) return;
     try {
       await ensurePackages(webR, wanted);

@@ -129,7 +129,11 @@ Each lesson is written in MDX from a small set of blocks:
 Alongside the lessons there is an **R playground** and a **"Which model should I
 use?"** guide at `/which-model` (the old `/which-test` address redirects there),
 which walks from the design of a study to `lm`, `lmer` or `glm` and links to the
-lesson that covers each case. Progress is kept in the browser's `localStorage`
+lesson that covers each case. The playground has RStudio's panes, including a
+Packages pane: `install.packages()` and `library()` fetch any package from webR's
+repository (most of CRAN, built for the browser), so a student installs nothing
+on their own computer, and the pane says which packages cannot run in a browser.
+The script editor has RStudio's Tab completion and shortcuts. Progress is kept in the browser's `localStorage`
 and can be exported and imported as JSON from the home page.
 
 Two fictional, generated datasets carry the course: a population of 5000

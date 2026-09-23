@@ -129,6 +129,28 @@ describe('Workspace', () => {
     expect((input as HTMLTextAreaElement).value).toBe('mean(1:10)');
   });
 
+  test("installs a course modelling package the code asks for, then runs it", async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(emmeans){Enter}');
+    await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
+    expect(pkgs.ensurePackages).toHaveBeenCalledWith(webR, ['emmeans']);
+    expect(pkgs.ensurePackages.mock.invocationCallOrder[0]).toBeLessThan(r.runInConsole.mock.invocationCallOrder[0]);
+  });
+
+  test('installs nothing for code that names no modelling package', async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(dplyr){Enter}');
+    await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
+    expect(pkgs.ensurePackages).not.toHaveBeenCalled();
+  });
+
+  test('a failed download still runs the code, so R can say what went wrong', async () => {
+    pkgs.ensurePackages.mockRejectedValue(new Error('Could not install car. Check your connection and try again.'));
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'car::Anova(model){Enter}');
+    await waitFor(() => ran('car::Anova(model)'));
+  });
+
   test('an unfinished line waits for the rest instead of running', async () => {
     r.parseStatements.mockResolvedValue({ kind: 'incomplete' });
     renderWorkspace();
