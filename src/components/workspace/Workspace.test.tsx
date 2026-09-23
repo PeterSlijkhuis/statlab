@@ -12,7 +12,19 @@ const r = vi.hoisted(() => ({
   clearObjects: vi.fn(),
 }));
 
+const pkgs = vi.hoisted(() => ({
+  installPackageShims: vi.fn(),
+  listPackages: vi.fn(),
+  ensurePackages: vi.fn(),
+}));
+
 vi.mock('../../r/workspace', async (original) => ({ ...(await original<typeof import('../../r/workspace')>()), ...r }));
+vi.mock('../../r/packages', async (original) => ({
+  ...(await original<typeof import('../../r/packages')>()),
+  installPackageShims: pkgs.installPackageShims,
+  listPackages: pkgs.listPackages,
+}));
+vi.mock('../../r/session', async (original) => ({ ...(await original<typeof import('../../r/session')>()), ensurePackages: pkgs.ensurePackages }));
 vi.mock('../../state/uploadStore', () => ({
   saveStoredFile: async () => {},
   deleteStoredFile: async () => {},
@@ -42,16 +54,26 @@ beforeEach(() => {
   r.listFiles.mockResolvedValue([{ name: 'data', folder: true, bytes: 0 }]);
   r.parseStatements.mockResolvedValue({ kind: 'ok', ranges: [[1, 1], [2, 2]] });
   r.runInConsole.mockResolvedValue({ lines: [], images: [], errored: false, requests: [] });
+  Object.values(pkgs).forEach((fn) => fn.mockReset());
+  pkgs.installPackageShims.mockResolvedValue(undefined);
+  pkgs.ensurePackages.mockResolvedValue(undefined);
+  pkgs.listPackages.mockResolvedValue([
+    { name: 'dplyr', version: '1.1.4', title: 'A Grammar of Data Manipulation', attached: false, base: false },
+    { name: 'stats', version: '4.6.0', title: 'The R Stats Package', attached: true, base: true },
+    { name: 'mnormt', version: '2.1.1', title: 'The Multivariate Normal and t Distributions', attached: false, base: false },
+  ]);
 });
+
+const ran = (code: string) => expect(r.runInConsole).toHaveBeenCalledWith(webR, env, code, expect.anything(), expect.any(Number));
 
 describe('Workspace', () => {
   test("has RStudio's four panes", () => {
     renderWorkspace(false);
-    for (const name of ['Source', 'Console', 'Environment and History', 'Files, Plots and Help']) {
+    for (const name of ['Source', 'Console', 'Environment and History', 'Files, Plots, Packages and Help']) {
       expect(screen.getByRole('region', { name })).toBeTruthy();
     }
     expect(screen.getByRole('tab', { name: 'script.R' }).getAttribute('aria-selected')).toBe('true');
-    for (const tab of ['Environment', 'History', 'Files', 'Plots', 'Help']) {
+    for (const tab of ['Environment', 'History', 'Files', 'Plots', 'Packages', 'Help']) {
       expect(screen.getByRole('tab', { name: tab })).toBeTruthy();
     }
   });
@@ -187,5 +209,64 @@ describe('Workspace', () => {
     expect(within(show).getByRole('button', { name: 'Source' }).getAttribute('aria-pressed')).toBe('true');
     await userEvent.click(sourceButton('Run'));
     await waitFor(() => expect(within(show).getByRole('button', { name: 'Console' }).getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  test('Packages lists the recommended ones, and Install runs install.packages() in the console', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const pane = screen.getByRole('tabpanel', { name: 'Packages' });
+    await waitFor(() => expect(pane.textContent).toContain('1.1.4'));
+    // Installed already: a version, not a button.
+    expect(within(pane).queryByRole('button', { name: 'Install dplyr' })).toBeNull();
+    // Recommended but not installed yet.
+    await userEvent.click(within(pane).getByRole('button', { name: 'Install psych' }));
+    await waitFor(() => ran('install.packages("psych")'));
+    // A package R has that is not on the list still shows, as in RStudio.
+    expect(pane.textContent).toContain('mnormt');
+    expect(pane.textContent).toContain('System library');
+  });
+
+  test('ticking a package loads it with library(), unticking detaches it', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Load dplyr' }));
+    await waitFor(() => ran('library(dplyr)'));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Load stats' }));
+    await waitFor(() => ran('detach("package:stats", unload = TRUE)'));
+  });
+
+  test('Install takes any package names the student types', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const pane = screen.getByRole('tabpanel', { name: 'Packages' });
+    await userEvent.click(within(pane).getByRole('button', { name: 'Install' }));
+    await userEvent.type(within(pane).getByRole('textbox', { name: /Packages/ }), 'lavaan, "semTools"{Enter}');
+    await waitFor(() => ran('install.packages(c("lavaan", "semTools"))'));
+  });
+
+  test('says which packages cannot run in the browser, and why', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const list = screen.getByText('Packages that cannot run in the browser').closest('details')!;
+    expect(list.textContent).toContain('xlsx');
+    expect(list.textContent).toContain('Java');
+    expect(list.textContent).toContain('shiny');
+  });
+
+  test('a package the script names is fetched before the run, so the status pill can show it', async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(psych){Enter}');
+    await waitFor(() => ran('library(psych)'));
+    expect(pkgs.ensurePackages).toHaveBeenCalledWith(webR, ['psych']);
+  });
+
+  test('Open replaces the script with one from the computer', async () => {
+    renderWorkspace();
+    const picker = screen.getByLabelText('Open a script file') as HTMLInputElement;
+    // jsdom's File has no text(); every browser the site supports does.
+    const script = Object.assign(new File([''], 'analysis.R', { type: 'text/plain' }), { text: async () => 'y <- 2\r\ny * 3\r\n' });
+    await userEvent.upload(picker, script);
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('y <- 2\ny * 3'));
   });
 });

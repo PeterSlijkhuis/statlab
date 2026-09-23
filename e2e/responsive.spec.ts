@@ -59,7 +59,7 @@ for (const [name, viewport] of [
         ['Source', 'Source'],
         ['Console', 'Console'],
         ['Environment', 'Environment and History'],
-        ['Files', 'Files, Plots and Help'],
+        ['Files', 'Files, Plots, Packages and Help'],
       ]) {
         await show.getByRole('button', { name: button }).click();
         const box = await page.getByRole('region', { name: region }).boundingBox();
@@ -98,7 +98,7 @@ test.describe('on a desktop', () => {
     const source = await page.getByRole('region', { name: 'Source' }).boundingBox();
     const console = await page.getByRole('region', { name: 'Console' }).boundingBox();
     const environment = await page.getByRole('region', { name: 'Environment and History' }).boundingBox();
-    const files = await page.getByRole('region', { name: 'Files, Plots and Help' }).boundingBox();
+    const files = await page.getByRole('region', { name: 'Files, Plots, Packages and Help' }).boundingBox();
     // Source top left, Console under it, Environment top right, Files under that.
     expect(console!.y).toBeGreaterThan(source!.y);
     expect(environment!.x).toBeGreaterThan(source!.x);

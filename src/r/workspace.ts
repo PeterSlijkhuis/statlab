@@ -261,3 +261,67 @@ export async function previewData(webR: WebR, env: RObject, name: string, limit 
   const cells = Array.from({ length: shown }, (_, row) => columns.map((_, col) => values[col * shown + row] ?? ''));
   return { rows, columns, cells, shown };
 }
+
+export type Completion = { label: string; type: 'function' | 'variable' | 'property' | 'namespace' | 'file' | 'folder' };
+
+/**
+ * What RStudio's Tab completion would offer, found by R in the student's
+ * environment. `token` is what is typed so far: `mea`, `df$ag` or `dplyr::fil`.
+ * `call` is the function whose parentheses the cursor is in, so its argument
+ * names come first, and `path` is a file path typed inside quotes.
+ */
+export async function completions(
+  webR: WebR,
+  env: RObject,
+  request: { token: string; call?: string; path?: string },
+): Promise<Completion[]> {
+  const rows = await webR.evalRRaw(
+    `(function(e, token, call, path) {
+      starts <- function(x, prefix) x[startsWith(x, prefix)]
+      # paste0(character(0), "/") is "/", not empty, so every suffix is added here, after the length check.
+      row <- function(label, type, suffix = "") if (length(label)) paste0(label, suffix, "\\t", type) else character(0)
+      if (!is.na(path)) {
+        dir <- if (grepl("/", path)) sub("/[^/]*$", "", path) else "."
+        f <- starts(list.files(dir, all.files = FALSE), sub("^.*/", "", path))
+        is_dir <- dir.exists(file.path(dir, f))
+        return(c(row(f[is_dir], "folder", "/"), row(f[!is_dir], "file")))
+      }
+      if (grepl("[$]", token)) {
+        obj <- sub("[$][^$]*$", "", token)
+        # Only names, never a call: completing must not run the student's code.
+        if (!grepl("^[A-Za-z.][A-Za-z0-9._]*([$][A-Za-z.][A-Za-z0-9._]*)*$", obj)) return(character(0))
+        x <- tryCatch(eval(parse(text = obj), envir = e), error = function(err) NULL)
+        n <- if (is.list(x) || is.environment(x)) names(x) else NULL
+        return(row(starts(n, sub("^.*[$]", "", token)), "property"))
+      }
+      if (grepl("::", token)) {
+        pkg <- sub(":::?.*$", "", token)
+        if (!length(find.package(pkg, quiet = TRUE))) return(character(0))
+        n <- sort(starts(getNamespaceExports(pkg), sub("^.*::", "", token)))
+        return(row(utils::head(n, 200), "function"))
+      }
+      out <- character(0)
+      if (!is.na(call)) {
+        if (call %in% c("library", "require", "requireNamespace", "install.packages")) {
+          out <- c(out, row(starts(rownames(utils::installed.packages()), token), "namespace"))
+        }
+        f <- tryCatch(get(call, envir = e, mode = "function"), error = function(err) NULL)
+        a <- if (is.null(f)) NULL else names(formals(if (is.primitive(f)) args(f) else f))
+        out <- c(out, row(setdiff(starts(a, token), "..."), "property", " = "))
+      }
+      if (!nzchar(token)) return(out)
+      mine <- starts(ls(e), token)
+      attached <- unique(unlist(lapply(search(), function(s) starts(ls(s), token)), use.names = FALSE))
+      pkgs <- if (grepl("^[A-Za-z]", token)) starts(loadedNamespaces(), token) else character(0)
+      found <- utils::head(unique(c(mine, sort(setdiff(attached, mine)))), 150)
+      fun <- vapply(found, function(n) exists(n, envir = e, mode = "function"), logical(1))
+      c(out, row(found[fun], "function"), row(found[!fun], "variable"), row(pkgs, "namespace", "::"))
+    })(environment(), ${rString(request.token)}, ${request.call ? rString(request.call) : 'NA_character_'}, ${request.path !== undefined ? rString(request.path) : 'NA_character_'})`,
+    'string[]',
+    { env },
+  );
+  return rows.map((row) => {
+    const [label, type] = row.split('\t');
+    return { label, type: type as Completion['type'] };
+  });
+}

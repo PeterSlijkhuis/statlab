@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createLessonEnv } from './environments';
 import {
   clearObjects,
+  completions,
   helpText,
   listFiles,
   listObjects,
@@ -119,5 +120,41 @@ describe('the panes', () => {
     expect(text).toContain('Usage:');
     expect(await helpText(webR, env, 'stats::sd')).toContain('Standard Deviation');
     expect(await helpText(webR, env, 'no_such_topic_here')).toBeNull();
+  });
+});
+
+describe('completions', () => {
+  const labels = async (request: Parameters<typeof completions>[2]) => (await completions(webR, env, request)).map((c) => c.label);
+
+  test("offer the student's own objects first, then functions from attached packages", async () => {
+    await webR.evalRVoid('scores_2024 <- data.frame(age = 1:3, agency = 4:6, name = "a")', { env });
+    const found = await completions(webR, env, { token: 'scor' });
+    expect(found[0]).toEqual({ label: 'scores_2024', type: 'variable' });
+    expect(await labels({ token: 'summ' })).toContain('summary');
+  });
+
+  test("offer a data frame's columns after $", async () => {
+    expect(await labels({ token: 'scores_2024$ag' })).toEqual(['age', 'agency']);
+  });
+
+  test('never run code to find columns', async () => {
+    await webR.evalRVoid('touched <- FALSE; touch <- function() { touched <<- TRUE; list(a = 1) }', { env });
+    expect(await labels({ token: 'touch()$' })).toEqual([]);
+    expect(await webR.evalRBoolean('touched', { env })).toBe(false);
+  });
+
+  test("offer a package's exports after ::, and a function's arguments inside its call", async () => {
+    expect(await labels({ token: 'stats::t.te' })).toEqual(['t.test']);
+    expect(await labels({ token: '', call: 'cor' })).toEqual(expect.arrayContaining(['x = ', 'y = ', 'method = ']));
+  });
+
+  test('offer files and folders inside quotes', async () => {
+    await webR.evalRVoid('dir.create("data", showWarnings = FALSE)');
+    const found = await completions(webR, env, { token: '', path: 'da' });
+    expect(found).toContainEqual({ label: 'data/', type: 'folder' });
+    // An empty folder offers nothing, not a stray "/".
+    await webR.evalRVoid('dir.create("empty", showWarnings = FALSE)');
+    expect(await labels({ token: '', path: 'empty/' })).toEqual([]);
+    expect(await labels({ token: 'zzzq' })).toEqual([]);
   });
 });
