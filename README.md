@@ -265,6 +265,12 @@ to work.
 StatLab was made by **dr. P.J.H. Slijkhuis** and **dr. V.d.C. Resendez Gomez**,
 based on materials provided by **dr. S.J. Watson**.
 
+<p>
+  <a href="https://www.utwente.nl/en/"><img src="src/assets/logos/utwente.png" alt="University of Twente" height="56"></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://bmslab.utwente.nl/"><img src="src/assets/logos/bmslab.png" alt="The BMS Lab" height="56"></a>
+</p>
+
 It is a project of the [University of Twente](https://www.utwente.nl/en/) and
 [The BMS Lab](https://bmslab.utwente.nl/). The same credit shows at the foot of
 the sidebar on every page of the site and at the bottom of the home page. The
