@@ -960,14 +960,14 @@ coef(cv, s = "lambda.1se")`,
               id: 'random-forest',
               model: 'Random forest',
               when: 'Enough data to learn complex, non-linear patterns and interactions, and accurate prediction matters more than a readable equation.',
-              rCode: `library(ranger)
+              rCode: `library(randomForest)
 set.seed(1)
-model <- ranger(outcome ~ ., data = d, importance = "permutation")
+model <- randomForest(outcome ~ ., data = d, importance = TRUE)
 model
-sort(model$variable.importance, decreasing = TRUE)`,
+sort(importance(model, type = 1)[, 1], decreasing = TRUE)`,
               check:
-                'Hundreds of cases or more. Missing values handled before fitting. For a yes-or-no or categorical outcome, make it a factor and ranger grows a classification forest.',
-              note: 'The OOB prediction error in the printout is measured on the cases each tree did not see, a built-in test on new data. Variable importance ranks predictors by how much accuracy drops when each is shuffled; it does not say in which direction a predictor works.',
+                'Hundreds of cases or more. No missing values: randomForest() stops on NA unless you add na.action = na.omit. For a yes-or-no or categorical outcome, make it a factor and it grows a classification forest.',
+              note: 'The printout reports error on the out-of-bag cases, the ones each tree did not see, which is a built-in test on new data. The importance line ranks predictors by how much accuracy drops when each is shuffled; it does not say in which direction a predictor works. The ranger package fits the same model faster on large data.',
               further: 'An Introduction to Statistical Learning, the chapter on tree-based methods, and Kuhn and Silge, Tidy Modeling with R (free online), for tuning and cross-validation.',
             },
           },
