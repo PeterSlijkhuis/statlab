@@ -7,7 +7,7 @@ import { r } from '@codemirror/legacy-modes/mode/r';
 type Props = {
   value: string;
   onChange: (value: string) => void;
-  /** Read once, at mount: the playground adds its Run shortcuts here. */
+  /** Read once, at mount: the R Workspace adds its Run shortcuts here. */
   extensions?: Extension[];
   /** Hands the editor to a parent that needs its selection or cursor. */
   viewRef?: { current: EditorView | null };

@@ -15,7 +15,7 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
   await expect(page.getByRole('log', { name: 'Console output' })).toContainText('stress', { timeout: 120_000 });
 });
 
-test('the playground works like RStudio: console, environment, plots and help', async ({ page }) => {
+test('the R Workspace works like RStudio: console, environment, plots and help', async ({ page }) => {
   await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
   const log = page.getByRole('log', { name: 'Console output' });
@@ -146,7 +146,7 @@ test('a ggplot2 plot renders to the canvas', async ({ page }) => {
   await expect(block.locator('.output-error')).toHaveCount(0);
 });
 
-test('a student uploads their own CSV in the playground and reads it', async ({ page }) => {
+test('a student uploads their own CSV in the R Workspace and reads it', async ({ page }) => {
   await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
 

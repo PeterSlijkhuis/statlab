@@ -42,7 +42,7 @@ for (const [name, viewport] of [
       await expect(nav).toBeHidden();
     });
 
-    test('the playground shows one RStudio pane at a time', async ({ page }) => {
+    test('the R Workspace shows one RStudio pane at a time', async ({ page }) => {
       // A tablet has room for all four, as the desktop test checks.
       test.skip(viewport.width > 640, 'wide enough for four panes');
       await page.goto('./workspace');
@@ -93,7 +93,7 @@ test.describe('on a desktop', () => {
     await expect(page.getByRole('button', { name: 'Lessons' })).toBeHidden();
   });
 
-  test("the playground shows RStudio's four panes side by side", async ({ page }) => {
+  test("the R Workspace shows RStudio's four panes side by side", async ({ page }) => {
     await page.goto('./workspace');
     const source = await page.getByRole('region', { name: 'Source' }).boundingBox();
     const console = await page.getByRole('region', { name: 'Console' }).boundingBox();
