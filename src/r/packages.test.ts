@@ -32,6 +32,7 @@ describe('the package catalogue', () => {
 
   test('tells the model chooser what runs in the playground', () => {
     expect(browserSupport('ggplot2')).toBe('installed');
+    expect(browserSupport('stats')).toBe('installed');
     expect(browserSupport('lme4')).toBe('recommended');
     expect(browserSupport('psych')).toBe('recommended');
     expect(browserSupport('brms')).toBe('unavailable');

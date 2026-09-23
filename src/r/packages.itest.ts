@@ -30,11 +30,12 @@ describe("webR's package repository", () => {
       `(function(wanted) {
         contrib <- sprintf("%s/bin/emscripten/contrib/%s", getOption("webr_pkg_repos"), sub("\\\\.[^.]+$", "", as.character(getRversion())))
         info <- utils::available.packages(contriburl = contrib)
+        if (!nrow(info)) stop("could not read the package list at ", contrib)
         deps <- tools::package_dependencies(wanted, db = info, which = c("Depends", "Imports", "LinkingTo"), recursive = TRUE)
         needed <- unique(c(wanted, unlist(deps, use.names = FALSE)))
         have <- c(rownames(info), rownames(utils::installed.packages()), "R")
         setdiff(needed, have)
-      })(${JSON.stringify([...RECOMMENDED_NAMES, ...TIDYVERSE_CORE])})`,
+      })(c(${[...RECOMMENDED_NAMES, ...TIDYVERSE_CORE].map((name) => JSON.stringify(name)).join(', ')}))`,
       'string[]',
     );
     expect(missing).toEqual([]);
@@ -63,6 +64,14 @@ describe('packages in the playground', () => {
     expect(result.errored).toBe(false);
     expect(text(result)).toContain('my_score');
     expect(text(result)).toContain('FALSE');
+  }, 300_000);
+
+  test('lavaan fits a model, although the browser cannot count its CPU cores', async () => {
+    const result = await run(
+      'library(lavaan)\nfit <- cfa("visual =~ x1 + x2 + x3", data = HolzingerSwineford1939)\nround(fitMeasures(fit, "cfi"), 2)',
+    );
+    expect(result.errored, text(result)).toBe(false);
+    expect(text(result)).toContain('cfi');
   }, 300_000);
 
   test('library(tidyverse) attaches the core tidyverse', async () => {
