@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { StrictMode } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
 import { findLesson } from '../content/manifest';
+import { DATASET_FILES } from '../r/session';
 import ModelChooser, { TREE, WhereItRuns, type Answer, type Node } from './ModelChooser';
 import { allAnswers, GROUPS as SECTIONS, packagesIn, packagesMissingHere } from './modelTree';
 
@@ -44,31 +46,31 @@ const YES_NO = [TO_OUTCOME, /^yes or no/i, /one per case/i];
 // Written out by hand, not derived from TREE: a path that silently disappears
 // from the tree must fail here.
 const PATHS: { clicks: RegExp[]; id: string; model: string; code: string; lessonId: string }[] = [
-  { clicks: [...INDEPENDENT, /compare the mean/i], id: 'mean-vs-value', model: 'Intercept-only linear model', code: 'lm(I(outcome - 70) ~ 1', lessonId: '08-3' },
-  { clicks: [...NUMERIC, /one numeric predictor/i], id: 'simple-regression', model: 'Simple linear regression', code: 'lm(outcome ~ predictor, data = d)', lessonId: '09-2' },
-  { clicks: [...NUMERIC, /several predictors/i], id: 'multiple-regression', model: 'Multiple linear regression', code: 'outcome ~ predictor1 + predictor2', lessonId: '10-1' },
-  { clicks: [...GROUPS, /with two groups/i], id: 'two-groups', model: 'Linear model with a two-group predictor', code: 'group_by(group) %>% summarise(', lessonId: '11-1' },
-  { clicks: [...GROUPS, /three or more groups/i], id: 'several-groups', model: 'Linear model with a categorical predictor', code: 'emmeans(model, pairwise ~ group, adjust = "tukey")', lessonId: '11-2' },
-  { clicks: [...GROUPS, /covariate/i], id: 'groups-with-covariate', model: 'Linear model with a group and a covariate', code: 'lm(outcome ~ covariate + group', lessonId: '10-2' },
-  { clicks: [...GROUPS, /two grouping variables/i], id: 'factorial', model: 'Linear model with an interaction (factorial design)', code: 'contrasts = list(factor1 = contr.sum, factor2 = contr.sum)', lessonId: '12-2' },
+  { clicks: [...INDEPENDENT, /compare the mean/i], id: 'mean-vs-value', model: 'Intercept-only linear model', code: 'lm(I(exam_score - 70) ~ 1', lessonId: '08-3' },
+  { clicks: [...NUMERIC, /one numeric predictor/i], id: 'simple-regression', model: 'Simple linear regression', code: 'lm(wellbeing ~ autonomy, data = d)', lessonId: '09-2' },
+  { clicks: [...NUMERIC, /several predictors/i], id: 'multiple-regression', model: 'Multiple linear regression', code: 'wellbeing ~ autonomy + workload + tenure_years', lessonId: '10-1' },
+  { clicks: [...GROUPS, /with two groups/i], id: 'two-groups', model: 'Linear model with a two-group predictor', code: 'group_by(remote) %>% summarise(', lessonId: '11-1' },
+  { clicks: [...GROUPS, /three or more groups/i], id: 'several-groups', model: 'Linear model with a categorical predictor', code: 'emmeans(model, pairwise ~ department, adjust = "tukey")', lessonId: '11-2' },
+  { clicks: [...GROUPS, /covariate/i], id: 'groups-with-covariate', model: 'Linear model with a group and a covariate', code: 'lm(engagement_t2 ~ engagement_t1 + training', lessonId: '10-2' },
+  { clicks: [...GROUPS, /two grouping variables/i], id: 'factorial', model: 'Linear model with an interaction (factorial design)', code: 'contrasts = list(training = contr.sum, mentoring = contr.sum)', lessonId: '12-2' },
   { clicks: [...REPEATED, /twice/i], id: 'before-after', model: 'Linear mixed-effects model for two time points', code: 'pivot_longer', lessonId: '13-3' },
-  { clicks: [...REPEATED, /three or more/i], id: 'repeated-measures', model: 'Linear mixed-effects model', code: 'score ~ time + (1 | id)', lessonId: '13-2' },
+  { clicks: [...REPEATED, /three or more/i], id: 'repeated-measures', model: 'Linear mixed-effects model', code: 'weight ~ time + (1 | Chick)', lessonId: '13-2' },
   { clicks: [...NUMBER, /teams, classes or sites/i], id: 'nested-groups', model: 'Linear mixed-effects model with a grouping factor', code: '(1 | site)', lessonId: '13-3' },
   { clicks: [...YES_NO, /numbers, groups or both/i], id: 'logistic-regression', model: 'Logistic regression', code: 'family = binomial', lessonId: '14-2' },
 ];
 
 /** Answers beyond the course, reached by the same clicks a student would make. */
 const BEYOND: { clicks: RegExp[]; id: string; code: string }[] = [
-  { clicks: [...NUMERIC, /curved/i], id: 'curved-relationship', code: 'poly(predictor, 2)' },
-  { clicks: [...NUMERIC, /moderator/i], id: 'continuous-moderation', code: 'predictor_c * moderator_c' },
+  { clicks: [...NUMERIC, /curved/i], id: 'curved-relationship', code: 'poly(sleep_hours, 2)' },
+  { clicks: [...NUMERIC, /moderator/i], id: 'continuous-moderation', code: 'workload_c * autonomy_c' },
   { clicks: [...GROUPS, /several outcomes/i], id: 'several-outcomes', code: 'manova(' },
-  { clicks: [...REPEATED, /also in different groups/i], id: 'time-by-group', code: 'time * group' },
-  { clicks: [...REPEATED, /different rates/i], id: 'growth-curve', code: '(time | id)' },
-  { clicks: [...REPEATED, /many items or stimuli/i], id: 'crossed-random-effects', code: '(1 | item)' },
+  { clicks: [...REPEATED, /also in different groups/i], id: 'time-by-group', code: 'time * training' },
+  { clicks: [...REPEATED, /different rates/i], id: 'growth-curve', code: '(Time | Chick)' },
+  { clicks: [...REPEATED, /many items or stimuli/i], id: 'crossed-random-effects', code: '(1 | lecturer)' },
   { clicks: [...YES_NO, /cross-table/i], id: 'cross-table', code: 'chisq.test(' },
   { clicks: [...YES_NO, /one proportion/i], id: 'proportion-vs-value', code: 'binom.test(' },
   { clicks: [TO_OUTCOME, /^yes or no/i, /more than once, or grouped/i], id: 'repeated-binary', code: 'glmer(' },
-  { clicks: [TO_OUTCOME, /^yes or no/i, /trials per row/i], id: 'successes-of-trials', code: 'cbind(correct, trials - correct)' },
+  { clicks: [TO_OUTCOME, /^yes or no/i, /trials per row/i], id: 'successes-of-trials', code: 'cbind(left, staff - left)' },
   { clicks: [TO_OUTCOME, /ordered categories/i], id: 'ordinal-regression', code: 'polr(' },
   { clicks: [TO_OUTCOME, /no order/i, /predicted from other variables/i], id: 'multinomial-regression', code: 'multinom(' },
   { clicks: [TO_OUTCOME, /no order/i, /one other categorical variable/i], id: 'cross-table', code: 'chisq.test(' },
@@ -76,12 +78,12 @@ const BEYOND: { clicks: RegExp[]; id: string; code: string }[] = [
   { clicks: [TO_OUTCOME, /a count of events/i, /start here/i], id: 'poisson-regression', code: 'family = poisson' },
   { clicks: [TO_OUTCOME, /a count of events/i, /overdispersion/i], id: 'negative-binomial', code: 'glm.nb(' },
   { clicks: [TO_OUTCOME, /a count of events/i, /more zeros/i], id: 'zero-inflated', code: 'zeroinfl(' },
-  { clicks: [TO_OUTCOME, /time until/i, /groups differ/i], id: 'survival-curves', code: 'survfit(Surv(time, event) ~ group' },
+  { clicks: [TO_OUTCOME, /time until/i, /groups differ/i], id: 'survival-curves', code: 'survfit(Surv(tenure_years, left_company) ~ remote' },
   { clicks: [TO_OUTCOME, /time until/i, /which predictors/i], id: 'cox-regression', code: 'coxph(' },
   { clicks: [/third variable/i, /mediator/i], id: 'mediation', code: 'indirect := a * b' },
   { clicks: [/third variable/i, /reliability/i], id: 'scale-reliability', code: 'psych::alpha(items)' },
-  { clicks: [/third variable/i, /factors I expect/i], id: 'confirmatory-factors', code: 'cfa(model, data = d)' },
-  { clicks: [/third variable/i, /theory of paths/i], id: 'structural-equation-model', code: 'sem(model, data = d)' },
+  { clicks: [/third variable/i, /factors I expect/i], id: 'confirmatory-factors', code: 'cfa(model, data = HolzingerSwineford1939)' },
+  { clicks: [/third variable/i, /theory of paths/i], id: 'structural-equation-model', code: 'sem(model, data = HolzingerSwineford1939)' },
   { clicks: [/boil down/i, /summary scores/i], id: 'principal-components', code: 'prcomp(' },
   { clicks: [/boil down/i, /traits behind them/i], id: 'exploratory-factors', code: 'factanal(' },
   { clicks: [/boil down/i, /clusters/i], id: 'cluster-analysis', code: 'kmeans(' },
@@ -298,6 +300,19 @@ describe('links and the index', () => {
 });
 
 describe('where each snippet runs', () => {
+  test('every snippet runs as pasted: it reads a course dataset, or says which built-in one it uses', () => {
+    for (const { answer } of allAnswers()) {
+      const file = DATASET_FILES.find((name) => answer.rCode.includes(`read.csv("data/${name}", stringsAsFactors = TRUE)`));
+      expect(file !== undefined || /^# .*(built into R|from [\w.]+:)/m.test(answer.rCode), answer.id).toBe(true);
+      if (!file) continue;
+      // Every d$column the snippet reads is in the file, or made by the snippet itself.
+      const header = readFileSync(`public/data/${file}`, 'utf8').split('\n')[0].split(',');
+      const mutated = [...answer.rCode.matchAll(/mutate\((.*)/g)].flatMap((match) => [...match[1].matchAll(/(\w+) = /g)].map((name) => name[1]));
+      const made = [...answer.rCode.matchAll(/d\$(\w+) <-/g)].map((match) => match[1]).concat(mutated);
+      for (const match of answer.rCode.matchAll(/d\$(\w+)/g)) expect([...header, ...made], answer.id).toContain(match[1]);
+    }
+  });
+
   test('packagesIn reads library() calls and :: prefixes', () => {
     expect(packagesIn('library(dplyr)\nlibrary( lavaan )\nx <- MASS::polr(y ~ x)\npsych::alpha(d)')).toEqual(['dplyr', 'lavaan', 'MASS', 'psych']);
   });
@@ -311,7 +326,7 @@ describe('where each snippet runs', () => {
     renderChooser();
     await clickThrough([...GROUPS, /three or more groups/i]);
     expect(card().getByText('Runs in the R Workspace')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'R Workspace' }).getAttribute('href')).toBe('/workspace');
+    expect(card().getByRole('link', { name: 'R Workspace' }).getAttribute('href')).toBe('/workspace');
     expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('The first run downloads emmeans');
   });
 
