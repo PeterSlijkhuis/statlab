@@ -360,12 +360,20 @@ references a name that is not registered.
 
 ## 7. Curriculum
 
-Fourteen modules in three parts. Datasets are original and fictional,
+Fourteen modules in three parts, opened by a Module 0 added on 2026-09-23 at
+the course owner's request. Datasets are original and fictional,
 psychology- and business-flavoured (§7.2).
+
+Module 0 exists because students arrive not knowing how to set up an R project
+or what R's symbols mean. It teaches desktop R and RStudio, which the browser
+cannot run, so its first lesson is guided reading with drawn figures, and its
+paths and symbols lessons are interactive like every other module. Its plan is
+`docs/superpowers/plans/2026-09-23-statlab-module-00-before-you-start.md`.
 
 | # | Module | Content | Simulation |
 |---|---|---|---|
 | | **Foundations** | | |
+| 0 | Before you start | R versus RStudio, the four panes, scripts versus console, RStudio Projects and a folder layout; the working directory, relative and absolute paths, `file.path()`; every symbol a beginner meets: `<-`, `=`, `==`, `!=`, comparisons, `&`, `\|`, `!`, `%in%`, `NA`, `[ ]`, `[[ ]]`, `$`, `{ }`, `::`, `\|>`, `%>%` and `~`, with a cheat sheet | |
 | 1 | First steps in R | Scripts and comments, objects, functions, help, packages and `library()` | |
 | 2 | Working with data | `read.csv(..., stringsAsFactors = TRUE)`, factors, the pipe `%>%`, `select`/`filter`/`mutate`, wide vs long with `pivot_longer` | |
 | 3 | Describing data | `group_by` + `summarise` (mean, SD, n), mean vs median, spotting surprises in summaries | |

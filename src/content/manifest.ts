@@ -23,11 +23,47 @@ export type ModuleMeta = {
 };
 
 /**
- * The curriculum as planned: spec §7, all fourteen modules, ids frozen.
- * A module appears in MODULES below only once every one of its lesson files
- * exists, so this list can be complete while the course is still being written.
+ * The curriculum as planned: spec §7, Module 0 and the fourteen modules after
+ * it, ids frozen. A module appears in MODULES below only once every one of its
+ * lesson files exists, so this list can be complete while the course is still
+ * being written.
  */
 export const PLANNED_MODULES: ModuleMeta[] = [
+  {
+    id: 'module-00',
+    number: 0,
+    title: 'Before you start',
+    lessons: [
+      {
+        id: '00-1',
+        title: 'R, RStudio and projects',
+        file: '00-1-rstudio-and-projects',
+        // Guided reading about desktop software the browser cannot run, so it
+        // completes on a visit, as any lesson without exercises does.
+        exercises: [],
+      },
+      {
+        id: '00-2',
+        title: 'Files, folders and paths',
+        file: '00-2-files-and-paths',
+        exercises: ['m0-2-a', 'm0-2-b'],
+      },
+      {
+        id: '00-3',
+        title: 'Symbols that store and compare',
+        file: '00-3-symbols-store-and-compare',
+        exercises: ['m0-3-a', 'm0-3-b'],
+      },
+      {
+        id: '00-4',
+        title: 'Symbols that pick and pipe',
+        file: '00-4-symbols-pick-and-pipe',
+        exercises: ['m0-4-a', 'm0-4-b'],
+        // Core, so no download. Declared because the lesson attaches it to show %>%.
+        packages: ['dplyr'],
+      },
+    ],
+  },
   {
     id: 'module-01',
     number: 1,

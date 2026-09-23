@@ -1,4 +1,5 @@
 import type { ExerciseDef } from '../../r/checker';
+import { module00 } from './module-00';
 import { module01 } from './module-01';
 import { module02 } from './module-02';
 import { module03 } from './module-03';
@@ -15,6 +16,7 @@ import { module13 } from './module-13';
 import { module14 } from './module-14';
 
 export const ALL_EXERCISES: ExerciseDef[] = [
+  ...module00,
   ...module01, ...module02, ...module03, ...module04, ...module05,
   ...module06, ...module07, ...module08, ...module09, ...module10,
   ...module11, ...module12, ...module13, ...module14,
