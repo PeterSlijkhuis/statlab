@@ -136,7 +136,10 @@ export default function Exercise({ id }: { id: string }) {
         </div>
       )}
 
-      {outcome && <OutputPane result={outcome.run} running={false} />}
+      {/* An answer that prints nothing and draws nothing would leave an empty dark panel under the verdict. */}
+      {outcome && (outcome.run.output.length > 0 || outcome.run.images.length > 0) && (
+        <OutputPane result={outcome.run} running={false} />
+      )}
 
       {showSolution && (
         <pre className="exercise-solution">

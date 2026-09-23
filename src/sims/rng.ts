@@ -36,7 +36,7 @@ export const POPULATIONS: Record<PopulationName, Population> = {
   },
   skewed: {
     label: 'Strongly skewed',
-    description: 'Most people score low, a few score very high — like stress or reaction times.',
+    description: 'Most people score low and a few score very high, like stress or reaction times.',
     mean: 20,
     sd: 20,
     draw: (rng) => -20 * Math.log(Math.max(rng(), Number.EPSILON)),
