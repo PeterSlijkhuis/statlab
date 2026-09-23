@@ -1,0 +1,114 @@
+Most first errors in R are not about statistics at all. They read `cannot open
+file` or `No such file or directory`, and they all have the same cause: R was
+told to look for a file in a place where the file is not. This lesson is about
+how R decides where to look.
+
+## Where R is standing
+
+R always has a **working directory**: one folder it treats as "here". Ask for it
+with `getwd()`, get working directory. Press **Run**.
+
+<CodeBlock id="wd" code={`getwd()`} />
+
+In StatLab that is a folder inside your browser. In an RStudio Project it is the
+project folder, such as `C:/Users/you/Documents/thesis-analysis`. Either way,
+this is the folder every file name you type is measured from.
+
+`list.files()` shows what is in the working directory, and given a folder name
+it shows what is inside that folder.
+
+<CodeBlock id="list" code={`list.files()
+
+list.files("data")`} />
+
+The first line shows a folder called `data`. The second looks inside it and
+finds the two course datasets. You did not have to say where `data` was: it is
+in the working directory, so its name is enough.
+
+## Paths
+
+A **path** is the route from one folder to a file, written as folder names
+separated by a forward slash, `/`. There are two kinds.
+
+- A **relative path** starts from the working directory: `"data/workplace.csv"`
+  means "from here, go into `data`, and take `workplace.csv`".
+- An **absolute path** starts from the top of the computer:
+  `"C:/Users/sam/Documents/thesis/data/survey.csv"`. It names a drive and a user,
+  so it only exists on Sam's laptop.
+
+Use relative paths, always. Inside a project they work on every computer that
+opens it; an absolute path breaks the moment the project moves.
+
+<Predict
+  id="p-exists"
+  question={'file.exists() answers TRUE or FALSE. What will file.exists("data/workplace.cvs") say?'}
+  choices={[
+    { text: 'TRUE, because the file is in the data folder', response: 'Look closely at the end of the name: cvs, not csv. R does not guess what you meant.' },
+    { text: 'FALSE, because the name is spelled wrong', correct: true, response: 'Yes. To R, workplace.cvs is a different file, and there is no file by that name.' },
+    { text: 'An error', response: 'Asking about a file that does not exist is a perfectly good question. The answer is just FALSE.' },
+  ]}
+/>
+
+<CodeBlock id="exists" code={`file.exists("data/workplace.csv")
+
+file.exists("data/workplace.cvs")`} />
+
+R matches file names exactly. On many computers it matches capital letters too,
+so `"Data/Workplace.csv"` is not the same file either. When R says it cannot find
+a file, compare your path letter by letter with what `list.files()` shows.
+
+## Building a path
+
+`file.path()` glues folder and file names together with the right slash, so you
+never have to type one.
+
+<CodeBlock id="build" code={`file.path("data", "workplace.csv")
+
+file.path("output", "figures", "figure-1.png")`} />
+
+## Writing into a folder
+
+R can make folders and write files the same way. `dir.create()` makes a folder,
+and `write.csv()` saves a data frame as a CSV file at the path you give it.
+
+<CodeBlock id="write" code={`dir.create("output")
+
+marks <- data.frame(student = c("A", "B", "C"), mark = c(68, 74, 59))
+write.csv(marks, file.path("output", "marks.csv"), row.names = FALSE)
+
+list.files("output")`} />
+
+Run the block a second time and R warns that `output` already exists. That is a
+warning, not an error: the folder is still there and the file was still written.
+
+## Three things to avoid
+
+**Backslashes.** Windows shows paths as `C:\Users\sam`. In R, a backslash inside
+quotation marks starts a special character, so that path is an error. Write
+forward slashes on every computer, Windows included: `"C:/Users/sam"`.
+
+**`setwd()` at the top of a script.** You will see scripts online that begin
+with a line like `setwd("C:/Users/sam/Documents/thesis")`. It changes the
+working directory to a folder on one person's computer, which is the absolute
+path problem again. In a project, the working directory is already right. Leave
+`setwd()` out.
+
+**Paths measured from the script.** A script in `scripts/01-clean.R` still runs
+with the project folder as its working directory. It reads
+`"data/survey.csv"`, not `"../data/survey.csv"`. In a path, `..` means "one
+folder up", and from the project folder there is nothing up there you need.
+
+<Exercise id="m0-2-a" />
+
+<Exercise id="m0-2-b" />
+
+<Quiz
+  id="q-0-2"
+  question="Your project folder holds data/survey.csv and scripts/01-clean.R. Which line in 01-clean.R finds the data?"
+  choices={[
+    { text: 'file.exists("data/survey.csv")', correct: true, response: 'Right. In a project, R works from the project folder, wherever the script itself sits.' },
+    { text: 'file.exists("../data/survey.csv")', response: 'That goes up one folder from the project, to the folder that contains it. Paths are measured from the working directory, not from the script.' },
+    { text: 'file.exists("survey.csv")', response: 'That looks in the project folder itself, but the file is one level down, inside data.' },
+    { text: 'file.exists("C:/Users/you/thesis/data/survey.csv")', response: 'It works on your computer and nowhere else. The relative path does the same job everywhere.' },
+  ]}
+/>

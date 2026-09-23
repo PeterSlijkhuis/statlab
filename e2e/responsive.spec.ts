@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // None of this needs R: it checks layout, so it runs whether or not webR boots.
-const PAGES = ['./', './lesson/02-1', './lesson/07-2', './lesson/09-2', './playground', './which-model'];
+const PAGES = ['./', './lesson/00-1', './lesson/00-4', './lesson/02-1', './lesson/07-2', './lesson/09-2', './playground', './which-model'];
 
 async function expectNoSidewaysScroll(page: Page) {
   const widths = await page.evaluate(() => ({
