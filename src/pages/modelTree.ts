@@ -1,4 +1,4 @@
-import { KNOWN_PACKAGES } from '../r/session';
+import { browserSupport } from '../r/packages';
 
 /**
  * The decision tree behind the model chooser. Everything here is data: the
@@ -46,9 +46,6 @@ export type Answer = {
   further?: string;
 };
 
-/** Packages that come with every R installation and are always there, on this site too. */
-export const BASE_PACKAGES = ['base', 'stats', 'utils', 'graphics', 'grDevices', 'methods', 'datasets', 'splines', 'stats4', 'tools', 'grid'];
-
 /**
  * R's recommended packages: installed with R itself, so library() works in
  * RStudio without install.packages(). This site does not have them.
@@ -65,11 +62,34 @@ export function packagesIn(rCode: string): string[] {
   return found;
 }
 
-/** The packages a snippet needs that this site cannot install. Empty means it runs in the R Workspace. */
+/** The packages a snippet needs that the R Workspace cannot load. Empty means it runs there. */
 export function packagesMissingHere(answer: Pick<Answer, 'rCode'>): string[] {
-  const here: readonly string[] = [...BASE_PACKAGES, ...KNOWN_PACKAGES];
-  return packagesIn(answer.rCode).filter((name) => !here.includes(name));
+  return packagesIn(answer.rCode).filter((name) => !['installed', 'recommended'].includes(browserSupport(name)));
 }
+
+/** The packages the R Workspace downloads the first time the snippet runs. */
+export function packagesDownloaded(answer: Pick<Answer, 'rCode'>): string[] {
+  return packagesIn(answer.rCode).filter((name) => browserSupport(name) === 'recommended');
+}
+
+/**
+ * The sections of the "browse every model" list, in the order a student meets
+ * them in the questions. Each answer's section is the deepest `group` on the
+ * path to it, and every name used as a group must appear here.
+ */
+export const GROUPS: { name: string; blurb: string }[] = [
+  { name: 'Numeric outcome: one sample or numeric predictors', blurb: 'A score, time or amount, explained by other numbers.' },
+  { name: 'Numeric outcome: comparing groups', blurb: 'Differences between conditions, groups or categories.' },
+  { name: 'Repeated measures and nested data', blurb: 'The same people measured more than once, or people in teams, classes or sites.' },
+  { name: 'Yes-or-no outcomes', blurb: 'Passed or failed, left or stayed, and other two-way outcomes.' },
+  { name: 'Categorical outcomes', blurb: 'Ordered ratings, unordered choices and cross-tables.' },
+  { name: 'Count outcomes', blurb: 'How often something happened: 0, 1, 2 and so on.' },
+  { name: 'Time to an event', blurb: 'How long until something happens, when not everyone has had it yet.' },
+  { name: 'Mediation and measurement', blurb: 'Effects through a third variable, and how well items measure a construct.' },
+  { name: 'Dimension reduction and clustering', blurb: 'Many variables summarised by a few, or cases sorted into groups.' },
+  { name: 'Time series', blurb: 'One series measured at regular intervals.' },
+  { name: 'Prediction', blurb: 'Accurate predictions for new cases.' },
+];
 
 export const TREE: Question = {
   kind: 'question',
@@ -85,7 +105,7 @@ export const TREE: Question = {
         options: [
           {
             label: 'A number on a scale (a score, time, rating or amount)',
-            group: 'A numeric outcome',
+            group: 'Numeric outcome: one sample or numeric predictors',
             next: {
               kind: 'question',
               text: 'How were the scores collected?',
@@ -208,6 +228,7 @@ emtrends(model, ~ moderator_c, var = "predictor_c", at = list(moderator_c = c(-s
                       },
                       {
                         label: 'One or more grouping variables (conditions, groups, categories)',
+                        group: 'Numeric outcome: comparing groups',
                         next: {
                           kind: 'question',
                           text: 'Which describes your groups?',
@@ -321,6 +342,7 @@ summary.aov(model)`,
                 },
                 {
                   label: 'The same people measured more than once',
+                  group: 'Repeated measures and nested data',
                   next: {
                     kind: 'question',
                     text: 'What does the design look like?',
@@ -430,6 +452,7 @@ summary(model)`,
                 },
                 {
                   label: 'People grouped in teams, classes or sites',
+                  group: 'Repeated measures and nested data',
                   next: {
                     kind: 'answer',
                     id: 'nested-groups',
@@ -448,7 +471,7 @@ summary(model)`,
           },
           {
             label: 'Yes or no (two possible outcomes)',
-            group: 'A yes-or-no outcome',
+            group: 'Yes-or-no outcomes',
             next: {
               kind: 'question',
               text: 'How were the outcomes collected?',
@@ -541,7 +564,7 @@ exp(cbind(OR = coef(model), confint(model)))`,
           },
           {
             label: 'Ordered categories (a single Likert item, a grade, a stage)',
-            group: 'A categorical outcome',
+            group: 'Categorical outcomes',
             next: {
               kind: 'answer',
               id: 'ordinal-regression',
@@ -561,7 +584,7 @@ exp(cbind(OR = coef(model), confint(model)))`,
           },
           {
             label: 'Three or more categories with no order (a choice, a type)',
-            group: 'A categorical outcome',
+            group: 'Categorical outcomes',
             next: {
               kind: 'question',
               text: 'What is the question about the categories?',
@@ -609,7 +632,7 @@ chisq.test(counts, p = c(0.5, 0.3, 0.2))`,
           },
           {
             label: 'A count of events (0, 1, 2, and so on)',
-            group: 'A count outcome',
+            group: 'Count outcomes',
             next: {
               kind: 'question',
               text: 'What do the counts look like?',
@@ -673,7 +696,7 @@ summary(model)`,
           },
           {
             label: 'Time until something happens, where some cases have not had it yet',
-            group: 'A time-to-event outcome',
+            group: 'Time to an event',
             next: {
               kind: 'question',
               text: 'What is the question?',
@@ -723,7 +746,7 @@ cox.zph(model)`,
     },
     {
       label: 'Whether an effect runs through a third variable, or how items measure a construct',
-      group: 'Mediation, reliability and latent variables',
+      group: 'Mediation and measurement',
       next: {
         kind: 'question',
         text: 'Which describes your question?',
