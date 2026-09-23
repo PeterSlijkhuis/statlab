@@ -42,7 +42,7 @@ describe("webR's package repository", () => {
   }, 120_000);
 });
 
-describe('packages in the playground', () => {
+describe('packages in the R Workspace', () => {
   test('library() installs a package that is missing, then attaches it', async () => {
     const result = await run('library(writexl)\nexists("write_xlsx")');
     expect(result.errored).toBe(false);

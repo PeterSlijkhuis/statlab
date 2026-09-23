@@ -2,7 +2,7 @@ import type { RObject, WebR } from 'webr';
 import { evaluateR, type RunOutput } from './evaluate';
 
 /**
- * The R side of the playground's RStudio-style workspace: splitting a script
+ * The R side of the R Workspace: splitting a script
  * into statements, echoing them into the console the way RStudio does, and
  * reading back what the Environment, Files, Help and data viewer panes show.
  */

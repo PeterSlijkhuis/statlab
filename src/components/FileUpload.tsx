@@ -11,7 +11,7 @@ import {
 import './FileUpload.css';
 
 /**
- * Lets a student put their own data file where R can read it. The playground
+ * Lets a student put their own data file where R can read it. The R Workspace
  * shows the full panel; an exercise shows the compact one, so the button sits
  * under the answer without crowding it. Both list every upload, because a file
  * uploaded anywhere is in the same `data/` folder everywhere.
