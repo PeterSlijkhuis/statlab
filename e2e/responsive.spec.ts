@@ -42,6 +42,20 @@ for (const [name, viewport] of [
       await expect(nav).toBeHidden();
     });
 
+    test('the playground shows one RStudio pane at a time', async ({ page }) => {
+      // A tablet has room for all four, as the desktop test checks.
+      test.skip(viewport.width > 640, 'wide enough for four panes');
+      await page.goto('./playground');
+      const show = page.getByRole('group', { name: 'Show pane' });
+      await expect(show).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Source' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Console' })).toBeHidden();
+      await show.getByRole('button', { name: 'Environment' }).click();
+      await expect(page.getByRole('region', { name: 'Environment and History' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Source' })).toBeHidden();
+      await expectNoSidewaysScroll(page);
+    });
+
     test('Escape closes the drawer', async ({ page }) => {
       await page.goto('./');
       await page.getByRole('button', { name: 'Lessons' }).click();
@@ -65,5 +79,29 @@ test.describe('on a desktop', () => {
     }
     await expect(page.getByRole('navigation', { name: 'Course navigation' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Lessons' })).toBeHidden();
+  });
+
+  test("the playground shows RStudio's four panes side by side", async ({ page }) => {
+    await page.goto('./playground');
+    const source = await page.getByRole('region', { name: 'Source' }).boundingBox();
+    const console = await page.getByRole('region', { name: 'Console' }).boundingBox();
+    const environment = await page.getByRole('region', { name: 'Environment and History' }).boundingBox();
+    const files = await page.getByRole('region', { name: 'Files, Plots and Help' }).boundingBox();
+    // Source top left, Console under it, Environment top right, Files under that.
+    expect(console!.y).toBeGreaterThan(source!.y);
+    expect(environment!.x).toBeGreaterThan(source!.x);
+    expect(files!.y).toBeGreaterThan(environment!.y);
+    expect(files!.x).toBeGreaterThan(console!.x);
+    await expect(page.getByRole('group', { name: 'Show pane' })).toBeHidden();
+
+    // Dragging the border between the columns resizes them.
+    const border = page.getByRole('separator', { name: 'Resize left and right panes' });
+    const box = (await border.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 150, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
+    const narrower = await page.getByRole('region', { name: 'Source' }).boundingBox();
+    expect(narrower!.width).toBeLessThan(source!.width - 100);
   });
 });
