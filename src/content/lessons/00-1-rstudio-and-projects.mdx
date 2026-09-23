@@ -1,5 +1,5 @@
 StatLab runs R inside your browser, so you can start without installing
-anything. Your own assignments and your thesis are different: you will write
+anything. Your own analyses are different: you will write
 them on your own computer, in RStudio, and the habits you set up on the first
 day decide whether your analysis still runs a month later. This lesson is
 reading only. Keep it open next to RStudio and follow along.
@@ -56,7 +56,7 @@ That last part is the one that matters. R reads and writes files relative to
 its **working directory**, the folder it is currently standing in. Open a
 project and the working directory is the project folder, automatically, on any
 computer. Your code can then say `"data/survey.csv"` and it will find the file
-on your laptop, on a university PC and on your supervisor's Mac.
+on your laptop, on a university PC and on a colleague's Mac.
 
 Without a project, R starts in whatever folder it happens to start in, and
 people fix that by typing the full location of their file into the script. That
@@ -64,11 +64,11 @@ works exactly once, on exactly one computer. The next lesson shows why.
 
 ## Creating a project
 
-Do this once per assignment, thesis or course.
+Do this once for every analysis you start.
 
 1. In RStudio, choose **File > New Project**.
 2. Choose **New Directory**, then **New Project**.
-3. Give the folder a name without spaces, such as `thesis-analysis`.
+3. Give the folder a name without spaces, such as `survey-analysis`.
 4. Under **Create project as subdirectory of**, pick where the folder should
    live, for example your Documents folder. Avoid Downloads and the desktop.
 5. Click **Create Project**.
@@ -85,11 +85,11 @@ wrong.
 ## A folder layout that works
 
 Inside the project, make a few folders with the **New Folder** button in the
-Files pane. This layout is simple and holds up for a whole thesis:
+Files pane. This layout is simple and holds up for an analysis of any size:
 
 <FolderTree label="An example project folder" tree={`
-thesis-analysis/
-├── thesis-analysis.Rproj  open this
+survey-analysis/
+├── survey-analysis.Rproj  open this
 ├── data/
 │   └── survey.csv         raw, never edited
 ├── scripts/
@@ -129,7 +129,7 @@ your own project. The next lesson looks at that folder from inside R.
 
 <Quiz
   id="q-0-1"
-  question="Your analysis works on your laptop. Your supervisor opens the same script on their computer and R says it cannot find survey.csv. What is the most likely cause?"
+  question="Your analysis works on your laptop. A colleague opens the same script on their computer and R says it cannot find survey.csv. What is the most likely cause?"
   choices={[
     { text: 'The script names the file with its full location on your laptop, such as C:/Users/you/Documents/...', correct: true, response: 'Yes. That location exists only on your computer. Inside a project, "data/survey.csv" finds the file wherever the project folder is.' },
     { text: 'Their version of R is too old', response: 'Possible in principle, but R would then complain about a function, not about a missing file. "Cannot find" is almost always about the path.' },

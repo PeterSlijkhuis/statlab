@@ -15,7 +15,7 @@ d %>%
 R orders factor levels alphabetically unless you tell it otherwise, so the
 reference here is **Engineering**. Nothing about Engineering makes it the natural
 baseline; it simply sorts first. If a different department is the sensible
-comparison for your research question, say so with
+comparison for your question, say so with
 `relevel(d$department, ref = "Sales")` and report which one you chose.
 
 <Predict
@@ -70,7 +70,7 @@ reports.
 summary(aov(wellbeing ~ department, data = d))`} />
 
 Same *F*, same degrees of freedom, same *p*. "One-way ANOVA" is the traditional
-name for the *F* test of a linear model with one factor, and if a supervisor asks
+name for the *F* test of a linear model with one factor, and if someone asks
 for one, this is it.
 
 ## When the mean is the wrong summary

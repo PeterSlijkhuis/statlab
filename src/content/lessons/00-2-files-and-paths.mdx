@@ -11,7 +11,7 @@ with `getwd()`, get working directory. Press **Run**.
 <CodeBlock id="wd" code={`getwd()`} />
 
 In StatLab that is a folder inside your browser. In an RStudio Project it is the
-project folder, such as `C:/Users/you/Documents/thesis-analysis`. Either way,
+project folder, such as `C:/Users/you/Documents/survey-analysis`. Either way,
 this is the folder every file name you type is measured from.
 
 `list.files()` shows what is in the working directory, and given a folder name
@@ -33,7 +33,7 @@ separated by a forward slash, `/`. There are two kinds.
 - A **relative path** starts from the working directory: `"data/workplace.csv"`
   means "from here, go into `data`, and take `workplace.csv`".
 - An **absolute path** starts from the top of the computer:
-  `"C:/Users/sam/Documents/thesis/data/survey.csv"`. It names a drive and a user,
+  `"C:/Users/sam/Documents/survey-analysis/data/survey.csv"`. It names a drive and a user,
   so it only exists on Sam's laptop.
 
 Use relative paths, always. Inside a project they work on every computer that
@@ -88,7 +88,7 @@ quotation marks starts a special character, so that path is an error. Write
 forward slashes on every computer, Windows included: `"C:/Users/sam"`.
 
 **`setwd()` at the top of a script.** You will see scripts online that begin
-with a line like `setwd("C:/Users/sam/Documents/thesis")`. It changes the
+with a line like `setwd("C:/Users/sam/Documents/survey-analysis")`. It changes the
 working directory to a folder on one person's computer, which is the absolute
 path problem again. In a project, the working directory is already right. Leave
 `setwd()` out.
@@ -109,6 +109,6 @@ folder up", and from the project folder there is nothing up there you need.
     { text: 'file.exists("data/survey.csv")', correct: true, response: 'Right. In a project, R works from the project folder, wherever the script itself sits.' },
     { text: 'file.exists("../data/survey.csv")', response: 'That goes up one folder from the project, to the folder that contains it. Paths are measured from the working directory, not from the script.' },
     { text: 'file.exists("survey.csv")', response: 'That looks in the project folder itself, but the file is one level down, inside data.' },
-    { text: 'file.exists("C:/Users/you/thesis/data/survey.csv")', response: 'It works on your computer and nowhere else. The relative path does the same job everywhere.' },
+    { text: 'file.exists("C:/Users/you/survey-analysis/data/survey.csv")', response: 'It works on your computer and nowhere else. The relative path does the same job everywhere.' },
   ]}
 />

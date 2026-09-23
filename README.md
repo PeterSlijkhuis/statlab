@@ -1,12 +1,14 @@
 <h1 align="center">StatLab</h1>
 
 <p align="center">
-  <strong>Interactive statistics and R, running entirely in the browser.</strong><br>
-  For psychology and business students at the University of Twente.
+  <strong>Hands-on data analysis in R, running entirely in the browser.</strong><br>
+  Built for psychology and business students at the University of Twente.
 </p>
 
 <p align="center">
   <a href="https://peterslijkhuis.github.io/statlab/"><strong>Open StatLab</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#a-look-inside">Screenshots</a>
   &nbsp;·&nbsp;
   <a href="#whats-in-the-course">The course</a>
   &nbsp;·&nbsp;
@@ -21,18 +23,50 @@
   <img alt="React 18 and TypeScript" src="https://img.shields.io/badge/React_18-TypeScript-3178C6?logo=typescript&logoColor=white">
 </p>
 
-StatLab teaches introductory statistics through real R code that runs in the
-student's browser via [webR](https://docs.r-wasm.org/webr/latest/). A student
-reads a lesson, commits to a prediction, edits and runs R, and has their answers
-checked on the spot. There is nothing to install, no backend, no account, and no
-data leaves the student's machine.
+StatLab teaches data analysis with R, from reading a first data file to
+fitting linear, mixed and logistic models. All the R code runs in the student's
+browser via [webR](https://docs.r-wasm.org/webr/latest/). A student reads a
+lesson, commits to a prediction, edits and runs R, and has their answers checked
+on the spot. They can also upload their own CSV or Excel file and analyse it in
+the same place. There is nothing to install, no backend, no account, and no data
+leaves the student's machine.
 
-Statistics is taught the way the course team's own R workshops teach it: in
+The statistics is taught the way the course team's own R workshops teach it: in
 tidyverse style, and through the linear model. `lm`, `lmer` and `glm` do the
 work, and the t-test, ANOVA and chi-square appear as those same models under
 their traditional names.
 
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="The StatLab home page: a blue banner reading 'Data analysis and statistics in R for psychology and business students', a 37% progress ring, tiles for a 7-day streak, 600 points, 17 of 46 lessons and 26 of 67 exercises, and the module list in the sidebar." width="100%">
+</p>
+
+## A look inside
+
 <table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/lesson-code.png" alt="A lesson on reading data: an editable R block that reads workplace.csv and prints nrow, ncol and the column names, with the output below it, then a head() block showing the first rows of the table."></td>
+    <td width="50%"><img src="docs/screenshots/exercise-checked.png" alt="An exercise asking for a relative path to survey.csv inside the survey-analysis project. The answer data/survey.csv has been checked in R and a green panel explains why it is correct."></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Every code block is real R: edit it, run it, read the output.</sub></td>
+    <td align="center"><sub>Exercises are checked in R, with feedback on the specific mistake.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R playground with an uploaded file, my_survey.csv, the line of code that reads it, and a script that runs str(), group means and a linear model on it."></td>
+    <td width="50%"><img src="docs/screenshots/model-chooser.png" alt="The 'Which model should I use?' guide after three choices, recommending multiple linear regression with the lm() code, what to check first, and a link to the lesson."></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Bring your own data: upload a CSV or Excel file and analyse it in the playground.</sub></td>
+    <td align="center"><sub>"Which model should I use?" walks from the question to lm, lmer or glm.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/simulation-clt.png" alt="The Central Limit Theorem simulation: a strongly skewed population above, and below it 2000 sample means with n = 30 forming a near-normal histogram."></td>
+    <td width="50%"><img src="docs/screenshots/simulation-power.png" alt="The p-value and power simulation: 4000 simulated differences under the null with the tails beyond the observed difference shaded red, giving p = 0.553."></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Module 6: skewed data, and means that still come out normal.</sub></td>
+    <td align="center"><sub>Module 8: what a p-value is, drawn from four thousand studies.</sub></td>
+  </tr>
   <tr>
     <td width="50%"><img src="docs/images/least-squares.png" alt="The least-squares simulation: a scatter of points, a line the student drags with intercept and slope sliders, and orange squares showing each squared residual."></td>
     <td width="50%"><img src="docs/images/confidence-intervals.png" alt="The confidence interval simulation: a hundred intervals drawn from repeated samples, with the ones that miss the true mean shown in red."></td>
@@ -42,6 +76,16 @@ their traditional names.
     <td align="center"><sub>Module 7: what "95% confidence" means across a hundred samples.</sub></td>
   </tr>
 </table>
+
+<img align="right" width="220" src="docs/screenshots/mobile-home.png" alt="StatLab on a phone: the same banner, progress tiles in a two-by-two grid, and a Lessons button that opens the module list.">
+
+It works on a phone too. The sidebar folds into a **Lessons** button, and the
+streak, points and progress tiles stack into a grid.
+
+Progress, streaks and points are kept in the browser, and can be exported to a
+file and imported on another computer.
+
+<br clear="right">
 
 ## What's in the course
 
@@ -192,7 +236,7 @@ runs, not the browser.
 src/
   components/    lesson blocks: CodeBlock, Exercise, Predict, Quiz, Interpret, Simulation
   content/
-    lessons/     the 42 lessons, as MDX
+    lessons/     the 46 lessons, as MDX
     exercises/   exercise definitions and their fixtures, one file per module
     manifest.ts  modules, lessons and the packages each lesson needs
   pages/         Home, Lesson, Playground, and the model chooser
@@ -202,6 +246,7 @@ src/
 public/data/     the two course datasets
 scripts/         dataset generator and the dataset effect check
 e2e/             Playwright smoke tests
+docs/screenshots/  the screenshots in this README
 docs/
   specs/         the design specification
   plans/         implementation plans
