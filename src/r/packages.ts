@@ -68,6 +68,17 @@ export const RECOMMENDED: PackageGroup[] = [
       { name: 'lavaan', what: 'Structural equation models and confirmatory factor analysis' },
     ],
   },
+  {
+    title: 'More models',
+    packages: [
+      { name: 'MASS', what: 'Ordinal and negative binomial regression' },
+      { name: 'nnet', what: 'Multinomial regression' },
+      { name: 'pscl', what: 'Zero-inflated count models' },
+      { name: 'survival', what: 'Survival curves and Cox regression' },
+      { name: 'glmnet', what: 'Lasso and ridge regression' },
+      { name: 'randomForest', what: 'Random forests' },
+    ],
+  },
 ];
 
 /**
@@ -77,6 +88,7 @@ export const RECOMMENDED: PackageGroup[] = [
 export const NOT_IN_BROWSER: Record<string, string> = {
   xlsx: 'it needs Java, which cannot run in a browser. Use readxl to read Excel files and writexl to save them.',
   rJava: 'Java cannot run in a browser.',
+  ranger: 'it needs threads, which R in a browser does not have. Use randomForest instead.',
   rstan: 'it compiles each model to C++, and the browser has no compiler. Use R on your own computer.',
   brms: 'it compiles each model to C++ with Stan, and the browser has no compiler. Use R on your own computer.',
   cmdstanr: 'it compiles each model to C++ with Stan, and the browser has no compiler. Use R on your own computer.',
