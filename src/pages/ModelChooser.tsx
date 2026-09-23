@@ -207,7 +207,7 @@ export default function ModelChooser() {
       <h1>Which model should I use?</h1>
       <p>
         Work down from the question you want your data to answer. Almost every analysis in this course is one of three
-        models — lm(), lmer() or glm() — and the chain is always the same: question → assumptions →
+        models, lm(), lmer() or glm(), and the chain is always the same: question → assumptions →
         choice of model → computation → interpretation → report.
       </p>
 
