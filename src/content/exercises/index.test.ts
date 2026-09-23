@@ -55,10 +55,11 @@ describe('exercise definitions', () => {
 
   test('checks read student objects only through has_answer() and answer()', () => {
     // exists()/get() inherit from the lesson environment, where lesson code has
-    // already created the objects an exercise asks for (spec §5.1).
+    // already created the objects an exercise asks for (spec §5.1). The
+    // lookbehind lets file.exists() through: it asks about a file, not an object.
     for (const exercise of ALL_EXERCISES) {
       expect(exercise.check, `${exercise.id} calls exists(), get() or get0() directly`).not.toMatch(
-        /\b(exists|get|get0)\s*\(/,
+        /(?<!\.)\b(exists|get|get0)\s*\(/,
       );
     }
   });

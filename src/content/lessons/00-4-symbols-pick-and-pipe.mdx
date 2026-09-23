@@ -1,0 +1,140 @@
+The last lesson's symbols stored values and asked questions about them. These
+ones take things apart and put steps together: brackets that pick, a dollar sign
+that finds a column, and the pipes that make tidyverse code read like a recipe.
+A cheat sheet of every symbol in Module 0 closes the lesson.
+
+## Round brackets call a function
+
+A name followed by `( )` is a function call: run this function on what is
+inside. `c()` is the one you will type most. It **combines** values into a
+vector. `:` makes the whole numbers from one value to another.
+
+<CodeBlock id="calls" code={`marks <- c(68, 74, 59, 81, 77)
+marks
+
+1:5`} />
+
+Brackets that follow nothing, as in `(2 + 3) * 4`, only group arithmetic.
+
+## Square brackets pick
+
+`[ ]` after an object picks elements out of it. Give it positions, counting from
+1, or a TRUE/FALSE question, and you get back only the elements you asked for.
+
+<CodeBlock id="pick" code={`marks[2]
+marks[c(1, 3)]
+
+marks[marks > 70]`} />
+
+The last line is worth reading slowly. `marks > 70` gives five TRUE or FALSE
+answers, and `marks[...]` keeps the elements where the answer was TRUE. "The
+marks where marks are above 70."
+
+## The dollar sign finds a column
+
+A data frame is a table: each column is a vector, and all columns have the same
+length. `$` takes one column out by name.
+
+<CodeBlock id="frame" code={`team <- data.frame(
+  name = c("Ada", "Bram", "Chen", "Dana", "Eva", "Finn"),
+  hours = c(32, 41, 38, 40, 35, 44)
+)
+
+team$hours
+team$name[2]`} />
+
+`team$hours` is a plain vector, so everything from the last section works on it.
+Square brackets also work on the whole table, with two positions: `[row, column]`.
+Leave one empty to mean "all of them".
+
+<CodeBlock id="rows-columns" code={`team[2, ]
+team[, "name"]
+
+team[["hours"]]`} />
+
+`team[2, ]` is the second row with every column. `team[, "name"]` is every row of
+the name column. Double brackets, `[[ ]]`, pull out exactly one element, and for
+a data frame that means one column: `team[["hours"]]` is the same as
+`team$hours`.
+
+<Exercise id="m0-4-a" />
+
+## Curly brackets group lines
+
+`{ }` holds several lines together as one block. You will mostly see them around
+the body of a function you write yourself.
+
+<CodeBlock id="braces" code={`double_it <- function(x) {
+  x * 2
+}
+
+double_it(21)`} />
+
+## Two colons name the package
+
+`::` uses a function from a package without attaching the package first.
+`stats::median()` means "the median() that lives in the stats package". You will
+see `dplyr::filter()` in code online for the same reason: it says where the
+function comes from.
+
+<CodeBlock id="package" code={`stats::median(marks)`} />
+
+## The pipe: and then
+
+Nested calls are read from the inside out, which is the opposite of how you
+think about the steps. `|>` turns them around. `x |> f()` means `f(x)`: the left
+side goes in as the first argument of the right side. Read it as **and then**.
+
+<CodeBlock id="pipe" code={`round(mean(marks), 1)
+
+marks |> mean() |> round(1)`} />
+
+Both lines give the same number. The second reads in the order you would say
+it: take the marks, and then the mean, and then round to one decimal. Extra
+arguments stay in their brackets, which is why the `1` sits inside `round(1)`.
+
+`|>` is built into R. From Module 2 on, this course uses `%>%` from the dplyr
+package, which does the same job and is what most tidyverse code you find
+online is written with. It works once dplyr is attached.
+
+<CodeBlock id="dplyr-pipe" code={`library(dplyr)
+
+team %>% filter(hours > 35)`} />
+
+"Take team, and then keep the rows where hours is above 35." Inside `filter()`,
+`hours` needs no `team$` in front: dplyr knows it means the column.
+
+<Exercise id="m0-4-b" />
+
+## The tilde: is modelled by
+
+`~` builds a **formula**. It does not calculate anything on its own; it
+describes a relationship for a function to fit, with the outcome on the left and
+the predictors on the right.
+
+<CodeBlock id="formula" code={`f <- wellbeing ~ workload
+f
+class(f)`} />
+
+Neither `wellbeing` nor `workload` has to exist for this to work, because a
+formula only records the names. Read it as "wellbeing is modelled by workload".
+In Module 9 it goes inside `lm()`, the function that fits the model, and from
+there it appears in almost every lesson.
+
+## Cheat sheet
+
+Every symbol from Module 0 in one place. Come back here whenever a line of code
+stops making sense.
+
+<SymbolTable />
+
+<Quiz
+  id="q-0-4"
+  question="How would you read team %>% filter(hours > 40) %>% nrow() out loud?"
+  choices={[
+    { text: 'Take team, and then keep the rows with more than 40 hours, and then count the rows', correct: true, response: 'Exactly. Each %>% hands the result on to the next step, left to right.' },
+    { text: 'Count the rows of team, and then keep those above 40 hours', response: 'A pipe runs left to right, so the counting comes last, after the filter.' },
+    { text: 'Divide team by filter, and then by nrow', response: '%>% is a pipe, not arithmetic. It passes each result on as the first argument of the next function.' },
+    { text: 'Check whether team is greater than 40', response: 'The comparison hours > 40 happens inside filter(), one row at a time. The pipes put the steps in order.' },
+  ]}
+/>

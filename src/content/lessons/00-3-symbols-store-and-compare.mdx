@@ -1,0 +1,147 @@
+R code looks like punctuation soup until you know that each symbol has one job.
+There are not many of them. This lesson covers the ones that store things and
+ask questions; the next covers the ones that pick things out and chain steps
+together. By the end of the two, every line in this course should be readable
+out loud.
+
+## The arrow stores
+
+`<-` is read "gets". It takes the value on its right and stores it under the
+name on its left. What you have stored is an **object**.
+
+<CodeBlock id="arrow" code={`hours <- 38
+hours
+
+hours * 2`} />
+
+The first line printed nothing, because storing is quiet. Typing the name on its
+own prints what it holds. In RStudio, **Alt + -** (Option + - on a Mac) types the
+arrow for you, spaces included.
+
+## The equals sign names arguments
+
+Inside a function call, `=` gives an argument its value. The name on the left is
+the argument's name, set by whoever wrote the function; the value on the right
+is yours.
+
+<CodeBlock id="equals" code={`round(3.14159, digits = 2)`} />
+
+`=` can also store a value, like `<-`, and some people write it that way. This
+course keeps the two jobs apart: `<-` stores, `=` names an argument. When you
+read `na.rm = TRUE`, it is always an argument.
+
+## Quotation marks mean text
+
+Without quotation marks, a word is the name of an object. With them, it is just
+text.
+
+<CodeBlock id="quotes" code={`dept <- "Sales"
+
+dept
+"dept"`} />
+
+`dept` without quotes is looked up and gives what it holds. `"dept"` with quotes
+is the four letters d, e, p, t. Forgetting the quotes around a value such as
+`"Sales"` gives the error `object 'Sales' not found`, because R went looking for
+an object with that name.
+
+`#` starts a **comment**. R ignores everything after it on the line, so it is
+where you write notes for people.
+
+## Arithmetic
+
+`+`, `-`, `*` and `/` work as on a calculator, and `^` raises to a power.
+Brackets set the order, as in maths.
+
+<CodeBlock id="arithmetic" code={`2 + 3 * 4
+(2 + 3) * 4
+2^3`} />
+
+## Asking questions
+
+A double equals sign, `==`, does not store anything. It asks "is this equal to
+that?" and answers TRUE or FALSE.
+
+<Predict
+  id="p-double-equals"
+  question="hours holds four numbers. What does hours == 40 do?"
+  choices={[
+    { text: 'Changes every value in hours to 40', response: 'That would be storing, which is the arrow. == only asks; hours is untouched afterwards.' },
+    { text: 'Gives four TRUE or FALSE answers, one per value', correct: true, response: 'Yes. A comparison with a vector asks the question of every element at once.' },
+    { text: 'Gives one TRUE or FALSE for the whole vector', response: 'R answers element by element. You get as many answers as there are values.' },
+  ]}
+/>
+
+<CodeBlock id="compare" code={`hours <- c(32, 41, 38, 40)
+
+hours == 40
+hours != 40
+hours > 38
+hours >= 40`} />
+
+`!=` is "not equal to". `<` and `>` are less and more than; `<=` and `>=` include
+the boundary itself, which is why `hours > 38` leaves out 38 and `hours >= 40`
+keeps 40.
+
+## Combining questions
+
+`&` is **and**: TRUE only where both sides are TRUE. `|` is **or**: TRUE where at
+least one side is. `!` is **not**: it flips TRUE and FALSE.
+
+<CodeBlock id="logic" code={`ages <- c(19, 24, 31, 22)
+
+ages >= 20 & ages <= 29
+ages < 20 | ages > 29
+!(ages >= 20)`} />
+
+Each side of `&` has to be a full comparison. `ages >= 20 & <= 29` reads fine in
+English and is an error in R, because `<= 29` has nothing on its left.
+
+To count the TRUEs, wrap the question in `sum()`. R counts TRUE as 1 and FALSE
+as 0, so the total is the number of matches.
+
+<Exercise id="m0-3-a" />
+
+## Is it one of these?
+
+`%in%` asks of each element on its left: does it appear anywhere on the right?
+
+<CodeBlock id="in" code={`depts <- c("Sales", "Support", "Engineering", "Sales")
+
+depts %in% c("Sales", "Support")`} />
+
+Without `%in%` you would need `depts == "Sales" | depts == "Support"`, which
+grows by one comparison for every value you add. Symbols wrapped in percent
+signs, like `%in%`, are operators that someone wrote as functions; you will meet
+one more, `%>%`, in the next lesson.
+
+<Exercise id="m0-3-b" />
+
+## NA: a value that is missing
+
+`NA` means "not available": a value that should be there and is not, such as a
+question someone skipped. R refuses to guess what it might have been, so
+anything computed from an `NA` is `NA` too, including a comparison with it.
+
+<CodeBlock id="missing" code={`scores <- c(62, NA, 71)
+
+scores == NA
+is.na(scores)
+
+mean(scores)
+mean(scores, na.rm = TRUE)`} />
+
+`scores == NA` cannot tell you where the gap is, because "is this equal to an
+unknown value?" has no answer. `is.na()` asks the right question.
+`na.rm = TRUE`, "NA remove", tells a summary to leave the gaps out.
+
+<Quiz
+  id="q-0-3"
+  question="Which line asks whether dept holds the text Sales?"
+  choices={[
+    { text: 'dept == "Sales"', correct: true, response: 'Right: == asks, and the quotation marks make Sales text rather than the name of an object.' },
+    { text: 'dept <- "Sales"', response: 'That stores "Sales" in dept, replacing whatever was there. It asks nothing.' },
+    { text: 'dept = "Sales"', response: 'A single = outside a function call stores, like the arrow. You need two.' },
+    { text: 'dept == Sales', response: 'Without quotation marks R looks for an object called Sales, and stops with "object not found".' },
+  ]}
+/>

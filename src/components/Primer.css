@@ -1,0 +1,56 @@
+/* Static figures for Module 0, which teaches desktop R and RStudio: things a
+   browser cannot show running, so the lesson draws them instead. */
+
+.rstudio {
+  max-width: 44rem;
+  margin: 1.5rem 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.rstudio-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.rstudio-bar span:last-child { color: var(--brand-ink); font-weight: 650; }
+.rstudio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); }
+.rstudio-pane { padding: 0.8rem 0.9rem; background: var(--surface); min-height: 6.5rem; }
+.rstudio-pane strong { display: block; margin-bottom: 0.2rem; color: var(--ink); }
+.rstudio-pane small { display: block; margin-bottom: 0.35rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.rstudio-pane p { margin: 0; font-size: 0.9rem; }
+.rstudio figcaption { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); }
+@media (max-width: 560px) {
+  .rstudio-grid { grid-template-columns: 1fr; }
+  .rstudio-pane { min-height: 0; }
+}
+
+.folder-tree {
+  max-width: 44rem;
+  margin: 1.25rem 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-x: auto;
+}
+
+.folder-tree { white-space: pre; }
+@media (max-width: 560px) {
+  .folder-tree { font-size: 0.78rem; padding: 0.8rem 0.9rem; }
+}
+
+.symbol-table { width: 100%; }
+.symbol-table td:first-child, .symbol-table td:last-child code { white-space: nowrap; }
+.symbol-table td { vertical-align: top; }

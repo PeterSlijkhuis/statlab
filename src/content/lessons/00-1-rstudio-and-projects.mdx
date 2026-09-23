@@ -1,0 +1,139 @@
+StatLab runs R inside your browser, so you can start without installing
+anything. Your own assignments and your thesis are different: you will write
+them on your own computer, in RStudio, and the habits you set up on the first
+day decide whether your analysis still runs a month later. This lesson is
+reading only. Keep it open next to RStudio and follow along.
+
+## R and RStudio are two programs
+
+**R** is the language and the engine that does the calculations. **RStudio** is
+the program you type into: it gives R a window, a place to write scripts, and a
+view of your files and plots. A car analogy is common and accurate: R is the
+engine, RStudio is the dashboard. You need both, and you install them in this
+order:
+
+1. **R** from CRAN, at cran.r-project.org. Pick the download for Windows or
+   macOS and accept the default options.
+2. **RStudio Desktop** from Posit, at posit.co. The free version is all you
+   need.
+
+After that you only ever open RStudio. It finds R on its own. If you work on a
+university computer, both are usually installed already.
+
+## The four panes
+
+When RStudio opens, the window is split into four panes. You can rearrange
+them, but everyone starts with this layout, and every tutorial assumes it.
+
+<RStudioPanes />
+
+The two panes on the left are the ones you will use most, and the difference
+between them matters.
+
+- **The console** runs whatever you type the moment you press Enter. It is fine
+  for a quick look, such as checking what `mean(marks)` gives. Nothing typed
+  there is kept.
+- **A script** is a text file ending in `.R`. You write your analysis in it line
+  by line, run the lines you want, and save it. Tomorrow you open it and run it
+  again, and you get the same result.
+
+Open a new script with **File > New File > R Script**. To run the line your
+cursor is on, press **Ctrl + Enter** on Windows or **Cmd + Return** on a Mac.
+Select several lines first to run them all. The result appears in the console,
+just as it does below each code block in StatLab.
+
+> **The rule that saves theses.** Everything that produces a number in your
+> report lives in a script. If you only typed it into the console, it did not
+> happen, because nobody can run it again, including you.
+
+## Why a project
+
+An analysis is more than one script. There is the data file, maybe a second
+script for the figures, and the figures themselves. An **RStudio Project** keeps
+all of it in one folder and tells R to start in that folder every time.
+
+That last part is the one that matters. R reads and writes files relative to
+its **working directory**, the folder it is currently standing in. Open a
+project and the working directory is the project folder, automatically, on any
+computer. Your code can then say `"data/survey.csv"` and it will find the file
+on your laptop, on a university PC and on your supervisor's Mac.
+
+Without a project, R starts in whatever folder it happens to start in, and
+people fix that by typing the full location of their file into the script. That
+works exactly once, on exactly one computer. The next lesson shows why.
+
+## Creating a project
+
+Do this once per assignment, thesis or course.
+
+1. In RStudio, choose **File > New Project**.
+2. Choose **New Directory**, then **New Project**.
+3. Give the folder a name without spaces, such as `thesis-analysis`.
+4. Under **Create project as subdirectory of**, pick where the folder should
+   live, for example your Documents folder. Avoid Downloads and the desktop.
+5. Click **Create Project**.
+
+RStudio restarts inside the new folder. Three things tell you it worked: the
+top right of the window shows the project name, the Files pane shows the new
+folder, and the folder contains a file ending in `.Rproj`.
+
+To come back to the project later, double-click that `.Rproj` file, or pick the
+project from **File > Recent Projects**. Opening RStudio on its own and then
+opening a script does not open the project, and the working directory will be
+wrong.
+
+## A folder layout that works
+
+Inside the project, make a few folders with the **New Folder** button in the
+Files pane. This layout is simple and holds up for a whole thesis:
+
+<FolderTree label="An example project folder" tree={`
+thesis-analysis/
+├── thesis-analysis.Rproj  open this
+├── data/
+│   └── survey.csv         raw, never edited
+├── scripts/
+│   ├── 01-clean.R         one per step
+│   └── 02-models.R
+└── output/
+    └── figure-1.png       made by scripts
+`} />
+
+Three habits go with it.
+
+- **Never edit the raw data by hand.** If a value needs fixing, fix it in a
+  script, so the change is written down and can be undone.
+- **Names without spaces or capitals.** `survey_2025.csv` is easy to type in
+  code; `Survey Data (final) 2.csv` is not.
+- **Anything in `output/` can be deleted**, because a script can make it again.
+  If that is not true, something is missing from a script.
+
+## One setting to change now
+
+By default RStudio offers to save everything you created in a session to a file
+called `.RData`, and loads it again next time. It sounds helpful. It means
+objects from last week can quietly keep a script working that would fail from a
+clean start.
+
+Open **Tools > Global Options > General**. Untick **Restore .RData into
+workspace at startup**, and set **Save workspace to .RData on exit** to
+**Never**. From then on, every session starts empty, and your scripts have to
+contain everything. That is the point.
+
+## And in StatLab
+
+Every StatLab lesson behaves like a small project that is already open. The
+working directory is set, and a `data` folder holds the course datasets, so
+`"data/workplace.csv"` works here exactly as `"data/survey.csv"` will work in
+your own project. The next lesson looks at that folder from inside R.
+
+<Quiz
+  id="q-0-1"
+  question="Your analysis works on your laptop. Your supervisor opens the same script on their computer and R says it cannot find survey.csv. What is the most likely cause?"
+  choices={[
+    { text: 'The script names the file with its full location on your laptop, such as C:/Users/you/Documents/...', correct: true, response: 'Yes. That location exists only on your computer. Inside a project, "data/survey.csv" finds the file wherever the project folder is.' },
+    { text: 'Their version of R is too old', response: 'Possible in principle, but R would then complain about a function, not about a missing file. "Cannot find" is almost always about the path.' },
+    { text: 'They have to install the data with install.packages()', response: 'install.packages() installs packages, not data files. The data travels as a file inside the project folder.' },
+    { text: 'CSV files only open on the computer that created them', response: 'A CSV file is plain text and opens anywhere. The problem is where R is told to look for it.' },
+  ]}
+/>

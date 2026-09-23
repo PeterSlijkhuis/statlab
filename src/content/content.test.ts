@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { ALL_LESSONS, MODULES, PLANNED_MODULES } from './manifest';
 import { ALL_EXERCISES, getExercise } from './exercises';
+import { module00 } from './exercises/module-00';
 import { module01 } from './exercises/module-01';
 import { module02 } from './exercises/module-02';
 import { module03 } from './exercises/module-03';
@@ -13,6 +14,7 @@ import { module07 } from './exercises/module-07';
 import { module08 } from './exercises/module-08';
 import { mdxComponents } from './mdxComponents';
 import { SIMULATION_NAMES } from '../sims/registry';
+import { SYMBOLS } from '../components/SymbolTable';
 
 const compiled = import.meta.glob('./lessons/*.mdx', { eager: true });
 // Read from disk rather than via `?raw`: the MDX plugin compiles `x.mdx?raw` too.
@@ -127,10 +129,24 @@ describe('lesson content', () => {
     }
   });
 
-  test('every dataset referenced in a lesson exists in the mount list', async () => {
+  test('no lesson code or exercise changes the working directory', () => {
+    // Every lesson shares one R session, and data/ is found relative to its
+    // working directory. One setwd() would break every lesson opened after it.
+    for (const [path, source] of Object.entries(sources)) {
+      expect(lessonCode(source), `${path} calls setwd()`).not.toMatch(/\bsetwd\s*\(/);
+    }
+    for (const exercise of ALL_EXERCISES) {
+      const code = [exercise.setupCode ?? '', exercise.solution, exercise.check, ...exercise.wrongAnswers, ...(exercise.alternateSolutions ?? [])];
+      for (const part of code) expect(part, `${exercise.id} calls setwd()`).not.toMatch(/\bsetwd\s*\(/);
+    }
+  });
+
+  test('every dataset read by lesson code exists in the mount list', async () => {
+    // Code blocks only: Module 0 names data/survey.csv in prose as the file in
+    // a student's own project, which StatLab rightly does not ship.
     const { DATASET_FILES } = await import('../r/session');
     for (const [path, source] of Object.entries(sources)) {
-      for (const match of source.matchAll(/data\/([\w-]+\.csv)/g)) {
+      for (const match of lessonCode(source).matchAll(/data\/([\w-]+\.csv)/g)) {
         expect(DATASET_FILES as readonly string[], `${path} reads ${match[1]}`).toContain(match[1]);
       }
     }
@@ -271,7 +287,7 @@ describe('lesson content', () => {
     // straight away rather than after a long R run.
     for (const exercise of ALL_EXERCISES) {
       expect(exercise.check, `${exercise.id} uses exists() instead of has_answer()`)
-        .not.toMatch(/\bexists\s*\(/);
+        .not.toMatch(/(?<!\.)\bexists\s*\(/);
     }
   });
 
@@ -505,6 +521,65 @@ describe('Module 8', () => {
     const live = MODULES.map((m) => m.id);
     for (const id of ['module-05', 'module-06', 'module-07', 'module-08']) {
       expect(live, `${id} is not live`).toContain(id);
+    }
+  });
+});
+
+describe('Module 0', () => {
+  const lessons = [
+    '00-1-rstudio-and-projects',
+    '00-2-files-and-paths',
+    '00-3-symbols-store-and-compare',
+    '00-4-symbols-pick-and-pipe',
+  ];
+
+  test('its four lesson files exist and Module 0 opens the course', () => {
+    for (const file of lessons) expect(sources[`./lessons/${file}.mdx`], `missing ${file}`).toBeDefined();
+    expect(MODULES[0].id).toBe('module-00');
+    expect(ALL_LESSONS[0].id).toBe('00-1');
+  });
+
+  test('Module 0 defines exactly the exercises the manifest lists, in order', () => {
+    const planned = PLANNED_MODULES.find((m) => m.id === 'module-00')!;
+    expect(module00.map((e) => e.id)).toEqual(planned.lessons.flatMap((l) => l.exercises));
+  });
+
+  test('lesson 00-1 runs no R, because it teaches desktop software', () => {
+    // RStudio, projects and the .Rproj file do not exist in the browser. The
+    // lesson is guided reading and completes on a visit.
+    const source = sources['./lessons/00-1-rstudio-and-projects.mdx'];
+    expect(source).not.toMatch(/<CodeBlock\b|<Exercise\b/);
+    expect(source).toMatch(/<RStudioPanes \/>/);
+  });
+
+  test('Module 0 reads no dataset', () => {
+    // Module 2 lesson 1 introduces read.csv together with factors. Module 0
+    // only looks at the data folder.
+    for (const file of lessons) {
+      expect(lessonCode(sources[`./lessons/${file}.mdx`]), `${file} reads a dataset`).not.toMatch(/read\.csv/);
+    }
+    for (const exercise of module00) {
+      expect([exercise.solution, exercise.check].join('\n'), `${exercise.id} reads a dataset`).not.toMatch(/read\.csv/);
+    }
+  });
+
+  test('no Module 0 exercise creates a file', () => {
+    // webR's file system outlives every attempt, so a check that looked for a
+    // file the solution wrote would pass the next empty submission.
+    const writes = /\b(dir\.create|file\.create|write\.csv|writeLines|saveRDS|sink|unlink|file\.remove)\s*\(/;
+    for (const exercise of module00) {
+      const code = [exercise.setupCode ?? '', exercise.solution, exercise.check, ...exercise.wrongAnswers, ...(exercise.alternateSolutions ?? [])];
+      for (const part of code) expect(part, `${exercise.id} writes to disk`).not.toMatch(writes);
+    }
+  });
+
+  test('every symbol on the cheat sheet is taught in the two symbol lessons', () => {
+    const taught = sources['./lessons/00-3-symbols-store-and-compare.mdx'] + sources['./lessons/00-4-symbols-pick-and-pipe.mdx'];
+    expect(sources['./lessons/00-4-symbols-pick-and-pipe.mdx']).toMatch(/<SymbolTable \/>/);
+    for (const row of SYMBOLS) {
+      for (const symbol of row.symbols) {
+        expect(taught.includes(symbol), `the cheat sheet lists ${symbol}, which neither lesson mentions`).toBe(true);
+      }
     }
   });
 });
