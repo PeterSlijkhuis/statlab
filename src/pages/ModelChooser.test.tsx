@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
 import { findLesson } from '../content/manifest';
-import ModelChooser, { TREE, type Answer, type Node } from './ModelChooser';
-import { allAnswers, packagesIn, packagesMissingHere } from './modelTree';
+import ModelChooser, { TREE, WhereItRuns, type Answer, type Node } from './ModelChooser';
+import { allAnswers, GROUPS as SECTIONS, packagesIn, packagesMissingHere } from './modelTree';
 
 function Location() {
   const location = useLocation();
@@ -26,6 +26,11 @@ function renderChooser(url = '/which-model') {
 /** The chooser's own heading: the current question or answer. The index below it has an h2 of its own. */
 function heading() {
   return document.querySelector<HTMLElement>('.model-chooser > h2, .model-chooser-answer > h2')!;
+}
+
+/** Queries inside the answer card, so the index's filter buttons and badges do not match too. */
+function card() {
+  return within(document.querySelector<HTMLElement>('.model-chooser-answer')!);
 }
 
 const TO_OUTCOME = /predicts, or differs in, one outcome/i;
@@ -110,8 +115,8 @@ describe('ModelChooser', () => {
     await clickThrough(clicks);
     expect(heading().textContent).toBe(model);
     expect(document.querySelector('.model-chooser-answer pre code')?.textContent).toContain(code);
-    expect(screen.getByText('Check first:')).toBeTruthy();
-    expect(screen.getByText('Taught in this course')).toBeTruthy();
+    expect(card().getByText('Check first:')).toBeTruthy();
+    expect(card().getByText('Taught in this course')).toBeTruthy();
   });
 
   test.each(BEYOND)('reaches $id, marked as beyond the course', async ({ clicks, id, code }) => {
@@ -120,8 +125,8 @@ describe('ModelChooser', () => {
     const answer = answers().find((candidate) => candidate.id === id)!;
     expect(heading().textContent).toBe(answer.model);
     expect(document.querySelector('.model-chooser-answer pre code')?.textContent).toContain(code);
-    expect(screen.getByText('Beyond this course')).toBeTruthy();
-    expect(screen.getByText('Learn more:')).toBeTruthy();
+    expect(card().getByText('Beyond this course')).toBeTruthy();
+    expect(card().getByText('Learn more:')).toBeTruthy();
   });
 
   test('the hand-written paths reach every answer in the tree', () => {
@@ -247,15 +252,48 @@ describe('links and the index', () => {
     expect(heading().textContent).toBe('What do you want to find out?');
   });
 
-  test('the index lists every answer once and opens the one picked', async () => {
+  test('the index lists every answer once, in sections, and opens the one picked', async () => {
     renderChooser();
-    const index = screen.getByRole('region', { name: 'Every model on this page' });
-    const listed = within(index).getAllByRole('button').map((button) => button.textContent);
-    expect(listed).toEqual(answers().map((answer) => answer.model));
+    const index = screen.getByRole('region', { name: /browse all 40 models/i });
+    const listed = [...index.querySelectorAll('.model-card button')].map((button) => button.textContent);
+    expect([...listed].sort()).toEqual(answers().map((answer) => answer.model).sort());
+    expect(index.querySelectorAll('.model-index-section h3').length).toBe(SECTIONS.length);
 
     await userEvent.click(within(index).getByRole('button', { name: 'Structural equation model (SEM)' }));
     expect(heading().textContent).toBe('Structural equation model (SEM)');
     expect(document.activeElement).toBe(heading());
+  });
+
+  test('the index sections follow the order of the questions', () => {
+    const order = allAnswers().map((entry) => SECTIONS.findIndex((section) => section.name === entry.group));
+    expect(order.every((position) => position >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  test('search finds a model by name or by the test it replaces', async () => {
+    renderChooser();
+    const index = screen.getByRole('region', { name: /browse all/i });
+    const search = within(index).getByRole('searchbox', { name: 'Search the models' });
+
+    await userEvent.type(search, 'kruskal');
+    expect([...index.querySelectorAll('.model-card button')].map((button) => button.textContent)).toEqual([
+      'Linear model with a categorical predictor',
+    ]);
+
+    await userEvent.clear(search);
+    await userEvent.type(search, 'xylophone');
+    expect(within(index).getByText(/no model matches/i)).toBeTruthy();
+  });
+
+  test('the filter shows only taught or only beyond-the-course models', async () => {
+    renderChooser();
+    const index = screen.getByRole('region', { name: /browse all/i });
+    await userEvent.click(within(index).getByRole('button', { name: 'Taught in this course' }));
+    expect(index.querySelectorAll('.model-card').length).toBe(answers().filter((answer) => answer.lessonId).length);
+    expect(index.querySelectorAll('.model-card.beyond').length).toBe(0);
+
+    await userEvent.click(within(index).getByRole('button', { name: 'Beyond this course' }));
+    expect(index.querySelectorAll('.model-card.taught').length).toBe(0);
   });
 });
 
@@ -264,32 +302,40 @@ describe('where each snippet runs', () => {
     expect(packagesIn('library(dplyr)\nlibrary( lavaan )\nx <- MASS::polr(y ~ x)\npsych::alpha(d)')).toEqual(['dplyr', 'lavaan', 'MASS', 'psych']);
   });
 
-  test('base R and the course packages run here; anything else needs RStudio', () => {
-    expect(packagesMissingHere({ rCode: 'library(emmeans)\nlibrary(lmerTest)\nstats::lm(y ~ x)' })).toEqual([]);
-    expect(packagesMissingHere({ rCode: 'library(dplyr)\nlibrary(lavaan)' })).toEqual(['lavaan']);
+  test('base R and every package the R Workspace offers run there; anything else needs RStudio', () => {
+    expect(packagesMissingHere({ rCode: 'library(emmeans)\nlibrary(lavaan)\nstats::lm(y ~ x)' })).toEqual([]);
+    expect(packagesMissingHere({ rCode: 'library(dplyr)\nlibrary(ranger)' })).toEqual(['ranger']);
   });
 
   test('an answer that runs here says so and links to the R Workspace', async () => {
     renderChooser();
     await clickThrough([...GROUPS, /three or more groups/i]);
-    expect(screen.getByText('Runs in the R Workspace')).toBeTruthy();
+    expect(card().getByText('Runs in the R Workspace')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'R Workspace' }).getAttribute('href')).toBe('/workspace');
-    expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('The first run installs emmeans');
+    expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('The first run downloads emmeans');
   });
 
-  test('an answer that needs a package this site lacks says RStudio, and how to get it', async () => {
+  test('advanced methods run in the R Workspace too, after a download', async () => {
     renderChooser();
     await clickThrough([/third variable/i, /mediator/i]);
-    expect(screen.getByText('Needs RStudio')).toBeTruthy();
-    expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('install.packages("lavaan")');
+    expect(card().getByText('Runs in the R Workspace')).toBeTruthy();
+    expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('The first run downloads lavaan');
   });
 
-  test('a package that comes with R is not sent to install.packages()', async () => {
-    renderChooser();
-    await clickThrough([TO_OUTCOME, /time until/i, /groups differ/i]);
-    const text = document.querySelector('.model-chooser-answer')!.textContent!;
-    expect(text).toContain('survival comes with R');
-    expect(text).not.toContain('install.packages');
+  test('a package the R Workspace cannot load sends the student to RStudio, with the install line', () => {
+    render(
+      <MemoryRouter>
+        <WhereItRuns answer={{ ...answers()[0], rCode: 'library(ranger)\nlibrary(mgcv)' }} />
+      </MemoryRouter>,
+    );
+    const text = document.body.textContent!;
+    expect(text).toContain('in RStudio, because this site does not have ranger and mgcv');
+    expect(text).toContain('mgcv comes with R');
+    expect(text).toContain('install.packages("ranger")');
+  });
+
+  test('every answer on the page runs in the R Workspace', () => {
+    for (const answer of answers()) expect(packagesMissingHere(answer), answer.id).toEqual([]);
   });
 
   test('every answer the course teaches runs in the R Workspace', () => {

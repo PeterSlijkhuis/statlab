@@ -4,14 +4,13 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createLessonEnv, destroyEnv } from '../r/environments';
 import { evaluateR } from '../r/evaluate';
 import { ensurePackages, installCoursePackages, ON_DEMAND_PACKAGES } from '../r/session';
-import { allAnswers, packagesMissingHere } from './modelTree';
+import { allAnswers, packagesDownloaded, packagesMissingHere } from './modelTree';
 
 /**
  * Every snippet in the model chooser, run in real R against data made to fit
- * it. A snippet that runs in the R Workspace runs here with exactly the
- * packages the R Workspace has. A snippet marked "Needs RStudio" runs too,
- * after installing the packages it names, so its code is checked even though
- * students run it elsewhere.
+ * it, after installing the packages it names, as the R Workspace does on a
+ * first run. A snippet marked "Needs RStudio" runs too where webR can install
+ * its packages, so its code is checked even though students run it elsewhere.
  */
 
 /** Two-factor questionnaire items: each factor drives its items plus noise. */
@@ -207,8 +206,9 @@ test('every answer has a fixture, and every fixture an answer', () => {
 
 describe.each(ANSWERS.map((answer) => [answer.id, answer] as const))('%s', (id, answer) => {
   test('runs without an error in real R', async () => {
-    const missing = packagesMissingHere(answer);
-    if (missing.length) await ensurePackages(webR, missing);
+    // What the R Workspace downloads on first use, and anything it could not.
+    const extra = [...packagesDownloaded(answer), ...packagesMissingHere(answer)];
+    if (extra.length) await ensurePackages(webR, extra);
     await webR.evalRVoid(DETACH_ADDED(bootSearch));
     const env = await createLessonEnv(webR);
     try {
