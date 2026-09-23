@@ -168,6 +168,9 @@ body.ide-dragging-y { cursor: row-resize; }
   }
   .ide-switcher button[aria-pressed="true"] { background: var(--surface); color: var(--brand-ink); box-shadow: var(--shadow-sm); }
   .ide-columns { display: block; height: auto; padding: 0; border: 0; background: none; box-shadow: none; }
+  /* Block, not flex: in a flex column the panes' flex-basis wins over the height
+     below, and the Console and Files panes, whose basis is 0, shrink to nothing. */
+  .ide-column { display: block; }
   .ide-splitter { display: none; }
   .ide-pane { display: none; }
   .ide-pane.focused { display: flex; height: clamp(24rem, calc(100vh - 14rem), 44rem); height: clamp(24rem, calc(100dvh - 14rem), 44rem); }
