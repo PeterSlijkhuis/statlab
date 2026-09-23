@@ -25,7 +25,7 @@ function Badges({ answer }: { answer: Answer }) {
       <span className={`model-badge ${answer.lessonId ? 'taught' : 'beyond'}`}>
         {answer.lessonId ? 'Taught in this course' : 'Beyond this course'}
       </span>
-      <span className={`model-badge ${runsHere ? 'runs-here' : 'rstudio'}`}>{runsHere ? 'Runs in the Playground' : 'Needs RStudio'}</span>
+      <span className={`model-badge ${runsHere ? 'runs-here' : 'rstudio'}`}>{runsHere ? 'Runs in the R Workspace' : 'Needs RStudio'}</span>
     </p>
   );
 }
@@ -41,7 +41,7 @@ function WhereItRuns({ answer }: { answer: Answer }) {
     const installs = packagesIn(answer.rCode).filter((name) => (ON_DEMAND_PACKAGES as readonly string[]).includes(name));
     return (
       <p>
-        <strong>Where to run it:</strong> in the <Link to="/playground">Playground</Link>, once d holds your data.
+        <strong>Where to run it:</strong> in the <Link to="/workspace">R Workspace</Link>, once d holds your data.
         {installs.length > 0 && ` The first run installs ${list(installs)}, which takes a moment.`}
       </p>
     );
@@ -145,7 +145,7 @@ function Index({ onPick }: { onPick: (id: string) => void }) {
                   {answer.model}
                 </button>{' '}
                 <span className="model-chooser-index-tags">
-                  {answer.lessonId ? 'taught' : 'beyond the course'}, {packagesMissingHere(answer).length ? 'RStudio' : 'Playground'}
+                  {answer.lessonId ? 'taught' : 'beyond the course'}, {packagesMissingHere(answer).length ? 'RStudio' : 'R Workspace'}
                 </span>
               </li>
             ))}

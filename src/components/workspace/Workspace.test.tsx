@@ -291,4 +291,57 @@ describe('Workspace', () => {
     await userEvent.click(sourceButton('Source'));
     await waitFor(() => ran('y <- 2\ny * 3'));
   });
+
+  test('scripts open in tabs of their own, and every tab survives a reload', async () => {
+    const { unmount } = renderWorkspace();
+    await userEvent.click(within(screen.getByRole('region', { name: 'Source' })).getByRole('button', { name: 'New' }));
+    expect(screen.getByRole('tab', { name: 'Untitled.R' }).getAttribute('aria-selected')).toBe('true');
+    await userEvent.type(screen.getByRole('textbox', { name: 'R script' }), 'z <- 3');
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('z <- 3'));
+
+    // The first script is still there, unchanged.
+    await userEvent.click(screen.getByRole('tab', { name: 'script.R' }));
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('x <- 1\nx'));
+    unmount();
+
+    renderWorkspace();
+    expect(screen.getByRole('tab', { name: 'script.R' }).getAttribute('aria-selected')).toBe('true');
+    await userEvent.click(screen.getByRole('tab', { name: 'Untitled.R' }));
+    expect(screen.getByRole('textbox', { name: 'R script' }).textContent).toBe('z <- 3');
+  });
+
+  test('Rename names the script, and closing one with code in it asks first', async () => {
+    renderWorkspace();
+    const toolbar = within(screen.getByRole('region', { name: 'Source' }));
+    await userEvent.click(toolbar.getByRole('button', { name: 'New' }));
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('analysis');
+    await userEvent.click(toolbar.getByRole('button', { name: 'Rename' }));
+    expect(screen.getByRole('tab', { name: 'analysis.R' })).toBeTruthy();
+    prompt.mockRestore();
+
+    // Empty: closes without asking.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Close analysis.R' }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('tab', { name: 'analysis.R' })).toBeNull();
+    // The last script cannot be closed at all.
+    expect(screen.queryByRole('button', { name: 'Close script.R' })).toBeNull();
+    confirm.mockRestore();
+  });
+
+  test('Download in Files saves a file R wrote to the computer', async () => {
+    const readFile = vi.fn().mockResolvedValue(new TextEncoder().encode('a,b\n1,2\n'));
+    const withFS = { ...(webR as object), FS: { readFile } } as never;
+    r.listFiles.mockResolvedValue([{ name: 'results.csv', folder: false, bytes: 8 }]);
+    const createObjectURL = vi.fn(() => 'blob:results');
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<Workspace id="test-workspace" starter="" webR={withFS} env={env} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Download results.csv' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('/home/web_user/results.csv'));
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
+  });
 });

@@ -1,8 +1,12 @@
-/* The playground's RStudio layout: two columns of two panes, with draggable
+/* The R Workspace's RStudio layout: two columns of two panes, with draggable
    borders between them. Below 640px of room it becomes one pane at a time. */
 
-.page.page-playground { max-width: 96rem; }
-.playground-intro { max-width: 52rem; margin-top: -0.25rem; color: var(--ink-2); }
+.page.page-workspace { max-width: 96rem; }
+.workspace-intro { max-width: 52rem; margin-top: -0.25rem; color: var(--ink-2); }
+.workspace-limits { max-width: 52rem; margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--ink-2); }
+.workspace-limits summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+.workspace-limits ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.workspace-limits li { margin: 0.2rem 0; }
 
 .ide {
   container: ide / inline-size;
