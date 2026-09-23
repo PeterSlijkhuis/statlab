@@ -17,6 +17,8 @@ import {
   type ObjectSummary,
   type Request,
 } from '../../r/workspace';
+import { ensurePackages, onDemandPackagesIn } from '../../r/session';
+import { setStatus } from '../../r/webrClient';
 import { R_STOPPED_MESSAGE } from '../CodeBlock';
 import REditor from '../REditor';
 import ConsolePane from './ConsolePane';
@@ -228,6 +230,20 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     remember(text);
     setFocus('console');
     try {
+      // The playground boots with the core packages only. The course's
+      // modelling packages install the first time code asks for one, so a
+      // snippet copied from the model chooser runs as it stands.
+      const extra = onDemandPackagesIn(text);
+      if (extra.length) {
+        try {
+          await ensurePackages(webR, extra);
+        } catch (err) {
+          setLines((old) => [...old, { type: 'error' as const, text: err instanceof Error ? err.message : String(err) }]);
+          return;
+        } finally {
+          setStatus({ phase: 'ready' });
+        }
+      }
       const result = await runInConsole(webR, env, text, plotSize(), consoleWidth());
       setLines((old) => [...old, ...result.lines].slice(-MAX_LINES));
       const last = result.images[result.images.length - 1];

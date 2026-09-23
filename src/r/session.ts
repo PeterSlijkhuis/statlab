@@ -20,6 +20,19 @@ export const ON_DEMAND_PACKAGES = ['emmeans', 'car', 'lme4', 'lmerTest'] as cons
 
 export const KNOWN_PACKAGES = [...CORE_PACKAGES, ...ON_DEMAND_PACKAGES] as const;
 
+/**
+ * The on-demand packages that `code` attaches with library() or require(), or
+ * calls with `::`, so the playground can install them before running it. A
+ * name in a comment counts too, which costs at most one early download. Any
+ * other package is left for R itself to report as missing.
+ */
+export function onDemandPackagesIn(code: string): string[] {
+  const named = new Set<string>();
+  for (const match of code.matchAll(/\b(?:library|require)\(\s*["']?([A-Za-z][\w.]*)/g)) named.add(match[1]);
+  for (const match of code.matchAll(/\b([A-Za-z][\w.]*):::?/g)) named.add(match[1]);
+  return ON_DEMAND_PACKAGES.filter((name) => named.has(name));
+}
+
 /** Kept as the boot-time set's former name so existing importers still resolve. */
 export const COURSE_PACKAGES = CORE_PACKAGES;
 

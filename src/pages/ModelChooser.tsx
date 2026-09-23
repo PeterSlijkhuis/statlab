@@ -1,205 +1,185 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { findLesson } from '../content/manifest';
+import { ON_DEMAND_PACKAGES } from '../r/session';
+import { allAnswers, follow, packagesIn, packagesMissingHere, pathTo, SHIPS_WITH_R, type Answer } from './modelTree';
 
-export type Node =
-  | { kind: 'question'; text: string; options: { label: string; next: Node }[] }
-  | {
-      kind: 'answer';
-      /** The model's name, as the course teaches it. */
-      model: string;
-      /** Course-style R, one statement per line. */
-      rCode: string;
-      /** What to check before trusting the result; names a rank-based alternative where one exists. */
-      check: string;
-      /** The traditional test this model reproduces, with its R call, when there is one. */
-      traditional?: string;
-      note: string;
-      lessonId?: string;
-    };
-
-export const TREE: Node = {
-  kind: 'question',
-  text: 'What kind of outcome are you analysing?',
-  options: [
-    {
-      label: 'A number (a score, time, rating or amount)',
-      next: {
-        kind: 'question',
-        text: 'How were the scores collected?',
-        options: [
-          {
-            label: 'One score per person, from different people',
-            next: {
-              kind: 'question',
-              text: 'What are you using to predict the outcome?',
-              options: [
-                {
-                  label: 'One continuous predictor',
-                  next: {
-                    kind: 'answer',
-                    model: 'Simple linear regression',
-                    rCode:
-                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
-                    check:
-                      'A scatterplot with geom_smooth(method = lm) shows a roughly straight-line pattern; no extreme outliers; residuals with similar spread along the whole line; residuals roughly normal, which matters mainly in small samples. For a curved-but-consistent pattern, ranks or outliers, Spearman\'s correlation: cor.test(d$outcome, d$predictor, method = "spearman").',
-                    traditional:
-                      "Pearson correlation: cor.test(d$outcome, d$predictor). Its t and p match the slope's.",
-                    note: 'The slope b is the change in the outcome for each one-unit increase in the predictor.',
-    lessonId: '09-2',
-                  },
-                },
-                {
-                  label: 'Several predictors',
-                  next: {
-                    kind: 'answer',
-                    model: 'Multiple linear regression',
-                    rCode:
-                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ predictor1 + predictor2, data = d)\nmodel %>% tidy()\nmodel %>% glance()',
-                    check:
-                      'Roughly linear relationships; no extreme outliers; residuals with similar spread across the fitted values; residuals roughly normal (mainly a concern in small samples); predictors not almost perfectly correlated with each other.',
-                    note: 'Each b is the change in the outcome for a one-unit increase in that predictor, holding the other predictors constant. Report R², F and each b with its SE, t and p.',
-    lessonId: '10-1',
-                  },
-                },
-                {
-                  label: 'One grouping variable with two groups',
-                  next: {
-                    kind: 'answer',
-                    model: 'Linear model with a two-group predictor',
-                    rCode:
-                      'library(dplyr)\nlibrary(broom)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% tidy()\nd %>% group_by(group) %>% summarise(mean = mean(outcome), sd = sd(outcome))',
-                    check:
-                      'Similar spread in each group, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Mann-Whitney test: wilcox.test(outcome ~ group, data = d).',
-                    traditional:
-                      'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE). Same t with the sign reversed — t.test subtracts the groups the other way round — and the same p.',
-                    note: 'The slope is the difference between the two group means. Always look at the means: the sign of b depends on which group R took as the reference.',
-    lessonId: '11-1',
-                  },
-                },
-                {
-                  label: 'One grouping variable with three or more groups',
-                  next: {
-                    kind: 'answer',
-                    model: 'Linear model with a categorical predictor',
-                    rCode:
-                      'library(dplyr)\nlibrary(broom)\nlibrary(emmeans)\nmodel <- lm(outcome ~ group, data = d)\nmodel %>% glance()\nmodel %>% tidy()\nemmeans(model, pairwise ~ group, adjust = "tukey")',
-                    check:
-                      'Similar spread in each group, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples; with large groups the Central Limit Theorem covers moderate skew. For a small, clearly skewed sample or extreme outliers, the Kruskal-Wallis test: kruskal.test(outcome ~ group, data = d).',
-                    traditional: 'One-way ANOVA: summary(aov(outcome ~ group, data = d)). Same F, same p.',
-                    note: 'Each b compares one group with the reference group. glance() gives the overall F; emmeans gives every pairwise comparison, corrected for multiple testing.',
-    lessonId: '11-2',
-                  },
-                },
-                {
-                  label: 'Two grouping variables that may interact',
-                  next: {
-                    kind: 'answer',
-                    model: 'Linear model with an interaction (factorial design)',
-                    rCode:
-                      'library(car)\nlibrary(emmeans)\nmodel <- lm(outcome ~ factor1 * factor2, data = d,\n            contrasts = list(factor1 = contr.sum, factor2 = contr.sum))\nAnova(model, type = "III")\nemmeans(model, pairwise ~ factor1:factor2, adjust = "tukey")',
-                    check:
-                      'Similar spread in each cell, which matters especially when group sizes differ. Residuals roughly normal, which matters mainly in small samples. Plot the cell means before interpreting main effects.',
-                    traditional:
-                      'Two-way (factorial) ANOVA. Anova(model, type = "III") gives its F tests for each main effect and the interaction.',
-                    // Type III main-effect tests are only meaningful with sum-to-zero contrasts. Under R's
-                    // default treatment contrasts they test each factor at the other's reference level.
-                    note: 'The contrasts = list(...) line matters: type III tests of the main effects are only correct with sum-to-zero contrasts, and R does not use those by default. An interaction means the effect of one factor depends on the level of the other: in an interaction plot, the lines are not parallel.',
-    lessonId: '12-2',
-                  },
-                },
-              ],
-            },
-          },
-          {
-            label: 'The same people measured more than once',
-            next: {
-              kind: 'answer',
-              model: 'Linear mixed-effects model',
-              rCode:
-                'library(dplyr)\nlibrary(tidyr)\nlibrary(lmerTest)\nlong_d <- d %>% pivot_longer(cols = c(before, after), names_to = "time", values_to = "score") %>%\n  mutate(time = factor(time, levels = c("before", "after")))\nmodel <- lmer(score ~ time + (1 | id), data = long_d)\nsummary(model)',
-              check:
-                'Data in long format: one row per person per measurement. Residuals roughly normal, which matters mainly in small samples. With only two time points and skewed differences, the Wilcoxon signed-rank test: wilcox.test(d$before, d$after, paired = TRUE).',
-              traditional:
-                'With two time points, the paired-samples t-test: t.test(d$before, d$after, paired = TRUE). With more, repeated-measures ANOVA.',
-              note: '(1 | id) gives every person their own starting level, so the model knows which scores belong together. Setting the factor levels makes "before" the reference, so the time coefficient is the change from before to after. Unlike repeated-measures ANOVA, it keeps people who missed a measurement.',
-    lessonId: '13-2',
-            },
-          },
-          {
-            label: 'People grouped in teams, classes or sites',
-            next: {
-              kind: 'answer',
-              model: 'Linear mixed-effects model with a grouping factor',
-              rCode: 'library(lmerTest)\nmodel <- lmer(outcome ~ predictor + (1 | site), data = d)\nsummary(model)',
-              check: 'Enough groups to estimate how they vary (a handful at the very least). Residuals roughly normal, which matters mainly in small samples.',
-              note: 'People in the same site are more alike than people in different sites; (1 | site) accounts for that. If people are also measured repeatedly, nest them: (1 | site/id).',
-    lessonId: '13-3',
-            },
-          },
-        ],
-      },
-    },
-    {
-      label: 'Yes or no (two possible outcomes)',
-      next: {
-        kind: 'answer',
-        model: 'Logistic regression',
-        rCode:
-          'model <- glm(outcome ~ predictor, data = d, family = binomial)\nsummary(model)\nexp(cbind(OR = coef(model), confint(model)))',
-        check:
-          'Independent observations, and enough cases of the rarer outcome — a common rule of thumb is at least 10 per estimated coefficient (a factor with k levels uses k − 1).',
-        traditional:
-          'With one categorical predictor, the chi-square test of independence: chisq.test(table(d$outcome, d$predictor), correct = FALSE), which matches anova(model, test = "Rao").',
-        note: 'The coefficients are in log odds. exp() turns them into odds ratios: above 1, the outcome becomes more likely; below 1, less likely.',
-    lessonId: '14-2',
-      },
-    },
-  ],
-};
+export { TREE, type Answer, type Node } from './modelTree';
 
 /**
- * The link to the lesson a leaf teaches. findLesson reads MODULES, which holds
- * only modules whose lesson files all exist, so a lessonId added before its
- * module is written resolves to undefined. The link still works in that case -
- * the route renders its own not-found state - but it loses its title, which is
+ * The link to a lesson. findLesson reads MODULES, which holds only modules
+ * whose lesson files all exist, so a lessonId added before its module is
+ * written resolves to undefined. The link still works in that case, since the
+ * route renders its own not-found state, but it loses its title, which is
  * what ModelChooser.test.tsx watches for.
  */
-function LessonLink({ lessonId }: { lessonId: string }) {
+function LessonLink({ lessonId, lead }: { lessonId: string; lead: string }) {
   const lesson = findLesson(lessonId);
+  return <Link to={`/lesson/${lessonId}`}>{lesson ? `${lead}: ${lesson.title}` : lead}</Link>;
+}
+
+function Badges({ answer }: { answer: Answer }) {
+  const runsHere = packagesMissingHere(answer).length === 0;
   return (
-    <p className="model-chooser-lesson">
-      <Link to={`/lesson/${lessonId}`}>
-        {lesson ? `Go to the lesson: ${lesson.title}` : 'Go to the lesson'}
-      </Link>
+    <p className="model-chooser-badges">
+      <span className={`model-badge ${answer.lessonId ? 'taught' : 'beyond'}`}>
+        {answer.lessonId ? 'Taught in this course' : 'Beyond this course'}
+      </span>
+      <span className={`model-badge ${runsHere ? 'runs-here' : 'rstudio'}`}>{runsHere ? 'Runs in the Playground' : 'Needs RStudio'}</span>
     </p>
   );
 }
 
+function list(names: string[]): string {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** Where the snippet runs, and what it takes to get there. */
+function WhereItRuns({ answer }: { answer: Answer }) {
+  const missing = packagesMissingHere(answer);
+  if (missing.length === 0) {
+    const installs = packagesIn(answer.rCode).filter((name) => (ON_DEMAND_PACKAGES as readonly string[]).includes(name));
+    return (
+      <p>
+        <strong>Where to run it:</strong> in the <Link to="/playground">Playground</Link>, once d holds your data.
+        {installs.length > 0 && ` The first run installs ${list(installs)}, which takes a moment.`}
+      </p>
+    );
+  }
+  const bundled = missing.filter((name) => SHIPS_WITH_R.includes(name));
+  const toInstall = missing.filter((name) => !SHIPS_WITH_R.includes(name));
+  return (
+    <p>
+      <strong>Where to run it:</strong> in RStudio, because this site does not have {list(missing)}.
+      {bundled.length > 0 && ` ${list(bundled)} ${bundled.length > 1 ? 'come' : 'comes'} with R, so RStudio already has ${bundled.length > 1 ? 'them' : 'it'}.`}
+      {toInstall.length > 0 && (
+        <>
+          {' '}
+          Install {toInstall.length > 1 ? 'them' : 'it'} once with{' '}
+          <code>install.packages({toInstall.length > 1 ? `c(${toInstall.map((name) => `"${name}"`).join(', ')})` : `"${toInstall[0]}"`})</code>.
+        </>
+      )}
+    </p>
+  );
+}
+
+function AnswerCard({ answer }: { answer: Answer }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(answer.rCode);
+      setCopied(true);
+    } catch {
+      // No clipboard permission: the code is on screen to copy by hand.
+    }
+  }
+  useEffect(() => setCopied(false), [answer]);
+
+  return (
+    <>
+      <Badges answer={answer} />
+      <p>
+        <strong>When to use it:</strong> {answer.when}
+      </p>
+      <div className="model-chooser-code">
+        <pre>
+          <code>{answer.rCode}</code>
+        </pre>
+        <button type="button" className="button-secondary" onClick={() => void copy()}>
+          {copied ? 'Copied' : 'Copy code'}
+        </button>
+      </div>
+      <p>
+        <strong>Check first:</strong> {answer.check}
+      </p>
+      {answer.traditional && (
+        <p>
+          <strong>Traditional name:</strong> {answer.traditional}
+        </p>
+      )}
+      <p>
+        <strong>How to read it:</strong> {answer.note}
+      </p>
+      <WhereItRuns answer={answer} />
+      {answer.lessonId ? (
+        <p className="model-chooser-lesson">
+          <LessonLink lessonId={answer.lessonId} lead="Go to the lesson" />
+        </p>
+      ) : (
+        <>
+          {answer.further && (
+            <p>
+              <strong>Learn more:</strong> {answer.further}
+            </p>
+          )}
+          {answer.buildsOn && (
+            <p className="model-chooser-lesson">
+              <LessonLink lessonId={answer.buildsOn} lead="Builds on the lesson" />
+            </p>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Every answer, grouped, so a student can browse instead of answering questions. */
+function Index({ onPick }: { onPick: (id: string) => void }) {
+  const groups = useMemo(() => {
+    const byGroup = new Map<string, Answer[]>();
+    for (const { answer, group } of allAnswers()) byGroup.set(group, [...(byGroup.get(group) ?? []), answer]);
+    return [...byGroup];
+  }, []);
+
+  return (
+    <section className="model-chooser-index" aria-labelledby="model-chooser-index-title">
+      <h2 id="model-chooser-index-title">Every model on this page</h2>
+      <p>Already know what you need? Jump straight to it.</p>
+      {groups.map(([group, answers]) => (
+        <div key={group}>
+          <h3>{group}</h3>
+          <ul>
+            {answers.map((answer) => (
+              <li key={answer.id}>
+                <button type="button" className="link-button" onClick={() => onPick(answer.id)}>
+                  {answer.model}
+                </button>{' '}
+                <span className="model-chooser-index-tags">
+                  {answer.lessonId ? 'taught' : 'beyond the course'}, {packagesMissingHere(answer).length ? 'RStudio' : 'Playground'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export default function ModelChooser() {
-  const [node, setNode] = useState<Node>(TREE);
-  const [trail, setTrail] = useState<string[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [path, setPath] = useState<string[]>(() => pathTo(searchParams.get('model') ?? '') ?? []);
+  const { node } = follow(path);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // Set by choose() and restart(): both unmount the button that was clicked, so
-  // focus would otherwise fall to <body>. Never set on mount, so landing on the
-  // page does not steal focus (also under StrictMode's double effect run).
+  // Set by every control that replaces the button that was clicked, so focus
+  // would otherwise fall to <body>. Never set on mount, so landing on the page
+  // does not steal focus (also under StrictMode's double effect run).
   const moveFocus = useRef(false);
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;
     headingRef.current?.focus();
-  }, [node]);
+  }, [path]);
 
-  function choose(label: string, next: Node) {
+  function go(next: string[]) {
     moveFocus.current = true;
-    setTrail((current) => [...current, label]);
-    setNode(next);
+    setPath(next);
+    const reached = follow(next).node;
+    setSearchParams(reached.kind === 'answer' ? { model: reached.id } : {}, { replace: true });
   }
 
-  function restart() {
-    moveFocus.current = true;
-    setTrail([]);
-    setNode(TREE);
+  function pick(id: string) {
+    go(pathTo(id) ?? []);
   }
 
   return (
@@ -207,17 +187,28 @@ export default function ModelChooser() {
       <h1>Which model should I use?</h1>
       <p>
         Work down from the question you want your data to answer. Almost every analysis in this course is one of three
-        models, lm(), lmer() or glm(), and the chain is always the same: question → assumptions →
-        choice of model → computation → interpretation → report.
+        models, lm(), lmer() or glm(), and the chain is always the same: question, assumptions, choice of model,
+        computation, interpretation, report. The chooser also covers methods beyond the course, and says so.
+      </p>
+      <p className="model-chooser-legend">
+        The code uses placeholder names: d is your data frame, and outcome, predictor and group are its columns. Replace
+        them with yours.
       </p>
 
-      {trail.length > 0 && (
-        <p className="model-chooser-trail">
-          {trail.join(' → ')}{' '}
-          <button type="button" onClick={restart} className="link-button">
+      {path.length > 0 && (
+        <nav className="model-chooser-trail" aria-label="Your answers so far">
+          <ol>
+            {path.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ol>
+          <button type="button" onClick={() => go(path.slice(0, -1))} className="link-button">
+            Back
+          </button>{' '}
+          <button type="button" onClick={() => go([])} className="link-button">
             Start over
           </button>
-        </p>
+        </nav>
       )}
 
       {node.kind === 'question' ? (
@@ -225,10 +216,11 @@ export default function ModelChooser() {
           <h2 ref={headingRef} tabIndex={-1}>
             {node.text}
           </h2>
+          {node.help && <p className="model-chooser-help">{node.help}</p>}
           <ul className="model-chooser-options">
             {node.options.map((option) => (
               <li key={option.label}>
-                <button type="button" onClick={() => choose(option.label, option.next)}>
+                <button type="button" onClick={() => go([...path, option.label])}>
                   {option.label}
                 </button>
               </li>
@@ -240,21 +232,11 @@ export default function ModelChooser() {
           <h2 ref={headingRef} tabIndex={-1}>
             {node.model}
           </h2>
-          <pre>
-            <code>{node.rCode}</code>
-          </pre>
-          <p>
-            <strong>Check first:</strong> {node.check}
-          </p>
-          {node.traditional && (
-            <p>
-              <strong>Traditional name:</strong> {node.traditional}
-            </p>
-          )}
-          <p>{node.note}</p>
-          {node.lessonId && <LessonLink lessonId={node.lessonId} />}
+          <AnswerCard answer={node} />
         </div>
       )}
+
+      <Index onPick={pick} />
     </div>
   );
 }
