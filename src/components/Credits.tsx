@@ -19,7 +19,7 @@ export const SOURCE_MATERIALS_BY = 'dr. S.J. Watson';
 
 export const PARTNERS = [
   { key: 'utwente', name: 'University of Twente', href: 'https://www.utwente.nl/en/' },
-  { key: 'bmslab', name: 'BMSLab', href: 'https://bmslab.utwente.nl/' },
+  { key: 'bmslab', name: 'The BMS Lab', href: 'https://bmslab.utwente.nl/' },
 ] as const;
 
 type Props = {
