@@ -1,0 +1,184 @@
+/* The playground's RStudio layout: two columns of two panes, with draggable
+   borders between them. Below 640px of room it becomes one pane at a time. */
+
+.page.page-playground { max-width: 96rem; }
+.playground-intro { max-width: 52rem; margin-top: -0.25rem; color: var(--ink-2); }
+
+.ide {
+  container: ide / inline-size;
+  --ide-head: #eef1f6;
+  --ide-edge: #d5dbe5;
+  --ide-echo: #1d4ed8;
+  margin: 1rem 0 0;
+}
+
+.ide-columns {
+  display: flex;
+  /* Tall enough to work in, short enough that all four panes fit on a laptop screen. */
+  height: clamp(30rem, calc(100vh - 15rem), 64rem);
+  height: clamp(30rem, calc(100dvh - 15rem), 64rem);
+  padding: 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--ide-edge);
+  border-radius: var(--radius);
+  background: #e3e8ef;
+  box-shadow: var(--shadow-sm);
+}
+.ide-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1 1 0; }
+.ide-column:first-child { flex: 0 0 auto; }
+.ide-pane {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1 1 0; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--ide-edge); border-radius: 6px;
+}
+.ide-column > .ide-pane:first-child { flex: 0 0 auto; }
+
+/* Splitters: a wide invisible grip around a thin visible line. */
+.ide-splitter { flex: none; position: relative; touch-action: none; outline: none; }
+.ide-splitter-vertical { width: 6px; cursor: col-resize; }
+.ide-splitter-horizontal { height: 6px; cursor: row-resize; }
+.ide-splitter::after { content: ""; position: absolute; border-radius: 2px; background: transparent; transition: background var(--fast); }
+.ide-splitter-vertical::after { inset: 30% 1px; }
+.ide-splitter-horizontal::after { inset: 1px 30%; }
+.ide-splitter:hover::after, .ide-splitter:focus-visible::after { background: var(--brand); }
+body.ide-dragging { user-select: none; -webkit-user-select: none; }
+body.ide-dragging-x { cursor: col-resize; }
+body.ide-dragging-y { cursor: row-resize; }
+
+/* Tab strips and toolbars --------------------------------------------------- */
+.ide-tabs {
+  flex: none; display: flex; align-items: flex-end; gap: 0.5rem; min-height: 2rem;
+  padding: 0.2rem 0.4rem 0; background: var(--ide-head); border-bottom: 1px solid var(--ide-edge);
+}
+.ide-tablist { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ide-tab { display: inline-flex; align-items: center; border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0; }
+.ide-tab button {
+  border: 0; background: none; padding: 0.3rem 0.65rem; font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  cursor: pointer; white-space: nowrap;
+}
+.ide-tab:hover button { color: var(--ink); }
+.ide-tab.active { background: var(--surface); border-color: var(--ide-edge); margin-bottom: -1px; }
+.ide-tab.active button { color: var(--ink); }
+.ide-tab .ide-tab-close { padding: 0.2rem 0.45rem 0.2rem 0; font-size: 1rem; line-height: 1; }
+.ide-tab-title { padding: 0.3rem 0.65rem; font-size: 0.82rem; font-weight: 650; color: var(--ink); background: var(--surface); border: 1px solid var(--ide-edge); border-bottom: 0; border-radius: 5px 5px 0 0; margin-bottom: -1px; }
+.ide-tabs-aside { margin-left: auto; display: inline-flex; align-items: center; gap: 0.5rem; padding-bottom: 0.25rem; font-size: 0.78rem; }
+.ide-busy { color: #92400e; font-weight: 600; }
+.ide-busy::before { content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; margin-right: 0.35rem; border-radius: 50%; background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+
+.ide-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.ide-toolbar {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding: 0.3rem 0.45rem;
+  border-bottom: 1px solid var(--line); background: var(--surface); margin: 0;
+}
+.ide-toolbar button, .ide-tab-action, .ide-file-actions button {
+  padding: 0.2rem 0.6rem; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface);
+  color: var(--ink-2); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background var(--fast), border-color var(--fast);
+}
+.ide-toolbar button:hover:not(:disabled), .ide-tab-action:hover, .ide-file-actions button:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
+.ide-toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
+.ide-toolbar button.danger { border-color: var(--danger); color: var(--danger); }
+.ide-pane-source .ide-toolbar button:first-child:not(:disabled) { border-color: var(--brand); color: var(--brand-ink); }
+.ide-pane-source .ide-toolbar button:first-child::before { content: "▶ "; font-size: 0.65rem; }
+.ide-toolbar input[type="search"] {
+  flex: 1 1 8rem; min-width: 0; padding: 0.2rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 5px; font: inherit; font-size: 0.82rem;
+}
+.ide-toolbar-label { font-size: 0.8rem; font-weight: 600; color: var(--ink-2); padding: 0 0.25rem; }
+.ide-toolbar-note { flex: 1 1 12rem; min-width: 0; font-size: 0.76rem; color: var(--muted); line-height: 1.35; }
+.ide-toolbar-spacer { flex: 1; }
+
+.ide-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ide-empty { margin: 0; padding: 0.75rem; color: var(--muted); font-size: 0.85rem; }
+.ide-error { flex: none; margin: 0.4rem; padding: 0.4rem 0.6rem; border-radius: 6px; background: var(--danger-soft); border: 1px solid #fca5a5; color: #7f1d1d; font-size: 0.82rem; }
+.ide-link { border: 0; background: none; padding: 0; font: inherit; color: var(--brand-2); cursor: pointer; text-align: left; }
+.ide-link:hover:not(:disabled) { text-decoration: underline; }
+.ide-link[aria-current] { color: var(--ink); font-weight: 650; cursor: default; }
+
+/* Source --------------------------------------------------------------------- */
+.ide-editor { flex: 1 1 auto; min-height: 0; display: flex; }
+.ide-editor .r-editor { flex: 1; min-width: 0; border: 0; border-radius: 0; background: var(--surface); }
+.ide-editor .r-editor:focus-within { box-shadow: none; }
+.ide-editor .r-editor, .ide-editor .cm-editor { height: 100%; }
+.ide-editor .r-editor .cm-editor { max-height: none; }
+.ide-editor .cm-scroller { overflow: auto; }
+
+/* Console -------------------------------------------------------------------- */
+.ide-console {
+  flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0.4rem 0.6rem 0.6rem;
+  font-family: var(--mono); font-size: 0.84rem; line-height: 1.45; cursor: text;
+}
+.ide-console-line { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+.ide-console-echo { color: var(--ide-echo); }
+.ide-console-error { color: #b91c1c; }
+.ide-console-warning, .ide-console-stderr { color: #b45309; }
+.ide-console-message { color: var(--muted); }
+.ide-console-prompt { display: flex; gap: 0.5ch; color: var(--ide-echo); }
+.ide-console-prompt textarea {
+  flex: 1; min-width: 0; padding: 0; border: 0; outline: none; resize: none; background: transparent; overflow: hidden;
+  font: inherit; color: var(--ide-echo); line-height: inherit;
+}
+
+/* Environment and History --------------------------------------------------- */
+.ide-objects, .ide-files { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.ide-objects th {
+  text-align: left; padding: 0.3rem 0.6rem; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--ink-2); background: var(--surface-2); border-bottom: 1px solid var(--line);
+}
+.ide-objects td, .ide-files td { padding: 0.25rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ide-object-name { font-family: var(--mono); font-weight: 600; white-space: nowrap; width: 1%; }
+.ide-object-value { font-family: var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+.ide-history { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 0.82rem; }
+.ide-history button {
+  display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: none;
+  padding: 0.25rem 0.6rem; font: inherit; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
+}
+.ide-history button:hover { background: var(--surface-2); }
+.ide-history button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand-ink); }
+
+/* Files, Plots and Help ----------------------------------------------------- */
+.ide-breadcrumbs { flex: none; padding: 0.3rem 0.6rem; font-size: 0.82rem; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.ide-files th { text-align: left; padding: 0.25rem 0.6rem; font-size: 0.74rem; color: var(--muted); border-bottom: 1px solid var(--line); font-weight: 650; }
+.ide-file-name { overflow-wrap: anywhere; }
+.ide-file-size { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ide-file-actions { text-align: right; white-space: nowrap; }
+.ide-file-actions button { margin-left: 0.25rem; padding: 0.1rem 0.5rem; }
+.ide-plot-area { display: flex; align-items: flex-start; justify-content: center; background: var(--surface); }
+.ide-plot:not([hidden]) { display: block; max-width: 100%; height: auto; margin: 0.5rem; }
+.ide-help-text { margin: 0; padding: 0.6rem 0.75rem; font-family: var(--mono); font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ide-help-home { padding: 0.6rem 0.75rem; font-size: 0.88rem; }
+.ide-help-home p { margin: 0 0 0.5rem; }
+.ide-help-home ul { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin: 0; padding: 0; list-style: none; font-family: var(--mono); }
+
+/* Data viewer ---------------------------------------------------------------- */
+.ide-data { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.ide-data th, .ide-data td { padding: 0.2rem 0.6rem; border: 1px solid var(--line); white-space: nowrap; text-align: left; }
+.ide-data thead th { position: sticky; top: 0; background: var(--ide-head); font-weight: 650; }
+.ide-data tbody th { color: var(--muted); font-weight: 500; background: var(--surface-2); }
+.ide-na { color: var(--muted); font-style: italic; }
+
+/* One pane at a time on a narrow screen ------------------------------------- */
+.ide-switcher { display: none; }
+@container ide (max-width: 640px) {
+  .ide-switcher {
+    display: flex; gap: 2px; padding: 3px; margin-bottom: 0.5rem;
+    border-radius: 10px; background: #e3e8ef;
+  }
+  .ide-switcher button {
+    flex: 1 1 auto; min-width: 0; min-height: 40px; padding: 0.3rem 0.35rem; border: 0; border-radius: 8px; background: transparent;
+    font-size: 0.82rem; font-weight: 650; color: var(--ink-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ide-switcher button[aria-pressed="true"] { background: var(--surface); color: var(--brand-ink); box-shadow: var(--shadow-sm); }
+  .ide-columns { display: block; height: auto; padding: 0; border: 0; background: none; box-shadow: none; }
+  .ide-splitter { display: none; }
+  .ide-pane { display: none; }
+  .ide-pane.focused { display: flex; height: clamp(24rem, calc(100vh - 14rem), 44rem); height: clamp(24rem, calc(100dvh - 14rem), 44rem); }
+}
+
+/* A small phone: the four pane names must still fit across without cutting a word. */
+@container ide (max-width: 350px) {
+  .ide-switcher button { padding: 0.3rem 0.15rem; font-size: 0.74rem; }
+}
+
+@media (pointer: coarse) {
+  .ide-toolbar button, .ide-file-actions button, .ide-tab button { min-height: 40px; }
+  .ide-console-prompt textarea, .ide-toolbar input[type="search"] { font-size: 16px; }
+}
