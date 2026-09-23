@@ -13,7 +13,7 @@ export default function RStudioPanes() {
     <figure className="rstudio">
       <div className="rstudio-bar" aria-hidden="true">
         <span>File  Edit  Code  View  Session  Tools  Help</span>
-        <span>thesis-analysis</span>
+        <span>survey-analysis</span>
       </div>
       <div className="rstudio-grid">
         {PANES.map((pane) => (

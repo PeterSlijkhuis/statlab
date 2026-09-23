@@ -70,26 +70,26 @@ export const module00: ExerciseDef[] = [
   {
     id: 'm0-2-b',
     prompt:
-      'A classmate\'s script reads its data from "C:/Users/sam/Documents/thesis/data/survey.csv", which works only on Sam\'s laptop. The script lives in an RStudio Project whose folder is thesis. Store the path to survey.csv relative to the project in rel_path.',
+      'A classmate\'s script reads its data from "C:/Users/sam/Documents/survey-analysis/data/survey.csv", which works only on Sam\'s laptop. The script lives in an RStudio Project whose folder is survey-analysis. Store the path to survey.csv relative to the project in rel_path.',
     starterCode:
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\n\n# In the project, R already starts inside the thesis folder. What is left of the path?\nrel_path <- ',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\n\n# In the project, R already starts inside the survey-analysis folder. What is left of the path?\nrel_path <- ',
     solution:
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- "data/survey.csv"',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- "data/survey.csv"',
     wrongAnswers: [
       // The project folder named again, though R is already inside it.
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- "thesis/data/survey.csv"',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- "survey-analysis/data/survey.csv"',
       // The data folder forgotten.
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- "survey.csv"',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- "survey.csv"',
       // A Windows backslash, which R reads as the start of a special character.
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- "data\\\\survey.csv"',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- "data\\\\survey.csv"',
       // Left as it was.
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- old_path',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- old_path',
     ],
     alternateSolutions: [
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- file.path("data", "survey.csv")',
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- "./data/survey.csv"',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- file.path("data", "survey.csv")',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- "./data/survey.csv"',
       // Cutting the machine-specific start off the old path.
-      'old_path <- "C:/Users/sam/Documents/thesis/data/survey.csv"\nrel_path <- sub("C:/Users/sam/Documents/thesis/", "", old_path, fixed = TRUE)',
+      'old_path <- "C:/Users/sam/Documents/survey-analysis/data/survey.csv"\nrel_path <- sub("C:/Users/sam/Documents/survey-analysis/", "", old_path, fixed = TRUE)',
     ],
     check: `
       if (!has_answer("rel_path")) {
@@ -104,21 +104,21 @@ export const module00: ExerciseDef[] = [
             list(pass = FALSE, message = "R paths use forward slashes on every computer, Windows included. Inside R text a backslash starts a special character, so write data/survey.csv with a /.")
           } else if (grepl(":", bare, fixed = TRUE) || startsWith(bare, "/")) {
             list(pass = FALSE, message = "That is still an absolute path: it names a drive and Sam's own folders, so it breaks on every other computer. Keep only the part after the project folder.")
-          } else if (startsWith(bare, "thesis/")) {
-            list(pass = FALSE, message = "Nearly. R is already inside the thesis folder, so thesis/ would send it looking for a second thesis folder inside the first. Drop it.")
+          } else if (startsWith(bare, "survey-analysis/")) {
+            list(pass = FALSE, message = "Nearly. R is already inside the survey-analysis folder, so survey-analysis/ would send it looking for a second survey-analysis folder inside the first. Drop it.")
           } else if (bare == "survey.csv") {
-            list(pass = FALSE, message = "That looks for survey.csv in the thesis folder itself, but the file sits inside the data folder.")
+            list(pass = FALSE, message = "That looks for survey.csv in the survey-analysis folder itself, but the file sits inside the data folder.")
           } else if (bare != "data/survey.csv") {
-            list(pass = FALSE, message = paste0("rel_path is \\"", rel_path, "\\". Start from the thesis folder and name each folder on the way down to the file."))
+            list(pass = FALSE, message = paste0("rel_path is \\"", rel_path, "\\". Start from the survey-analysis folder and name each folder on the way down to the file."))
           } else {
-            list(pass = TRUE, message = "Correct: data/survey.csv. Send the whole thesis folder to your supervisor and this line still finds the data, because it never says whose computer it is on.")
+            list(pass = TRUE, message = "Correct: data/survey.csv. Send the whole survey-analysis folder to a colleague and this line still finds the data, because it never says whose computer it is on.")
           }
         }
       }
     `,
     hints: [
-      'In a project, the working directory is the project folder: here, thesis.',
-      'Keep only what comes after thesis/ in the old path.',
+      'In a project, the working directory is the project folder: here, survey-analysis.',
+      'Keep only what comes after survey-analysis/ in the old path.',
       'Paths in R use forward slashes: rel_path <- "data/survey.csv".',
     ],
   },

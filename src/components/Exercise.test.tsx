@@ -63,6 +63,14 @@ describe('Exercise', () => {
     expect(getProgress().lessons['06-1'].exercises['m6-e1']).toBe('passed');
   });
 
+  test('an answer that prints nothing leaves no empty output panel', async () => {
+    runExercise.mockResolvedValue({ status: 'pass', message: 'Correct.', run: emptyRun });
+    const { container } = renderExercise();
+    await userEvent.click(screen.getByRole('button', { name: /check/i }));
+    await waitFor(() => expect(screen.getByText('Correct.')).toBeDefined());
+    expect(container.querySelector('.output-pane')).toBeNull();
+  });
+
   test('a failed check records an attempt, not a pass', async () => {
     runExercise.mockResolvedValue({ status: 'fail', message: 'm is 0 but should be 5.', run: emptyRun });
     renderExercise();
