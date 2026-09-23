@@ -10,6 +10,7 @@ import {
   UploadError,
   uploadKind,
 } from '../../r/uploads';
+import { HOME } from '../../r/session';
 import { listFiles, type FileEntry } from '../../r/workspace';
 
 type Props = {
@@ -81,6 +82,22 @@ export default function FilesPane({ webR, version, onImport }: Props) {
     }
   }
 
+  /** Copies a file out of R to the student's computer: the only way to keep what R writes past a reload. */
+  async function download(name: string) {
+    if (!webR) return;
+    try {
+      const bytes = await webR.FS.readFile(`${HOME}/${path.length ? `${path.join('/')}/` : ''}${name}`);
+      const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(`Could not download "${name}". Try again.`);
+    }
+  }
+
   const inData = folder === 'data';
 
   return (
@@ -97,7 +114,7 @@ export default function FilesPane({ webR, version, onImport }: Props) {
         <button type="button" onClick={() => input.current?.click()} disabled={!webR || busy}>
           {busy ? 'Uploading…' : 'Upload'}
         </button>
-        <span className="ide-toolbar-note">CSV, TSV, TXT or Excel, up to 25 MB. Kept in this browser, never sent anywhere.</span>
+        <span className="ide-toolbar-note">CSV, TSV, TXT or Excel, up to 25 MB. Kept in this browser, never sent anywhere. Download what R writes before you reload.</span>
       </div>
       <nav className="ide-breadcrumbs" aria-label="Folder">
         <button type="button" className="ide-link" onClick={() => setPath([])} aria-current={path.length ? undefined : 'location'}>
@@ -155,6 +172,11 @@ export default function FilesPane({ webR, version, onImport }: Props) {
                       {code && (
                         <button type="button" onClick={() => onImport(code)} title={code} aria-label={`Import ${entry.name}`}>
                           Import
+                        </button>
+                      )}
+                      {!entry.folder && (
+                        <button type="button" onClick={() => void download(entry.name)} aria-label={`Download ${entry.name}`} title="Save this file to your computer">
+                          Download
                         </button>
                       )}
                       {upload && (

@@ -55,11 +55,11 @@ their traditional names.
     <td align="center"><sub>Exercises are checked in R, with feedback on the specific mistake.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R playground laid out like RStudio: a Source pane with a script that reads an uploaded my_survey.csv and fits lm(score ~ condition), the Console showing the coefficient table, the Environment listing my_survey and model, and the Files pane listing the uploaded file next to the course datasets."></td>
+    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R Workspace laid out like RStudio: a Source pane with a script that reads an uploaded my_survey.csv and fits lm(score ~ condition), the Console showing the coefficient table, the Environment listing my_survey and model, and the Files pane listing the uploaded file next to the course datasets."></td>
     <td width="50%"><img src="docs/screenshots/model-chooser.png" alt="The 'Which model should I use?' guide after three choices, recommending multiple linear regression with the lm() code, what to check first, and a link to the lesson."></td>
   </tr>
   <tr>
-    <td align="center"><sub>The playground works like RStudio, with your own uploaded data.</sub></td>
+    <td align="center"><sub>The R Workspace works like RStudio, with your own uploaded data.</sub></td>
     <td align="center"><sub>"Which model should I use?" walks from the question to lm, lmer or glm.</sub></td>
   </tr>
   <tr>
@@ -129,11 +129,22 @@ Each lesson is written in MDX from a small set of blocks:
   and the right APA-style sentence.
 - **Simulation** embeds one of the six simulations.
 
-Alongside the lessons there is an **R playground** and a **"Which model should I
-use?"** guide at `/which-model` (the old `/which-test` address redirects there),
-which walks from the design of a study to `lm`, `lmer` or `glm` and links to the
-lesson that covers each case. Progress is kept in the browser's `localStorage`
-and can be exported and imported as JSON from the home page.
+Alongside the lessons there is an **R Workspace** at `/workspace` (the old
+`/playground` address redirects there) and a **"Which model should I use?"**
+guide at `/which-model` (the old `/which-test` address redirects there), which
+walks from the design of a study to `lm`, `lmer` or `glm` and links to the
+lesson that covers each case.
+
+The R Workspace has RStudio's panes, so a student without R on their own
+computer, on a Chromebook for example, can do a whole analysis in it: several
+script tabs kept in the browser, their own uploaded data, and Download for
+anything R writes. `install.packages()` and `library()` fetch any package from
+webR's repository (most of CRAN, built for the browser), the Packages pane lists
+recommended packages and the few that cannot run in a browser, and the script
+editor has RStudio's Tab completion and shortcuts.
+
+Progress is kept in the browser's `localStorage` and can be exported and
+imported as JSON from the home page.
 
 Two fictional, generated datasets carry the course: a population of 5000
 students (`wellbeing-population.csv`) for the sampling modules, and a workplace
@@ -242,7 +253,7 @@ src/
     lessons/     the 46 lessons, as MDX
     exercises/   exercise definitions and their fixtures, one file per module
     manifest.ts  modules, lessons and the packages each lesson needs
-  pages/         Home, Lesson, Playground, and the model chooser
+  pages/         Home, Lesson, RWorkspace, and the model chooser
   r/             webR client, session setup, evaluation and exercise checking
   assets/logos/  partner logos for the credits, picked up by file name
   sims/          the six simulations and their seeded random number generator

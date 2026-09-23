@@ -12,10 +12,19 @@ const r = vi.hoisted(() => ({
   clearObjects: vi.fn(),
 }));
 
-const ensurePackages = vi.hoisted(() => vi.fn());
+const pkgs = vi.hoisted(() => ({
+  installPackageShims: vi.fn(),
+  listPackages: vi.fn(),
+  ensurePackages: vi.fn(),
+}));
 
 vi.mock('../../r/workspace', async (original) => ({ ...(await original<typeof import('../../r/workspace')>()), ...r }));
-vi.mock('../../r/session', async (original) => ({ ...(await original<typeof import('../../r/session')>()), ensurePackages }));
+vi.mock('../../r/packages', async (original) => ({
+  ...(await original<typeof import('../../r/packages')>()),
+  installPackageShims: pkgs.installPackageShims,
+  listPackages: pkgs.listPackages,
+}));
+vi.mock('../../r/session', async (original) => ({ ...(await original<typeof import('../../r/session')>()), ensurePackages: pkgs.ensurePackages }));
 vi.mock('../../state/uploadStore', () => ({
   saveStoredFile: async () => {},
   deleteStoredFile: async () => {},
@@ -41,22 +50,30 @@ function renderWorkspace(ready = true) {
 beforeEach(() => {
   localStorage.clear();
   Object.values(r).forEach((fn) => fn.mockReset());
-  ensurePackages.mockReset();
-  ensurePackages.mockResolvedValue(undefined);
   r.listObjects.mockResolvedValue([]);
   r.listFiles.mockResolvedValue([{ name: 'data', folder: true, bytes: 0 }]);
   r.parseStatements.mockResolvedValue({ kind: 'ok', ranges: [[1, 1], [2, 2]] });
   r.runInConsole.mockResolvedValue({ lines: [], images: [], errored: false, requests: [] });
+  Object.values(pkgs).forEach((fn) => fn.mockReset());
+  pkgs.installPackageShims.mockResolvedValue(undefined);
+  pkgs.ensurePackages.mockResolvedValue(undefined);
+  pkgs.listPackages.mockResolvedValue([
+    { name: 'dplyr', version: '1.1.4', title: 'A Grammar of Data Manipulation', attached: false, base: false },
+    { name: 'stats', version: '4.6.0', title: 'The R Stats Package', attached: true, base: true },
+    { name: 'mnormt', version: '2.1.1', title: 'The Multivariate Normal and t Distributions', attached: false, base: false },
+  ]);
 });
+
+const ran = (code: string) => expect(r.runInConsole).toHaveBeenCalledWith(webR, env, code, expect.anything(), expect.any(Number));
 
 describe('Workspace', () => {
   test("has RStudio's four panes", () => {
     renderWorkspace(false);
-    for (const name of ['Source', 'Console', 'Environment and History', 'Files, Plots and Help']) {
+    for (const name of ['Source', 'Console', 'Environment and History', 'Files, Plots, Packages and Help']) {
       expect(screen.getByRole('region', { name })).toBeTruthy();
     }
     expect(screen.getByRole('tab', { name: 'script.R' }).getAttribute('aria-selected')).toBe('true');
-    for (const tab of ['Environment', 'History', 'Files', 'Plots', 'Help']) {
+    for (const tab of ['Environment', 'History', 'Files', 'Plots', 'Packages', 'Help']) {
       expect(screen.getByRole('tab', { name: tab })).toBeTruthy();
     }
   });
@@ -116,23 +133,22 @@ describe('Workspace', () => {
     renderWorkspace();
     await userEvent.type(screen.getByLabelText('Console input'), 'library(emmeans){Enter}');
     await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
-    expect(ensurePackages).toHaveBeenCalledWith(webR, ['emmeans']);
-    expect(ensurePackages.mock.invocationCallOrder[0]).toBeLessThan(r.runInConsole.mock.invocationCallOrder[0]);
+    expect(pkgs.ensurePackages).toHaveBeenCalledWith(webR, ['emmeans']);
+    expect(pkgs.ensurePackages.mock.invocationCallOrder[0]).toBeLessThan(r.runInConsole.mock.invocationCallOrder[0]);
   });
 
   test('installs nothing for code that names no modelling package', async () => {
     renderWorkspace();
     await userEvent.type(screen.getByLabelText('Console input'), 'library(dplyr){Enter}');
     await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
-    expect(ensurePackages).not.toHaveBeenCalled();
+    expect(pkgs.ensurePackages).not.toHaveBeenCalled();
   });
 
-  test('a failed install is reported in the console and the code does not run', async () => {
-    ensurePackages.mockRejectedValue(new Error('Could not install car. Check your connection and try again.'));
+  test('a failed download still runs the code, so R can say what went wrong', async () => {
+    pkgs.ensurePackages.mockRejectedValue(new Error('Could not install car. Check your connection and try again.'));
     renderWorkspace();
     await userEvent.type(screen.getByLabelText('Console input'), 'car::Anova(model){Enter}');
-    await waitFor(() => expect(screen.getByRole('log').textContent).toContain('Could not install car'));
-    expect(r.runInConsole).not.toHaveBeenCalled();
+    await waitFor(() => ran('car::Anova(model)'));
   });
 
   test('an unfinished line waits for the rest instead of running', async () => {
@@ -215,5 +231,117 @@ describe('Workspace', () => {
     expect(within(show).getByRole('button', { name: 'Source' }).getAttribute('aria-pressed')).toBe('true');
     await userEvent.click(sourceButton('Run'));
     await waitFor(() => expect(within(show).getByRole('button', { name: 'Console' }).getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  test('Packages lists the recommended ones, and Install runs install.packages() in the console', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const pane = screen.getByRole('tabpanel', { name: 'Packages' });
+    await waitFor(() => expect(pane.textContent).toContain('1.1.4'));
+    // Installed already: a version, not a button.
+    expect(within(pane).queryByRole('button', { name: 'Install dplyr' })).toBeNull();
+    // Recommended but not installed yet.
+    await userEvent.click(within(pane).getByRole('button', { name: 'Install psych' }));
+    await waitFor(() => ran('install.packages("psych")'));
+    // A package R has that is not on the list still shows, as in RStudio.
+    expect(pane.textContent).toContain('mnormt');
+    expect(pane.textContent).toContain('System library');
+  });
+
+  test('ticking a package loads it with library(), unticking detaches it', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Load dplyr' }));
+    await waitFor(() => ran('library(dplyr)'));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Load stats' }));
+    await waitFor(() => ran('detach("package:stats", unload = TRUE)'));
+  });
+
+  test('Install takes any package names the student types', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const pane = screen.getByRole('tabpanel', { name: 'Packages' });
+    await userEvent.click(within(pane).getByRole('button', { name: 'Install' }));
+    await userEvent.type(within(pane).getByRole('textbox', { name: /Packages/ }), 'lavaan, "semTools"{Enter}');
+    await waitFor(() => ran('install.packages(c("lavaan", "semTools"))'));
+  });
+
+  test('says which packages cannot run in the browser, and why', async () => {
+    renderWorkspace();
+    await userEvent.click(screen.getByRole('tab', { name: 'Packages' }));
+    const list = screen.getByText('Packages that cannot run in the browser').closest('details')!;
+    expect(list.textContent).toContain('xlsx');
+    expect(list.textContent).toContain('Java');
+    expect(list.textContent).toContain('shiny');
+  });
+
+  test('a package the script names is fetched before the run, so the status pill can show it', async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(psych){Enter}');
+    await waitFor(() => ran('library(psych)'));
+    expect(pkgs.ensurePackages).toHaveBeenCalledWith(webR, ['psych']);
+  });
+
+  test('Open replaces the script with one from the computer', async () => {
+    renderWorkspace();
+    const picker = screen.getByLabelText('Open a script file') as HTMLInputElement;
+    // jsdom's File has no text(); every browser the site supports does.
+    const script = Object.assign(new File([''], 'analysis.R', { type: 'text/plain' }), { text: async () => 'y <- 2\r\ny * 3\r\n' });
+    await userEvent.upload(picker, script);
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('y <- 2\ny * 3'));
+  });
+
+  test('scripts open in tabs of their own, and every tab survives a reload', async () => {
+    const { unmount } = renderWorkspace();
+    await userEvent.click(within(screen.getByRole('region', { name: 'Source' })).getByRole('button', { name: 'New' }));
+    expect(screen.getByRole('tab', { name: 'Untitled.R' }).getAttribute('aria-selected')).toBe('true');
+    await userEvent.type(screen.getByRole('textbox', { name: 'R script' }), 'z <- 3');
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('z <- 3'));
+
+    // The first script is still there, unchanged.
+    await userEvent.click(screen.getByRole('tab', { name: 'script.R' }));
+    await userEvent.click(sourceButton('Source'));
+    await waitFor(() => ran('x <- 1\nx'));
+    unmount();
+
+    renderWorkspace();
+    expect(screen.getByRole('tab', { name: 'script.R' }).getAttribute('aria-selected')).toBe('true');
+    await userEvent.click(screen.getByRole('tab', { name: 'Untitled.R' }));
+    expect(screen.getByRole('textbox', { name: 'R script' }).textContent).toBe('z <- 3');
+  });
+
+  test('Rename names the script, and closing one with code in it asks first', async () => {
+    renderWorkspace();
+    const toolbar = within(screen.getByRole('region', { name: 'Source' }));
+    await userEvent.click(toolbar.getByRole('button', { name: 'New' }));
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('analysis');
+    await userEvent.click(toolbar.getByRole('button', { name: 'Rename' }));
+    expect(screen.getByRole('tab', { name: 'analysis.R' })).toBeTruthy();
+    prompt.mockRestore();
+
+    // Empty: closes without asking.
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Close analysis.R' }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole('tab', { name: 'analysis.R' })).toBeNull();
+    // The last script cannot be closed at all.
+    expect(screen.queryByRole('button', { name: 'Close script.R' })).toBeNull();
+    confirm.mockRestore();
+  });
+
+  test('Download in Files saves a file R wrote to the computer', async () => {
+    const readFile = vi.fn().mockResolvedValue(new TextEncoder().encode('a,b\n1,2\n'));
+    const withFS = { ...(webR as object), FS: { readFile } } as never;
+    r.listFiles.mockResolvedValue([{ name: 'results.csv', folder: false, bytes: 8 }]);
+    const createObjectURL = vi.fn(() => 'blob:results');
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<Workspace id="test-workspace" starter="" webR={withFS} env={env} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Download results.csv' }));
+    await waitFor(() => expect(readFile).toHaveBeenCalledWith('/home/web_user/results.csv'));
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
   });
 });

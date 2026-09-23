@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // None of this needs R: it checks layout, so it runs whether or not webR boots.
-const PAGES = ['./', './lesson/00-1', './lesson/00-4', './lesson/02-1', './lesson/07-2', './lesson/09-2', './playground', './which-model'];
+const PAGES = ['./', './lesson/00-1', './lesson/00-4', './lesson/02-1', './lesson/07-2', './lesson/09-2', './workspace', './which-model'];
 
 async function expectNoSidewaysScroll(page: Page) {
   const widths = await page.evaluate(() => ({
@@ -45,7 +45,7 @@ for (const [name, viewport] of [
     test('the playground shows one RStudio pane at a time', async ({ page }) => {
       // A tablet has room for all four, as the desktop test checks.
       test.skip(viewport.width > 640, 'wide enough for four panes');
-      await page.goto('./playground');
+      await page.goto('./workspace');
       const show = page.getByRole('group', { name: 'Show pane' });
       await expect(show).toBeVisible();
       await expect(page.getByRole('region', { name: 'Source' })).toBeVisible();
@@ -59,7 +59,7 @@ for (const [name, viewport] of [
         ['Source', 'Source'],
         ['Console', 'Console'],
         ['Environment', 'Environment and History'],
-        ['Files', 'Files, Plots and Help'],
+        ['Files', 'Files, Plots, Packages and Help'],
       ]) {
         await show.getByRole('button', { name: button }).click();
         const box = await page.getByRole('region', { name: region }).boundingBox();
@@ -94,11 +94,11 @@ test.describe('on a desktop', () => {
   });
 
   test("the playground shows RStudio's four panes side by side", async ({ page }) => {
-    await page.goto('./playground');
+    await page.goto('./workspace');
     const source = await page.getByRole('region', { name: 'Source' }).boundingBox();
     const console = await page.getByRole('region', { name: 'Console' }).boundingBox();
     const environment = await page.getByRole('region', { name: 'Environment and History' }).boundingBox();
-    const files = await page.getByRole('region', { name: 'Files, Plots and Help' }).boundingBox();
+    const files = await page.getByRole('region', { name: 'Files, Plots, Packages and Help' }).boundingBox();
     // Source top left, Console under it, Environment top right, Files under that.
     expect(console!.y).toBeGreaterThan(source!.y);
     expect(environment!.x).toBeGreaterThan(source!.x);
