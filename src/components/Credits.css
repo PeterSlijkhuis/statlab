@@ -1,0 +1,18 @@
+.credits { color: var(--muted); }
+.credits-authors { margin: 0 0 0.75rem; line-height: 1.5; }
+.credits-partners { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; list-style: none; margin: 0; padding: 0; }
+.credits-partner { display: inline-flex; align-items: center; color: var(--ink-2); text-decoration: none; }
+.credits-partner:hover .credits-wordmark { border-color: var(--brand); color: var(--brand-ink); }
+.credits-partner img { display: block; width: auto; max-width: 100%; }
+.credits-wordmark {
+  display: inline-block; padding: 0.3rem 0.65rem; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; transition: border-color var(--fast), color var(--fast);
+}
+
+.credits-compact { margin-top: 1.5rem; padding: 1rem 0.5rem 0; border-top: 1px solid var(--line); font-size: 0.75rem; }
+.credits-compact .credits-partners { gap: 0.5rem 0.9rem; }
+.credits-compact .credits-partner img { height: 1.75rem; }
+.credits-compact .credits-wordmark { font-size: 0.72rem; }
+
+.credits-full { margin-top: 3rem; padding: 1.4rem 1.5rem; border-top: 1px solid var(--line); font-size: 0.9rem; }
+.credits-full .credits-partner img { height: 2.75rem; }
