@@ -65,7 +65,7 @@ export function packagesIn(rCode: string): string[] {
   return found;
 }
 
-/** The packages a snippet needs that this site cannot install. Empty means it runs in the Playground. */
+/** The packages a snippet needs that this site cannot install. Empty means it runs in the R Workspace. */
 export function packagesMissingHere(answer: Pick<Answer, 'rCode'>): string[] {
   const here: readonly string[] = [...BASE_PACKAGES, ...KNOWN_PACKAGES];
   return packagesIn(answer.rCode).filter((name) => !here.includes(name));
