@@ -4,6 +4,7 @@ import { MODULES } from '../content/manifest';
 import { PARTS } from '../content/parts';
 import { getProgress, subscribeProgress } from '../state/progress';
 import { courseStats, lessonStatus, moduleOf, moduleProgress } from '../state/stats';
+import Credits from './Credits';
 import Logo from './Logo';
 
 type Props = {
@@ -114,6 +115,8 @@ export default function Sidebar({ open = false }: Props) {
           <li><NavLink to="/playground" className="sidebar-lesson"><span className="sidebar-lesson-icon" aria-hidden="true">⌨️</span>R playground</NavLink></li>
         </ul>
       </div>
+
+      <Credits variant="compact" />
     </nav>
   );
 }

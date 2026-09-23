@@ -2,7 +2,8 @@
 
 <p align="center">
   <strong>Hands-on data analysis in R, running entirely in the browser.</strong><br>
-  Built for psychology and business students at the University of Twente.
+  Built for psychology and business students at the University of Twente.<br>
+  Made by dr. P.J.H. Slijkhuis and dr. V.d.C. Resendez Gomez, based on materials provided by dr. S.J. Watson.
 </p>
 
 <p align="center">
@@ -13,6 +14,8 @@
   <a href="#whats-in-the-course">The course</a>
   &nbsp;·&nbsp;
   <a href="#run-it-locally">Run it locally</a>
+  &nbsp;·&nbsp;
+  <a href="#credits">Credits</a>
   &nbsp;·&nbsp;
   <a href="docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md">Design spec</a>
 </p>
@@ -241,6 +244,7 @@ src/
     manifest.ts  modules, lessons and the packages each lesson needs
   pages/         Home, Lesson, Playground, and the model chooser
   r/             webR client, session setup, evaluation and exercise checking
+  assets/logos/  partner logos for the credits, picked up by file name
   sims/          the six simulations and their seeded random number generator
   state/         progress in localStorage
 public/data/     the two course datasets
@@ -255,3 +259,14 @@ docs/
 The design specification in `docs/specs/` is the reference for how
 the runtime, the lesson blocks, exercise checking and the curriculum are meant
 to work.
+
+## Credits
+
+StatLab was made by **dr. P.J.H. Slijkhuis** and **dr. V.d.C. Resendez Gomez**,
+based on materials provided by **dr. S.J. Watson**.
+
+It is a project of the [University of Twente](https://www.utwente.nl/en/) and
+the [BMSLab](https://bmslab.utwente.nl/). The same credit shows at the foot of
+the sidebar on every page of the site and at the bottom of the home page. The
+partner logos appear there once their files are added to `src/assets/logos/`;
+see the README in that folder.
