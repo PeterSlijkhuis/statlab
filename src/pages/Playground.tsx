@@ -1,4 +1,5 @@
 import CodeBlock from '../components/CodeBlock';
+import FileUpload from '../components/FileUpload';
 import { LessonProvider } from '../content/LessonContext';
 import { useLessonSession, type SessionLesson } from '../r/useLessonSession';
 
@@ -18,6 +19,11 @@ export default function Playground() {
         A scratch space where the course datasets are available to read in. Nothing here is marked or
         saved beyond this browser.
       </p>
+      <p>
+        To work with your own data, upload a file. It appears in the <code>data</code> folder next to the
+        course datasets, and copying the line of code shown under it reads it into R.
+      </p>
+      <FileUpload />
       <CodeBlock
         id="playground"
         code={`population <- read.csv("data/wellbeing-population.csv")

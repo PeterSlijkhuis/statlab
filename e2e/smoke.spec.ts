@@ -61,3 +61,22 @@ test('a ggplot2 plot renders to the canvas', async ({ page }) => {
   // A ggplot draw may print nothing, so check for error lines rather than console text.
   await expect(block.locator('.output-error')).toHaveCount(0);
 });
+
+test('a student uploads their own CSV in the playground and reads it', async ({ page }) => {
+  await page.goto('./playground');
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+
+  await page.getByLabel('Choose a data file').setInputFiles({
+    name: 'My survey.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('group,score\na,12\nb,30\na,18\n'),
+  });
+  const line = 'my_survey <- read.csv("data/My_survey.csv", stringsAsFactors = TRUE)';
+  await expect(page.getByText(line)).toBeVisible();
+
+  const block = page.locator('.code-block').first();
+  await block.locator('.cm-content').fill(`${line}\nsum(my_survey$score)`);
+  await block.getByRole('button', { name: 'Run' }).click();
+  await expect(block.locator('.output-console')).toContainText('60', { timeout: 120_000 });
+  await expect(block.locator('.output-error')).toHaveCount(0);
+});

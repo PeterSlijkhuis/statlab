@@ -7,6 +7,7 @@ import { getDraft, getProgress, markExercise, saveDraft } from '../state/progres
 import { lessonStatus, POINTS } from '../state/stats';
 import { confetti, showToast } from './celebrate';
 import { PLOT_SIZE, R_STOPPED_MESSAGE } from './CodeBlock';
+import FileUpload from './FileUpload';
 import OutputPane from './OutputPane';
 import REditor from './REditor';
 import './Exercise.css';
@@ -101,6 +102,10 @@ export default function Exercise({ id }: { id: string }) {
           Show solution
         </button>
       </div>
+
+      {/* Files land beside the course datasets and never replace them, so an
+          upload cannot change what a check compares the answer against. */}
+      <FileUpload compact />
 
       {hintsShown > 0 && (
         <ul className="exercise-hints">

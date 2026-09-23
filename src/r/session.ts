@@ -28,6 +28,9 @@ export const DATASET_FILES = ['wellbeing-population.csv', 'workplace.csv'] as co
 /** webR's working directory; `read.csv("data/x.csv")` resolves under it. */
 const HOME = '/home/web_user';
 
+/** Where the course datasets live, and where a student's own uploads go too. */
+export const DATA_DIR = `${HOME}/data`;
+
 /** name → the in-flight or settled install. Resolved entries are never reinstalled. */
 let packagePromises = new Map<string, Promise<void>>();
 
@@ -114,7 +117,7 @@ export async function mountDatasets(
   // Checked rather than try/catch: an empty catch would also swallow a real
   // failure (bad path, out of space) and surface it later as a confusing
   // "file not found" when a lesson tries to read its data.
-  const dir = `${HOME}/data`;
+  const dir = DATA_DIR;
   const info = await webR.FS.analyzePath(dir);
   if (!info.exists) {
     await webR.FS.mkdir(dir);
