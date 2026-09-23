@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
 import { findLesson } from '../content/manifest';
 import ModelChooser, { TREE, WhereItRuns, type Answer, type Node } from './ModelChooser';
+import { browserSupport } from '../r/packages';
 import { allAnswers, GROUPS as SECTIONS, packagesIn, packagesMissingHere } from './modelTree';
 
 function Location() {
@@ -40,6 +41,7 @@ const NUMERIC = [...INDEPENDENT, /numeric predictors/i];
 const GROUPS = [...INDEPENDENT, /grouping variables/i];
 const REPEATED = [...NUMBER, /measured more than once/i];
 const YES_NO = [TO_OUTCOME, /^yes or no/i, /one per case/i];
+const BAYES = /\(bayesian\)/i;
 
 // Written out by hand, not derived from TREE: a path that silently disappears
 // from the tree must fail here.
@@ -55,6 +57,8 @@ const PATHS: { clicks: RegExp[]; id: string; model: string; code: string; lesson
   { clicks: [...REPEATED, /three or more/i], id: 'repeated-measures', model: 'Linear mixed-effects model', code: 'score ~ time + (1 | id)', lessonId: '13-2' },
   { clicks: [...NUMBER, /teams, classes or sites/i], id: 'nested-groups', model: 'Linear mixed-effects model with a grouping factor', code: '(1 | site)', lessonId: '13-3' },
   { clicks: [...YES_NO, /numbers, groups or both/i], id: 'logistic-regression', model: 'Logistic regression', code: 'family = binomial', lessonId: '14-2' },
+  { clicks: [BAYES, /one proportion/i], id: 'bayes-proportion', model: 'Bayesian estimate of a proportion (beta-binomial)', code: 'qbeta(', lessonId: '15-2' },
+  { clicks: [BAYES, /in a linear model/i], id: 'bayes-factor-models', model: 'Bayes factor from the BIC', code: 'exp((BIC(null_model) - BIC(model)) / 2)', lessonId: '15-3' },
 ];
 
 /** Answers beyond the course, reached by the same clicks a student would make. */
@@ -89,6 +93,8 @@ const BEYOND: { clicks: RegExp[]; id: string; code: string }[] = [
   { clicks: [/over time/i, /intervention/i], id: 'interrupted-time-series', code: 'time + after + time_after' },
   { clicks: [/predict new cases/i, /only the useful predictors/i], id: 'lasso', code: 'cv.glmnet(' },
   { clicks: [/predict new cases/i, /hard to read/i], id: 'random-forest', code: 'randomForest(' },
+  { clicks: [BAYES, /two groups/i], id: 'bayes-t-test', code: 'ttestBF(' },
+  { clicks: [BAYES, /prior on each coefficient/i], id: 'bayesian-regression', code: 'brm(' },
 ];
 
 async function clickThrough(clicks: RegExp[]) {
@@ -254,7 +260,7 @@ describe('links and the index', () => {
 
   test('the index lists every answer once, in sections, and opens the one picked', async () => {
     renderChooser();
-    const index = screen.getByRole('region', { name: /browse all 40 models/i });
+    const index = screen.getByRole('region', { name: /browse all 44 models/i });
     const listed = [...index.querySelectorAll('.model-card button')].map((button) => button.textContent);
     expect([...listed].sort()).toEqual(answers().map((answer) => answer.model).sort());
     expect(index.querySelectorAll('.model-index-section h3').length).toBe(SECTIONS.length);
@@ -334,8 +340,19 @@ describe('where each snippet runs', () => {
     expect(text).toContain('install.packages("ranger")');
   });
 
-  test('every answer on the page runs in the R Workspace', () => {
-    for (const answer of answers()) expect(packagesMissingHere(answer), answer.id).toEqual([]);
+  test('every answer on the page runs in the R Workspace, unless no browser can run it', () => {
+    // Only a package that needs a compiler, such as brms for Stan, may send a
+    // student to RStudio. Anything that installs in webR belongs in the catalogue.
+    for (const answer of answers()) {
+      expect(packagesMissingHere(answer).filter((name) => browserSupport(name) !== 'unavailable'), answer.id).toEqual([]);
+    }
+  });
+
+  test('Bayesian regression needs RStudio, and says why', async () => {
+    renderChooser();
+    await clickThrough([BAYES, /prior on each coefficient/i]);
+    expect(card().getByText('Needs RStudio')).toBeTruthy();
+    expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('this site does not have brms');
   });
 
   test('every answer the course teaches runs in the R Workspace', () => {

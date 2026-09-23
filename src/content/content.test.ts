@@ -258,7 +258,8 @@ describe('lesson content', () => {
 
   test('every inferential lesson closes with an Interpret block', () => {
     // Spec §4.1. Modules 1-4 teach tools rather than inference, so they are out.
-    const inferential = /^(05|0[78]|09|1[0-4])-/;
+    // The Bayesian module is inference too, so it is in.
+    const inferential = /^(05|0[78]|09|1[0-5])-/;
     for (const module of MODULES) {
       for (const lesson of module.lessons) {
         if (!inferential.test(lesson.id)) continue;

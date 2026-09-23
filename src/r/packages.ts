@@ -66,6 +66,7 @@ export const RECOMMENDED: PackageGroup[] = [
       { name: 'effectsize', what: "Cohen's d, eta squared and other effect sizes" },
       { name: 'performance', what: 'Model checks, R squared and model comparison' },
       { name: 'lavaan', what: 'Structural equation models and confirmatory factor analysis' },
+      { name: 'BayesFactor', what: 'Bayes factors for t-tests, ANOVA and regression' },
     ],
   },
   {

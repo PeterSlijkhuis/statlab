@@ -89,6 +89,7 @@ export const GROUPS: { name: string; blurb: string }[] = [
   { name: 'Dimension reduction and clustering', blurb: 'Many variables summarised by a few, or cases sorted into groups.' },
   { name: 'Time series', blurb: 'One series measured at regular intervals.' },
   { name: 'Prediction', blurb: 'Accurate predictions for new cases.' },
+  { name: 'Bayesian analysis', blurb: 'Probabilities for the unknowns, and evidence for or against an effect.' },
 ];
 
 export const TREE: Question = {
@@ -992,6 +993,90 @@ sort(importance(model, type = 1)[, 1], decreasing = TRUE)`,
                 'Hundreds of cases or more. No missing values: randomForest() stops on NA unless you add na.action = na.omit. For a yes-or-no or categorical outcome, make it a factor and it grows a classification forest.',
               note: 'The printout reports error on the out-of-bag cases, the ones each tree did not see, which is a built-in test on new data. The importance line ranks predictors by how much accuracy drops when each is shuffled; it does not say in which direction a predictor works. The ranger package fits the same model faster on large data.',
               further: 'An Introduction to Statistical Learning, the chapter on tree-based methods, and Kuhn and Silge, Tidy Modeling with R (free online), for tuning and cross-validation.',
+            },
+          },
+        ],
+      },
+    },
+    {
+      label: 'How probable a value or an effect is, or how strong the evidence is (Bayesian)',
+      group: 'Bayesian analysis',
+      next: {
+        kind: 'question',
+        text: 'What do you want from the Bayesian analysis?',
+        help: 'Bayesian methods give probabilities for the unknowns themselves, and can show evidence that there is no effect. Module 15 introduces them.',
+        options: [
+          {
+            label: 'The plausible values of one proportion',
+            next: {
+              kind: 'answer',
+              id: 'bayes-proportion',
+              model: 'Bayesian estimate of a proportion (beta-binomial)',
+              when: 'One yes-or-no variable, and you want the plausible values of the proportion and the probability of a claim about it, such as "more than half".',
+              rCode: `successes <- sum(d$outcome == "yes")
+failures <- sum(d$outcome != "yes")
+qbeta(c(0.025, 0.5, 0.975), 1 + successes, 1 + failures)
+pbeta(0.5, 1 + successes, 1 + failures, lower.tail = FALSE)`,
+              check:
+                'Independent cases, each counted once, and no missing values in the outcome. The 1 + in each shape is a flat Beta(1, 1) prior; with fewer than about 30 cases, show that the answer holds under another reasonable prior too.',
+              traditional: 'The exact binomial test and its confidence interval: binom.test(successes, successes + failures).',
+              note: 'The first line gives the posterior median with a 95% credible interval around it. The second is the posterior probability that the proportion is above 0.5; change 0.5 to the value your claim is about.',
+              lessonId: '15-2',
+            },
+          },
+          {
+            label: 'The strength of the evidence for or against an effect in a linear model',
+            next: {
+              kind: 'answer',
+              id: 'bayes-factor-models',
+              model: 'Bayes factor from the BIC',
+              when: 'Any linear model, and the question is how strongly the data support an effect, or its absence, compared with a model without it.',
+              rCode: `null_model <- lm(outcome ~ 1, data = d)
+model <- lm(outcome ~ predictor, data = d)
+bf10 <- exp((BIC(null_model) - BIC(model)) / 2)
+c(BF10 = bf10, BF01 = 1 / bf10)`,
+              check:
+                'Both models fitted to the same rows: drop cases with missing values first, or BIC() compares different data. The approximation implies a wide prior on the effect, worth about one observation; say you used the BIC approximation.',
+              note: 'BF10 above 1 favours the effect, below 1 favours no effect, and BF01 is its reverse. Rough labels: 3 to 10 moderate, 10 to 30 strong, above 30 very strong. It works for any pair of nested models, glm() models included.',
+              lessonId: '15-3',
+            },
+          },
+          {
+            label: 'Evidence for or against a difference between two groups',
+            next: {
+              kind: 'answer',
+              id: 'bayes-t-test',
+              model: 'Bayesian t-test (default Bayes factor)',
+              when: 'Two independent groups and a numeric outcome, and you want the evidence for a difference or for no difference, as psychology journals often ask for.',
+              rCode: `library(BayesFactor)
+d$group <- factor(d$group)
+bf <- ttestBF(formula = outcome ~ group, data = d)
+bf
+1 / bf`,
+              check:
+                'The same as for the t-test: independent scores, roughly normal within each group. The default prior on the standardised difference is a Cauchy with scale 0.707 ("medium"); rerun with rscale = "wide" to show the conclusion does not hang on it.',
+              traditional: 'The independent-samples t-test: t.test(outcome ~ group, data = d, var.equal = TRUE).',
+              note: 'The printout is BF10, the evidence for a difference against none; 1 / bf gives BF01, the evidence for no difference. posterior(bf, iterations = 10000) draws plausible values of the difference itself.',
+              buildsOn: '15-3',
+              further: 'The BayesFactor package manual by Richard Morey (free online), and the free program JASP for the same analysis through menus.',
+            },
+          },
+          {
+            label: 'A regression with a prior on each coefficient',
+            next: {
+              kind: 'answer',
+              id: 'bayesian-regression',
+              model: 'Bayesian linear regression (brms)',
+              when: 'A numeric outcome and any predictors, and you want a posterior distribution and a credible interval for each coefficient, with priors you choose.',
+              rCode: `library(brms)
+model <- brm(outcome ~ predictor, data = d, prior = prior(normal(0, 1), class = b), seed = 1)
+summary(model)
+hypothesis(model, "predictor > 0")`,
+              check:
+                'Set the prior on the scale of your variables: normal(0, 1) says a one-unit change in the predictor rarely moves the outcome by more than 2 units. In the summary, every Rhat should be 1.00, and pp_check(model) should show simulated data that look like yours.',
+              note: 'The summary gives each coefficient a posterior mean, error and 95% credible interval; hypothesis() gives the posterior probability of a claim. The same call takes several predictors, family = bernoulli() for a yes-or-no outcome, and (1 | id) for repeated measures.',
+              buildsOn: '15-4',
+              further: "Richard McElreath, Statistical Rethinking, and Paul Bürkner's brms vignettes (free online).",
             },
           },
         ],

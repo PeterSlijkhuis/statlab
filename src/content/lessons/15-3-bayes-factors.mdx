@@ -1,0 +1,159 @@
+A p-value can tell you that the data would be surprising if nothing were going
+on. It can never tell you that nothing *is* going on: lesson 8.2 showed that a
+large p is not evidence for the null. A **Bayes factor** can. It compares two
+hypotheses directly and says which one the data support, and by how much.
+
+## How well did each hypothesis predict the data?
+
+A Bayes factor is a ratio of two predictions. Each hypothesis says how probable
+the observed data were, and the one that predicted them better gains support.
+
+```text
+BF10 = P(data | H1) / P(data | H0)
+```
+
+A BF10 of 5 means the data were five times as probable under H1 as under H0.
+A BF10 of 0.2 means the reverse: five times as probable under H0, which is
+written BF01 = 5. Unlike a p-value, it can point either way.
+
+## A first Bayes factor, by hand
+
+HR's target is a leaving rate of 20 %. Take two hypotheses:
+
+- **H0**: the rate is exactly 0.20.
+- **H1**: the rate could be anything, with every value from 0 to 1 equally
+  plausible beforehand (the flat prior of lesson 15.1).
+
+<CodeBlock id="c-bf-by-hand" code={`d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+left_all <- sum(d$left_company)
+n_all <- nrow(d)
+
+# H0 predicts the data with one rate.
+p_data_h0 <- dbinom(left_all, size = n_all, prob = 0.20)
+
+# H1 spreads its prediction over every rate on the grid: average the likelihood.
+p_grid <- seq(0, 1, length.out = 1001)
+p_data_h1 <- mean(dbinom(left_all, size = n_all, prob = p_grid))
+
+bf10 <- p_data_h1 / p_data_h0
+c(BF10 = bf10, BF01 = 1 / bf10)
+
+# The frequentist test of the same null, for comparison.
+binom.test(left_all, n_all, p = 0.20)$p.value`} />
+
+The p-value, .14, says only that 20 % has not been ruled out. The Bayes factor
+says more: the data are about 7 times as probable under "exactly 20 %" as under
+"anything from 0 to 1". Why? Because H1 wasted most of its prediction on rates
+like 60 % or 90 %, which these data make absurd. That shows the catch with Bayes
+factors: **they depend on what the alternative hypothesis predicts**, so a vague
+alternative is easy to beat. Always say what H1 was.
+
+<Predict
+  id="p-scale"
+  question="A Bayes factor BF01 = 7 compares 'no effect' with 'some effect'. How strong is that?"
+  choices={[
+    { text: 'Proof that there is no effect', response: 'No single study proves a null. 7 to 1 is a useful shift in the odds, not a verdict.' },
+    { text: 'Moderate evidence for no effect', correct: true, response: 'Yes. By the usual scale, 3 to 10 is moderate evidence, here in favour of the null.' },
+    { text: 'Nothing, because it is below 10', response: 'There is no threshold that switches evidence on. 7 means the data favour one hypothesis seven times over.' },
+  ]}
+/>
+
+## Reading a Bayes factor
+
+The labels most used in psychology, after Jeffreys, are rough guides, not cut-offs:
+
+| BF | Evidence |
+| --- | --- |
+| 1 to 3 | Anecdotal, barely worth mentioning |
+| 3 to 10 | Moderate |
+| 10 to 30 | Strong |
+| 30 to 100 | Very strong |
+| over 100 | Extreme |
+
+The same scale applies to BF01, for evidence in favour of the null.
+
+## Bayes factors for linear models
+
+For the models of Part 3, a good approximation needs nothing but the BIC, which
+R computes for any model:
+
+```text
+BF10 ≈ exp((BIC of the null model - BIC of the alternative) / 2)
+```
+
+It corresponds to a prior on the effect that is wide but not absurd, worth about
+one observation of information. Compare wellbeing with and without autonomy as a
+predictor.
+
+<CodeBlock id="c-bic" code={`m0 <- lm(wellbeing ~ 1, data = d)
+m_autonomy <- lm(wellbeing ~ autonomy, data = d)
+
+exp((BIC(m0) - BIC(m_autonomy)) / 2)`} />
+
+About 7,000 to 1 for an autonomy effect: extreme evidence. Now mentoring.
+
+<CodeBlock id="c-mentoring" code={`m_mentoring <- lm(wellbeing ~ mentoring, data = d)
+
+summary(m_mentoring)$coefficients
+bf01_mentoring <- exp((BIC(m_mentoring) - BIC(m0)) / 2)
+bf01_mentoring`} />
+
+The p-value, .79, cannot distinguish "no effect" from "too little data". The Bayes
+factor can: BF01 is about 21, strong evidence that mentoring makes no difference
+to wellbeing. That is a finding you could publish, not a failure to find
+something.
+
+## When p and the Bayes factor disagree
+
+<CodeBlock id="c-training" code={`m_training <- lm(wellbeing ~ training, data = d)
+
+summary(m_training)$coefficients["trainingYes", ]
+exp((BIC(m0) - BIC(m_training)) / 2)`} />
+
+Training is significant, *p* = .039, yet BF10 is about 0.39: the data slightly
+favour **no** effect. There is no contradiction. With 480 people, a result just
+under .05 is only weakly surprising under the null, and it is also not what a
+real, meaningful effect would typically produce. This is why a *p* between .01 and
+.05 in a large sample is weak evidence, and why a Bayes factor is a useful second
+opinion.
+
+<Exercise id="m15-3-a" />
+
+## The BayesFactor package
+
+The BIC approximation is a sensible default. The **BayesFactor** package computes
+Bayes factors with priors designed for the purpose, and lets you choose how wide
+the alternative is. The same comparisons look like this:
+
+```r
+library(BayesFactor)
+
+ttestBF(formula = wellbeing ~ training, data = d)
+lmBF(wellbeing ~ autonomy, data = d)
+```
+
+Its default prior differs from the one the BIC implies, so its numbers differ
+somewhat. Report which prior you used, whichever tool you use. The free program
+JASP does the same through menus.
+
+<Quiz
+  id="q-bf-meaning"
+  question="A study reports BF10 = 0.25 for a new intervention. What does that mean?"
+  choices={[
+    { text: 'The intervention has a 25 % probability of working', response: 'A Bayes factor compares how well two hypotheses predicted the data. Turning it into a probability needs prior odds as well.' },
+    { text: 'The data were 4 times as probable if the intervention has no effect as if it has one', correct: true, response: 'Right: BF10 = 0.25 is BF01 = 4, moderate evidence for the null.' },
+    { text: 'The result is not significant, so nothing can be concluded', response: 'That is the p-value habit. A Bayes factor below 1 is evidence in its own right, here for no effect.' },
+    { text: 'The effect size is 0.25', response: 'A Bayes factor is a ratio of evidence, not an effect size. Report the estimate separately.' },
+  ]}
+/>
+
+<Interpret
+  id="i-15-3"
+  question="Wellbeing was compared between employees with and without mentoring: b = -0.25, SE = 0.96, p = .79, and the BIC approximation gives BF01 = 21.1. Which write-up is correct?"
+  choices={[
+    { text: 'Wellbeing did not differ between employees with and without mentoring, b = -0.25, SE = 0.96, p = .79. A Bayes factor from the BIC approximation showed strong evidence for no difference, BF01 = 21.1.', correct: true, response: 'Correct: the estimate and test, then the Bayes factor with its method, read as evidence for the null.' },
+    { text: 'Mentoring had no effect on wellbeing, p = .79, which proves the null hypothesis.', response: 'A p-value cannot support the null, and nothing proves it. The Bayes factor is what quantifies the support.' },
+    { text: 'There is a 21.1 % chance that mentoring works, BF01 = 21.1.', response: 'A Bayes factor is a ratio, not a percentage, and BF01 favours the null.' },
+    { text: 'The evidence for a mentoring effect was strong, BF01 = 21.1.', response: 'The subscript matters: BF01 is the evidence for H0 over H1. It is strong evidence for NO effect.' },
+  ]}
+/>

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createLessonEnv, destroyEnv } from '../r/environments';
 import { evaluateR } from '../r/evaluate';
 import { ensurePackages, installCoursePackages, ON_DEMAND_PACKAGES } from '../r/session';
+import { browserSupport } from '../r/packages';
 import { allAnswers, packagesDownloaded, packagesMissingHere } from './modelTree';
 
 /**
@@ -11,6 +12,7 @@ import { allAnswers, packagesDownloaded, packagesMissingHere } from './modelTree
  * it, after installing the packages it names, as the R Workspace does on a
  * first run. A snippet marked "Needs RStudio" runs too where webR can install
  * its packages, so its code is checked even though students run it elsewhere.
+ * Only a snippet whose package cannot run in any browser is skipped.
  */
 
 /** Two-factor questionnaire items: each factor drives its items plus noise. */
@@ -134,6 +136,13 @@ d$value <- 20 + 0.2 * d$time + ifelse(d$time >= 25, 3 + 0.3 * (d$time - 25), 0) 
 d$outcome <- 2 * d$V1 - 1.5 * d$V2 + d$V3 + rnorm(100)`,
   'random-forest': `d <- as.data.frame(matrix(rnorm(200 * 6), 200, 6))
 d$outcome <- sin(d$V1) + d$V2^2 + rnorm(200, sd = 0.3)`,
+  'bayes-proportion': `d <- data.frame(outcome = sample(c("yes", "no"), 80, replace = TRUE, prob = c(0.6, 0.4)))`,
+  'bayes-factor-models': `d <- data.frame(predictor = rnorm(60))
+d$outcome <- 2 + 0.5 * d$predictor + rnorm(60)`,
+  'bayes-t-test': `d <- data.frame(group = rep(c("control", "treatment"), each = 30))
+d$outcome <- rnorm(60, ifelse(d$group == "treatment", 12, 10), 2)`,
+  'bayesian-regression': `d <- data.frame(predictor = rnorm(60))
+d$outcome <- 2 + 0.5 * d$predictor + rnorm(60)`,
 };
 
 /**
@@ -204,8 +213,12 @@ test('every answer has a fixture, and every fixture an answer', () => {
   expect(Object.keys(FIXTURES).sort()).toEqual(ANSWERS.map((answer) => answer.id).sort());
 });
 
+/** A snippet whose packages cannot work in any browser, such as brms, which compiles Stan models to C++. */
+const needsCompiler = (answer: (typeof ANSWERS)[number]) =>
+  packagesMissingHere(answer).some((name) => browserSupport(name) === 'unavailable');
+
 describe.each(ANSWERS.map((answer) => [answer.id, answer] as const))('%s', (id, answer) => {
-  test('runs without an error in real R', async () => {
+  test.skipIf(needsCompiler(answer))('runs without an error in real R', async () => {
     // What the R Workspace downloads on first use, and anything it could not.
     const extra = [...packagesDownloaded(answer), ...packagesMissingHere(answer)];
     if (extra.length) await ensurePackages(webR, extra);
