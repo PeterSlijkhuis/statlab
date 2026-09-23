@@ -30,7 +30,7 @@ describe('the package catalogue', () => {
     for (const name of RECOMMENDED_NAMES) expect(Object.keys(NOT_IN_BROWSER)).not.toContain(name);
   });
 
-  test('tells the model chooser what runs in the playground', () => {
+  test('tells the model chooser what runs in the R Workspace', () => {
     expect(browserSupport('ggplot2')).toBe('installed');
     expect(browserSupport('stats')).toBe('installed');
     expect(browserSupport('lme4')).toBe('recommended');

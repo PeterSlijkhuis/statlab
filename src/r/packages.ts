@@ -4,7 +4,7 @@ import { rString } from './workspace';
 
 /**
  * Which R packages a student can use in the browser, and the R side of the
- * playground's Packages pane.
+ * R Workspace's Packages pane.
  *
  * webR installs packages from its own binary repository (repo.r-wasm.org),
  * which carries most of CRAN, built for the browser. The course installs a
@@ -102,7 +102,7 @@ export const NOT_IN_BROWSER: Record<string, string> = {
 /**
  * `library(tidyverse)` attaches these, as the real tidyverse does. The
  * tidyverse package itself also pulls in web and database packages a student
- * never uses here, so the playground attaches its core directly instead.
+ * never uses here, so the R Workspace attaches its core directly instead.
  */
 export const TIDYVERSE_CORE = ['dplyr', 'readr', 'forcats', 'stringr', 'ggplot2', 'tibble', 'lubridate', 'tidyr', 'purrr'] as const;
 
@@ -112,7 +112,7 @@ export const BASE_PACKAGES = ['base', 'compiler', 'datasets', 'grDevices', 'grap
 export const RECOMMENDED_NAMES: readonly string[] = [...new Set(RECOMMENDED.flatMap((group) => group.packages.map((p) => p.name)))];
 
 /**
- * Whether a package runs in the Playground. `installed` means R has it before
+ * Whether a package runs in the R Workspace. `installed` means R has it before
  * the student does anything, `recommended` that it installs in one click,
  * `unavailable` that it cannot work in a browser. Anything else is
  * `unknown`: it may well install, since the repository carries most of CRAN.
@@ -132,14 +132,14 @@ const rNamed = (entries: [string, string][]) =>
 
 /**
  * Makes `install.packages()`, `library()`, `require()`, `requireNamespace()`
- * and `pkg::fn` work in the playground as they do on a computer: a package
+ * and `pkg::fn` work in the R Workspace as they do on a computer: a package
  * that is missing is fetched from webR's repository, where R on a computer
  * would have needed it installed first. Without this, `install.packages()`
  * tries CRAN, which a browser cannot build from, and `library(psych)` fails.
  *
  * The replacements live in an environment slotted between the student's
  * environment and the global one, so they reach only code run in the
- * playground, never a lesson, and never show in the Environment pane.
+ * R Workspace, never a lesson, and never show in the Environment pane.
  */
 export async function installPackageShims(webR: WebR, env: RObject): Promise<void> {
   await webR.evalRVoid(
@@ -269,7 +269,7 @@ export async function listPackages(webR: WebR): Promise<InstalledPackage[]> {
 /**
  * Package names a script plainly asks for: `library(x)`, `require(x)`,
  * `install.packages("x")` or `c("x", "y")`, `requireNamespace("x")` and
- * `x::fn`. The playground installs these before a run so the status pill can
+ * `x::fn`. The R Workspace installs these before a run so the status pill can
  * show the download; anything written less plainly is still installed by the
  * shims, just without the pill.
  */

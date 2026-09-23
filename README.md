@@ -55,7 +55,7 @@ their traditional names.
     <td align="center"><sub>Exercises are checked in R, with feedback on the specific mistake.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R Workspace laid out like RStudio: a Source pane with a script that reads an uploaded my_survey.csv and fits lm(score ~ condition), the Console showing the coefficient table, the Environment listing my_survey and model, and the Files pane listing the uploaded file next to the course datasets."></td>
+    <td width="50%"><img src="docs/screenshots/workspace-own-data.png" alt="The R Workspace laid out like RStudio: a Source pane with a script that reads an uploaded my_survey.csv and fits lm(score ~ condition), the Console showing the coefficient table, the Environment listing my_survey and model, and the Files pane listing the uploaded file next to the course datasets."></td>
     <td width="50%"><img src="docs/screenshots/model-chooser.png" alt="The 'Which model should I use?' guide after three choices, recommending multiple linear regression with the lm() code, what to check first, and a link to the lesson."></td>
   </tr>
   <tr>
