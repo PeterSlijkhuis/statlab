@@ -1,0 +1,118 @@
+The grid of lesson 15.1 works for any prior, but for a proportion there is a
+shortcut. When the prior is a beta distribution and the data are counts of
+successes, the posterior is a beta distribution too, and you can write it down
+without a grid.
+
+## The beta shortcut
+
+A `Beta(a, b)` prior behaves like `a` earlier successes and `b` earlier failures.
+Add the new data and the posterior is `Beta(a + successes, b + failures)`. The
+flat prior of the last lesson is `Beta(1, 1)`.
+
+<CodeBlock id="c-conjugate" code={`d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+left_all <- sum(d$left_company)
+stayed_all <- nrow(d) - left_all
+
+p_grid <- seq(0, 1, length.out = 1001)
+grid_post <- dbinom(left_all, size = nrow(d), prob = p_grid)
+grid_post <- grid_post / sum(grid_post)
+
+# The same posterior from the shortcut, scaled to the grid for comparison.
+beta_post <- dbeta(p_grid, 1 + left_all, 1 + stayed_all)
+beta_post <- beta_post / sum(beta_post)
+
+max(abs(grid_post - beta_post))`} />
+
+The two agree to many decimal places. From here on, `qbeta()`, `pbeta()` and
+`rbeta()` answer questions about the posterior directly.
+
+## The credible interval
+
+The middle 95 % of the posterior is a **95 % credible interval**. `qbeta()` gives
+the 2.5th and 97.5th percentiles.
+
+<CodeBlock id="c-credible" code={`credible <- qbeta(c(0.025, 0.975), 1 + left_all, 1 + stayed_all)
+round(credible, 3)
+
+# The frequentist 95 % confidence interval, for comparison.
+round(binom.test(left_all, nrow(d))$conf.int, 3)`} />
+
+The numbers are almost the same, 0.192 to 0.267 against 0.190 to 0.267. With a
+flat prior and plenty of data they usually are. The **meaning** is different,
+and the difference is the reason some researchers prefer the Bayesian version:
+
+- The **credible interval** says: given these data and this prior, there is a
+  95 % probability that the leaving rate lies between 19.2 % and 26.7 %.
+- The **confidence interval** says: this interval came from a procedure that
+  captures the true rate in 95 % of samples. Lesson 7.2 showed that you cannot
+  put a probability on this one interval.
+
+The sentence people want to say about a confidence interval is the one a credible
+interval actually licenses.
+
+<Exercise id="m15-2-a" />
+
+## The probability of a claim
+
+A posterior answers questions a p-value cannot. HR's target is a leaving rate
+below 20 %. How probable is it that the company is above target?
+
+<CodeBlock id="c-claim" code={`# The share of the posterior above 0.20.
+pbeta(0.20, 1 + left_all, 1 + stayed_all, lower.tail = FALSE)
+
+# And above 25 %?
+pbeta(0.25, 1 + left_all, 1 + stayed_all, lower.tail = FALSE)`} />
+
+About a 93 % probability that the rate is above 20 %, and about 13 % that it is
+above 25 %. Those are statements a manager can act on.
+
+<Predict
+  id="p-compare"
+  question="54 of 238 employees without training left, and 55 of 242 with training. How probable is it that the leaving rate is lower for the trained group?"
+  choices={[
+    { text: 'About 5 %', response: 'That would need strong evidence that training raises leaving. The two rates are almost identical.' },
+    { text: 'About 50 %', correct: true, response: 'Yes. The rates are 22.7 % and 22.7 %, so the data give no reason to prefer either direction.' },
+    { text: 'About 95 %', response: 'That would need a clear gap between the two rates. Here there is none.' },
+  ]}
+/>
+
+## Comparing two groups by simulation
+
+For two groups, draw thousands of plausible rates from each posterior with
+`rbeta()`, and compare them draw by draw. Each pair of draws is one plausible
+state of the world, so the share of pairs in which one rate is lower is the
+probability that it is lower.
+
+<CodeBlock id="c-simulate" code={`left_trained <- sum(d$left_company[d$training == "Yes"])
+n_trained <- sum(d$training == "Yes")
+left_untrained <- sum(d$left_company[d$training == "No"])
+n_untrained <- sum(d$training == "No")
+
+set.seed(1502)
+rate_trained <- rbeta(10000, 1 + left_trained, 1 + n_trained - left_trained)
+rate_untrained <- rbeta(10000, 1 + left_untrained, 1 + n_untrained - left_untrained)
+
+# Probability that training goes with a lower leaving rate.
+mean(rate_trained < rate_untrained)
+
+# A 95 % credible interval for the difference in rates.
+round(quantile(rate_trained - rate_untrained, c(0.025, 0.975)), 3)`} />
+
+A probability close to one half, and an interval for the difference that runs
+about 7 points either way. The data do not tell the two groups apart. Simulation takes the place of a formula here, and it works for any
+quantity you can compute from the draws: a ratio, a difference, whether both
+rates are above 20 %.
+
+<Exercise id="m15-2-b" />
+
+<Interpret
+  id="i-15-2"
+  question="For remote workers against office workers, 10,000 posterior draws with flat priors give P(remote rate lower) = 0.97 and a 95 % credible interval for the difference (remote minus office) from -0.146 to 0.006. Which write-up is correct?"
+  choices={[
+    { text: 'With flat Beta(1, 1) priors, the posterior probability that remote workers leave less often than office workers is .97. The difference in leaving rates is estimated at 95 % CrI [-14.6, 0.6] percentage points.', correct: true, response: 'Correct: the prior is named, the probability is of the claim itself, and the interval is labelled as a credible interval.' },
+    { text: 'Remote workers leave significantly less often, p = .03.', response: 'That turns a posterior probability into a p-value, which it is not. 1 - .97 is the probability of the opposite direction, not a test result.' },
+    { text: 'There is no difference, because the credible interval contains 0.', response: 'The interval only just contains 0, and 97 % of the posterior says remote workers leave less. Report the probability; a yes-or-no verdict throws most of it away.' },
+    { text: 'We are 95 % confident that remote working reduces leaving by up to 14.6 points.', response: 'Two problems: "reduces" is causal in an observational study, and a credible interval is a probability statement, so "confident" belongs to the other framework.' },
+  ]}
+/>

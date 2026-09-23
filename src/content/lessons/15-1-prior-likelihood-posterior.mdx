@@ -1,0 +1,149 @@
+Every interval and p-value in this course so far answered one kind of question:
+*if the true value were this, how often would data like mine turn up?* Bayesian
+statistics turns that round. It asks: *given the data I have, how plausible is
+each possible true value?*
+
+Answering that needs one extra ingredient, which lesson 8.2 warned you about: a
+**prior**, a statement of how plausible each value was before you looked. The
+data then update the prior into a **posterior**. This whole module is about that
+one step, done three ways.
+
+## One unknown: the leaving rate
+
+The HR department wants to know what share of employees leave the company. Start
+with only the first 20 records.
+
+<CodeBlock id="c-first20" code={`d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+first20 <- d[1:20, ]
+left20 <- sum(first20$left_company)
+left20`} />
+
+Three of the twenty left. The true leaving rate is some number between 0 and 1,
+and the data make some values far more believable than others. Bayesian
+estimation makes that precise in four steps.
+
+## Step 1: list the candidates
+
+Take a grid of candidate values for the rate, from 0 to 1 in small steps. Every
+calculation that follows is done once for each candidate.
+
+<CodeBlock id="c-grid" code={`p_grid <- seq(0, 1, length.out = 1001)
+head(p_grid)`} />
+
+## Step 2: the prior
+
+Before seeing any data, say how plausible each candidate is. The humblest prior
+calls them all equally plausible: a flat line.
+
+<CodeBlock id="c-prior" code={`prior <- rep(1, length(p_grid))`} />
+
+## Step 3: the likelihood
+
+For each candidate rate, how probable are the data, 3 leavers out of 20? That is
+a binomial probability, and `dbinom()` computes it for the whole grid at once.
+
+<Predict
+  id="p-likelihood-peak"
+  question="Which candidate rate makes 3 leavers out of 20 most probable?"
+  choices={[
+    { text: '0.03', response: 'At 3 % you would expect fewer than one leaver in twenty, so three is unusually many.' },
+    { text: '0.15', correct: true, response: 'Yes: 3 out of 20 is 0.15, and the rate that matches the data best is the observed proportion itself.' },
+    { text: '0.50', response: 'At 50 % you would expect about ten leavers. Three is possible, but unlikely.' },
+  ]}
+/>
+
+<CodeBlock id="c-likelihood" code={`likelihood <- dbinom(left20, size = 20, prob = p_grid)
+p_grid[which.max(likelihood)]`} />
+
+The likelihood is **not** a probability distribution for the rate. It says how
+well each rate predicted the data, and it need not add up to 1.
+
+## Step 4: the posterior
+
+Multiply prior by likelihood, candidate by candidate, then divide by the total so
+the result sums to 1. That is Bayes' rule, and the result is the **posterior**:
+how plausible each rate is now that you have seen the data.
+
+<CodeBlock id="c-posterior" code={`posterior <- prior * likelihood
+posterior <- posterior / sum(posterior)
+
+plot(p_grid, posterior, type = "l",
+     xlab = "Leaving rate", ylab = "Posterior probability")
+
+# The single most plausible rate, and the average over the posterior.
+p_grid[which.max(posterior)]
+sum(p_grid * posterior)`} />
+
+The peak sits at 0.15, the observed proportion. The posterior mean is a little
+higher, about 0.18, because the curve has a long right tail: with only twenty
+people, rates of 30 % or more are still quite believable.
+
+## More data, narrower posterior
+
+Now use all 480 employees.
+
+<CodeBlock id="c-all" code={`left_all <- sum(d$left_company)
+n_all <- nrow(d)
+c(left = left_all, employees = n_all)
+
+posterior_all <- prior * dbinom(left_all, size = n_all, prob = p_grid)
+posterior_all <- posterior_all / sum(posterior_all)
+
+plot(p_grid, posterior_all, type = "l", col = "steelblue",
+     xlab = "Leaving rate", ylab = "Posterior probability")
+lines(p_grid, posterior, col = "grey50")
+
+sum(p_grid * posterior_all)`} />
+
+The blue curve is tall and narrow, around 0.23. With 480 people most rates have
+become implausible. That narrowing is what a Bayesian means by learning from data,
+and it plays the part that a shrinking standard error played in Module 7.
+
+## A prior that knows something
+
+A flat prior is a choice too, and rarely the most honest one. Suppose HR knows
+from sector reports that leaving rates are usually around 15 %. A **beta
+distribution** can say that: `dbeta(p, 3, 17)` peaks near 0.11, has its mean at
+3 / (3 + 17) = 0.15, and carries about as much information as twenty employees
+would.
+
+<CodeBlock id="c-informed" code={`informed <- dbeta(p_grid, 3, 17)
+
+post_small <- informed * dbinom(left20, size = 20, prob = p_grid)
+post_small <- post_small / sum(post_small)
+
+post_large <- informed * dbinom(left_all, size = n_all, prob = p_grid)
+post_large <- post_large / sum(post_large)
+
+c(first_20 = sum(p_grid * post_small), all_480 = sum(p_grid * post_large))`} />
+
+With twenty employees, the prior and the data are worth about the same, and the
+posterior mean lands at 0.15. With 480, the data outweigh the prior many times
+over, and the posterior mean of 0.224 is close to the flat-prior answer. **The
+more data you have, the less the prior matters.** With little data, the prior
+matters a lot, which is exactly when you should say which one you used and why.
+
+<Exercise id="m15-1-a" />
+
+<Quiz
+  id="q-prior"
+  question="A colleague objects: 'A prior lets you put whatever answer you like into the analysis.' What is the best reply?"
+  choices={[
+    { text: 'That is true, which is why Bayesian results cannot be trusted', response: 'A prior is an assumption stated in the open, like the assumptions of a t-test. Hidden assumptions are the ones to worry about.' },
+    { text: 'The prior is stated and can be checked. Its influence shrinks as the data grow, and you can show how much the answer changes under other reasonable priors', correct: true, response: 'Right. Report the prior, and when the sample is small, show that the conclusion survives a few sensible alternatives.' },
+    { text: 'Priors only matter when they are flat', response: 'It is the other way round: a flat prior lets the data speak for themselves, and a strong prior is the one that pulls the answer.' },
+    { text: 'The prior is chosen after looking at the data, so it always fits', response: 'That would be cheating. A prior describes what was believed before the data, and it is fixed before they are analysed.' },
+  ]}
+/>
+
+<Interpret
+  id="i-15-1"
+  question="With a flat prior and all 480 employees, the posterior for the leaving rate peaks at 0.227 and has its mean at 0.228. Which sentence describes it correctly?"
+  choices={[
+    { text: 'Given these data and a flat prior, leaving rates close to 23 % are the most plausible, and rates much below 19 % or above 27 % have become very unlikely.', correct: true, response: 'Correct: a Bayesian result is a statement about how plausible each value of the rate is, and it names the prior it rests on.' },
+    { text: 'If the true rate were 23 %, data like these would turn up 95 % of the time.', response: 'That is the frequentist reading of a sampling distribution. The posterior is about the rate, not about repeated samples.' },
+    { text: 'Exactly 22.8 % of employees will leave next year.', response: 'The posterior is a whole distribution of plausible rates, not one number, and it describes these employees, not a forecast for next year.' },
+    { text: 'The prior was flat, so this result involves no assumptions.', response: 'A flat prior is an assumption too: that every rate from 0 to 1 was equally plausible beforehand. It is a mild one, not no assumption at all.' },
+  ]}
+/>

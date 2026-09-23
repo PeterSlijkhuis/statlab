@@ -5,12 +5,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createLessonEnv, destroyEnv } from '../r/environments';
 import { evaluateR } from '../r/evaluate';
 import { ensurePackages, installCoursePackages, mountDatasets, ON_DEMAND_PACKAGES } from '../r/session';
+import { browserSupport } from '../r/packages';
 import { allAnswers, packagesDownloaded, packagesMissingHere } from './modelTree';
 
 /**
  * Every snippet in the model chooser, run in real R exactly as a student
  * pastes it into the R Workspace: with the course datasets in data/, after
  * installing the packages it names, as the workspace does on a first run.
+ * Only a snippet whose package cannot run in any browser is skipped.
  */
 
 /**
@@ -80,8 +82,12 @@ afterAll(async () => {
 
 const ANSWERS = allAnswers().map((entry) => entry.answer);
 
+/** A snippet whose packages cannot work in any browser, such as brms, which compiles Stan models to C++. */
+const needsDesktop = (answer: (typeof ANSWERS)[number]) =>
+  packagesMissingHere(answer).some((name) => browserSupport(name) === 'unavailable');
+
 describe.each(ANSWERS.map((answer) => [answer.id, answer] as const))('%s', (id, answer) => {
-  test('runs without an error in real R', async () => {
+  test.skipIf(needsDesktop(answer))('runs without an error in real R', async () => {
     // What the R Workspace downloads on first use, and anything it could not.
     const extra = [...packagesDownloaded(answer), ...packagesMissingHere(answer)];
     if (extra.length) await ensurePackages(webR, extra);

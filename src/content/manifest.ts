@@ -24,7 +24,7 @@ export type ModuleMeta = {
 
 /**
  * The curriculum as planned: spec §7, Module 0 and the fourteen modules after
- * it, ids frozen. A module appears in MODULES below only once every one of its
+ * it, then the advanced Module 15 on Bayesian statistics, ids frozen. A module appears in MODULES below only once every one of its
  * lesson files exists, so this list can be complete while the course is still
  * being written.
  */
@@ -418,6 +418,37 @@ export const PLANNED_MODULES: ModuleMeta[] = [
         title: 'Odds ratios, and reporting',
         file: '14-3-odds-ratios-and-reporting',
         exercises: ['m14-3-a'],
+      },
+    ],
+  },
+  {
+    id: 'module-15',
+    number: 15,
+    title: 'Bayesian statistics',
+    lessons: [
+      {
+        id: '15-1',
+        title: 'Prior, likelihood and posterior',
+        file: '15-1-prior-likelihood-posterior',
+        exercises: ['m15-1-a'],
+      },
+      {
+        id: '15-2',
+        title: 'Credible intervals',
+        file: '15-2-credible-intervals',
+        exercises: ['m15-2-a', 'm15-2-b'],
+      },
+      {
+        id: '15-3',
+        title: 'Bayes factors',
+        file: '15-3-bayes-factors',
+        exercises: ['m15-3-a'],
+      },
+      {
+        id: '15-4',
+        title: 'Bayesian regression',
+        file: '15-4-bayesian-regression',
+        exercises: ['m15-4-a'],
       },
     ],
   },

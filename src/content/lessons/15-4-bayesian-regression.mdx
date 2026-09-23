@@ -1,0 +1,151 @@
+The linear model of Part 3 has a Bayesian version with the same formula. The
+difference is in what comes out: not an estimate with a p-value, but a posterior
+distribution for each coefficient, with a prior you choose on purpose.
+
+## The slope as an unknown
+
+Take the model of wellbeing on autonomy from lesson 9.2.
+
+<CodeBlock id="c-lm" code={`d <- read.csv("data/workplace.csv", stringsAsFactors = TRUE)
+
+m_autonomy <- lm(wellbeing ~ autonomy, data = d)
+summary(m_autonomy)$coefficients
+
+b_hat <- coef(m_autonomy)[["autonomy"]]
+se_hat <- summary(m_autonomy)$coefficients["autonomy", "Std. Error"]
+c(b_hat = b_hat, se_hat = se_hat)`} />
+
+The slope is the unknown now, as the leaving rate was in lesson 15.1. With a few
+hundred cases, what the data say about it is summed up very well by a normal
+curve centred on the estimate, with the standard error as its spread. That curve
+is the likelihood, so the grid method works exactly as before.
+
+<CodeBlock id="c-flat" code={`b_grid <- seq(-1, 3, length.out = 4001)
+
+prior_flat <- rep(1, length(b_grid))
+likelihood <- dnorm(b_hat, mean = b_grid, sd = se_hat)
+
+post_flat <- prior_flat * likelihood
+post_flat <- post_flat / sum(post_flat)
+
+# Posterior mean, and a 95 % credible interval read off the grid.
+sum(b_grid * post_flat)
+cdf <- cumsum(post_flat)
+c(b_grid[which(cdf >= 0.025)[1]], b_grid[which(cdf >= 0.975)[1]])
+
+confint(m_autonomy)["autonomy", ]`} />
+
+With a flat prior, the posterior mean is the least-squares estimate and the
+credible interval matches the confidence interval to two decimals. That is
+worth knowing: **a flat-prior Bayesian regression gives the numbers you already
+know, with the Bayesian reading attached.**
+
+## A sceptical prior
+
+Few workplace factors move wellbeing by more than a point or so per scale point.
+A prior can say that: `Normal(0, 0.5)` puts the slope near zero, and makes
+slopes beyond about ±1 unlikely.
+
+<Predict
+  id="p-shrink"
+  question="The data say the slope is about 1.05. The prior says it is probably near 0. Where will the posterior mean land?"
+  choices={[
+    { text: 'At 1.05: the data always win', response: 'The data win in the limit of a very large sample. Here the prior has some weight, so it pulls.' },
+    { text: 'Between 0 and 1.05, closer to 1.05', correct: true, response: 'Yes. The posterior is a compromise, weighted towards whichever of the two is more precise, and 480 employees make the data the more precise one.' },
+    { text: 'At 0.525, halfway', response: 'Halfway would mean the prior and the data are equally precise. The standard error of 0.21 is much narrower than the prior SD of 0.5.' },
+  ]}
+/>
+
+<CodeBlock id="c-sceptical" code={`prior_sceptical <- dnorm(b_grid, mean = 0, sd = 0.5)
+
+post_sceptical <- prior_sceptical * likelihood
+post_sceptical <- post_sceptical / sum(post_sceptical)
+sum(b_grid * post_sceptical)
+
+plot(b_grid, post_sceptical, type = "l", col = "steelblue",
+     xlab = "Slope for autonomy", ylab = "Posterior probability")
+lines(b_grid, post_flat, col = "grey50")
+lines(b_grid, prior_sceptical / sum(prior_sceptical), lty = 2)`} />
+
+The posterior mean moves from 1.05 to 0.89. Pulling an estimate towards zero like
+this is called **shrinkage**. It is a feature: estimates from noisy data are too
+extreme on average, and a sensible prior corrects for that before a replication
+has to.
+
+## The shortcut: a weighted average
+
+When both the prior and the likelihood are normal curves, the posterior is a
+normal curve too, and no grid is needed. Each source is weighted by its
+**precision**, one over its variance.
+
+<CodeBlock id="c-formula" code={`prior_sd <- 0.5
+w_data <- 1 / se_hat^2
+w_prior <- 1 / prior_sd^2
+
+post_mean <- (w_data * b_hat + w_prior * 0) / (w_data + w_prior)
+post_sd <- sqrt(1 / (w_data + w_prior))
+c(post_mean = post_mean, post_sd = post_sd)
+
+# A 95 % credible interval, and the probability of two claims.
+qnorm(c(0.025, 0.975), mean = post_mean, sd = post_sd)
+pnorm(0, mean = post_mean, sd = post_sd, lower.tail = FALSE)
+pnorm(0.5, mean = post_mean, sd = post_sd, lower.tail = FALSE)`} />
+
+The data weigh about 22 against the prior's 4, which is why they dominate. The
+last two lines are the kind of answer a Bayesian regression is for: it is
+practically certain that the slope is positive, and about a 98 % probability that
+it is above half a point, a size someone might care about.
+
+<Exercise id="m15-4-a" />
+
+## In RStudio: brms
+
+The shortcut above treats one slope at a time and borrows the standard error from
+`lm()`. The **brms** package fits the whole model the Bayesian way, intercept,
+slopes and residual SD together, by simulation (Markov chain Monte Carlo). It
+extends to everything in Part 3: several predictors, interactions, logistic
+regression with `family = bernoulli()`, and mixed models with `(1 | id)`.
+
+brms turns each model into a program for Stan and compiles it, which needs a C++
+compiler. That is why it does not run in the browser. On your own computer:
+
+```r
+# Once: install.packages("brms"). Windows also needs Rtools,
+# a Mac the Xcode command line tools.
+library(brms)
+
+fit <- brm(
+  wellbeing ~ autonomy,
+  data = d,
+  prior = prior(normal(0, 0.5), class = b),
+  seed = 1
+)
+
+summary(fit)                     # estimates with 95 % credible intervals
+hypothesis(fit, "autonomy > 0")  # the probability of a claim
+pp_check(fit)                    # does the model reproduce the data?
+```
+
+With this prior and these data, brms should give a slope close to the 0.89 you
+computed here, since the normal shortcut is very accurate with 480 cases.
+
+<Quiz
+  id="q-shrinkage"
+  question="Two studies fit the same Bayesian regression with the same sceptical prior. Study A has 40 participants, study B has 4,000. In which study does the prior pull the estimate further towards zero?"
+  choices={[
+    { text: 'Study A', correct: true, response: 'Right. With 40 participants the standard error is large, so the data carry little weight against the prior.' },
+    { text: 'Study B', response: 'The larger study has the smaller standard error, so its data outweigh the prior by far more.' },
+    { text: 'Equally, because the prior is the same', response: 'The prior is the same, but its weight is relative to the data. More data, less pull.' },
+  ]}
+/>
+
+<Interpret
+  id="i-15-4"
+  question="A Bayesian regression of wellbeing on autonomy with a Normal(0, 0.5) prior on the slope gives a posterior mean of 0.89, 95 % CrI [0.50, 1.27], and P(slope > 0) > .999. Which write-up is correct?"
+  choices={[
+    { text: 'With a Normal(0, 0.5) prior on the slope, each additional point of autonomy was associated with 0.89 points higher wellbeing, 95 % CrI [0.50, 1.27]. The posterior probability of a positive association exceeded .999.', correct: true, response: 'Correct: the prior is stated, the estimate has its credible interval, and the probability is of the claim itself.' },
+    { text: 'Autonomy significantly predicted wellbeing, b = 0.89, p < .001.', response: 'A Bayesian analysis gives no p-value. Report the credible interval and posterior probabilities instead, and name the prior.' },
+    { text: 'Autonomy increases wellbeing by 0.89 points, 95 % CrI [0.50, 1.27].', response: '"Increases" is a causal claim, and this is observational data. Say "was associated with". The prior is missing too.' },
+    { text: 'There is a 95 % probability that the true slope is 0.89.', response: 'The probability belongs to the interval, 0.50 to 1.27. The chance of any single exact value is zero.' },
+  ]}
+/>

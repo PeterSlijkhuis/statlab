@@ -91,6 +91,7 @@ export const NOT_IN_BROWSER: Record<string, string> = {
   ranger: 'it needs threads, which R in a browser does not have. Use randomForest instead.',
   rstan: 'it compiles each model to C++, and the browser has no compiler. Use R on your own computer.',
   brms: 'it compiles each model to C++ with Stan, and the browser has no compiler. Use R on your own computer.',
+  BayesFactor: 'it needs deSolve, which the browser package repository does not carry. Use R on your own computer, or the BIC approximation from lesson 15.3.',
   cmdstanr: 'it compiles each model to C++ with Stan, and the browser has no compiler. Use R on your own computer.',
   shiny: 'a Shiny app needs a web server, which R in a browser cannot start. Use RStudio on your own computer.',
   rmarkdown: 'turning a document into HTML, Word or PDF needs Pandoc, which runs only on your own computer.',
