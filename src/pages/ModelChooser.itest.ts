@@ -142,15 +142,23 @@ d$outcome <- sin(d$V1) + d$V2^2 + rnorm(200, sd = 0.3)`,
  * The number of resamples changes the intervals' precision, not whether the
  * code works.
  */
+/**
+ * WebAssembly R cannot count CPU cores, so parallel::detectCores() returns NA
+ * and lavaan's option check stops on it. The shim runs before library(lavaan),
+ * so lavaan sees the patched function however it imports it. A desktop R, where students run
+ * lavaan, returns a number, so the snippet itself needs nothing.
+ */
+const LAVAAN_SHIM = `if (is.na(parallel::detectCores())) local({
+  ns <- asNamespace("parallel")
+  unlockBinding("detectCores", ns)
+  assign("detectCores", function(...) 1L, envir = ns)
+  lockBinding("detectCores", ns)
+})
+`;
+
 function forTest(rCode: string): string {
-  return (
-    rCode
-      .replace('bootstrap = 1000', 'bootstrap = 50')
-      // WebAssembly R has no threads, and ranger stops rather than run on one
-      // unless told to. On a desktop the default of all cores is what a
-      // student wants, so the snippet itself leaves it out.
-      .replace('importance = "permutation")', 'importance = "permutation", num.threads = 1)')
-  );
+  const shim = /library\(lavaan\)/.test(rCode) ? LAVAAN_SHIM : '';
+  return shim + rCode.replace('bootstrap = 1000', 'bootstrap = 50');
 }
 
 /**
