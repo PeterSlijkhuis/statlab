@@ -72,11 +72,28 @@ test('a student uploads their own CSV in the playground and reads it', async ({ 
     buffer: Buffer.from('group,score\na,12\nb,30\na,18\n'),
   });
   const line = 'my_survey <- read.csv("data/My_survey.csv", stringsAsFactors = TRUE)';
-  await expect(page.getByText(line)).toBeVisible();
+  // Scoped to the list: once pasted, the same line is in the editor too.
+  const listed = page.getByRole('list', { name: 'Your uploaded files' }).getByText(line);
+  await expect(listed).toBeVisible();
 
   const block = page.locator('.code-block').first();
   await block.locator('.cm-content').fill(`${line}\nsum(my_survey$score)`);
   await block.getByRole('button', { name: 'Run' }).click();
   await expect(block.locator('.output-console')).toContainText('60', { timeout: 120_000 });
   await expect(block.locator('.output-error')).toHaveCount(0);
+
+  // Kept in the browser: after a reload the file is back in R, and the draft
+  // code that reads it still runs.
+  await page.reload();
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+  await expect(listed).toBeVisible();
+  await block.getByRole('button', { name: 'Run' }).click();
+  await expect(block.locator('.output-console')).toContainText('60', { timeout: 120_000 });
+
+  // Removed means removed, from R now and from the next visit.
+  await page.getByRole('button', { name: 'Remove My_survey.csv' }).click();
+  await expect(listed).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+  await expect(listed).toHaveCount(0);
 });

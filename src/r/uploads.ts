@@ -1,11 +1,13 @@
 import type { WebR } from 'webr';
 import { DATA_DIR, DATASET_FILES, ensurePackages } from './session';
 import { setStatus } from './webrClient';
+import { deleteStoredFile, loadStoredFiles, saveStoredFile } from '../state/uploadStore';
 
 /**
  * A student's own file, written into webR's in-memory file system next to the
  * course datasets. Nothing leaves the browser: the bytes go from the file
- * picker straight into the R worker, and they are gone when the tab closes.
+ * picker into the R worker and into this browser's IndexedDB, which puts them
+ * back into R after a reload until the student removes them.
  */
 export type Upload = {
   /** The name R sees, inside `data/`. May differ from the picked file's name. */
@@ -92,6 +94,62 @@ function publish(next: Upload[]): void {
 /** Test-only: forget every upload. */
 export function resetUploads(): void {
   uploads = [];
+  restored = null;
+}
+
+function isCourseDataset(name: string): boolean {
+  return DATASET_FILES.some((dataset) => dataset.toLowerCase() === name.toLowerCase());
+}
+
+async function writeIntoR(webR: WebR, name: string, bytes: Uint8Array): Promise<void> {
+  const info = await webR.FS.analyzePath(DATA_DIR);
+  if (!info.exists) await webR.FS.mkdir(DATA_DIR);
+  await webR.FS.writeFile(`${DATA_DIR}/${name}`, bytes);
+}
+
+/**
+ * readxl is only on the page for a student who has an Excel file. It is not
+ * in the core set, so it installs each visit; the status pill shows it and
+ * returns to ready when it is done.
+ */
+async function installExcelReader(webR: WebR): Promise<void> {
+  try {
+    await ensurePackages(webR, ['readxl']);
+  } finally {
+    setStatus({ phase: 'ready' });
+  }
+}
+
+let restored: Promise<void> | null = null;
+
+/**
+ * Puts the files kept from earlier visits back into R's data folder, once per
+ * page load. Never rejects: a browser that refuses storage (a private window,
+ * for one) simply starts with no uploads, and the course still works.
+ */
+export function restoreUploads(webR: WebR): Promise<void> {
+  if (!restored) {
+    restored = (async () => {
+      let kept: Upload[] = [];
+      try {
+        for (const file of await loadStoredFiles()) {
+          const kind = uploadKind(file.name);
+          if (!kind || isCourseDataset(file.name)) continue;
+          await writeIntoR(webR, file.name, file.bytes);
+          kept = [...kept, { name: file.name, kind, bytes: file.bytes.length, code: readCode(file.name, kind) }];
+        }
+      } catch {
+        // Whatever was restored before the failure is still usable.
+      }
+      // Merged, not replaced: a student may upload while the restore is running.
+      publish([...kept.filter((k) => !uploads.some((u) => u.name === k.name)), ...uploads]);
+      if (kept.some((u) => u.kind === 'excel')) {
+        // Not awaited: lessons should not wait on a package only one file needs.
+        void installExcelReader(webR).catch(() => {});
+      }
+    })();
+  }
+  return restored;
 }
 
 /** Anything a student can fix themselves: the message is shown to them as written. */
@@ -105,7 +163,7 @@ export async function uploadFile(webR: WebR, file: File): Promise<Upload> {
   }
   // Overwriting a course dataset would quietly change every lesson's numbers,
   // and every exercise check is written against those numbers.
-  if (DATASET_FILES.some((dataset) => dataset.toLowerCase() === name.toLowerCase())) {
+  if (isCourseDataset(name)) {
     throw new UploadError(`"${name}" is the name of a course dataset. Rename your file and upload it again.`);
   }
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -113,32 +171,37 @@ export async function uploadFile(webR: WebR, file: File): Promise<Upload> {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const info = await webR.FS.analyzePath(DATA_DIR);
-  if (!info.exists) await webR.FS.mkdir(DATA_DIR);
-  await webR.FS.writeFile(`${DATA_DIR}/${name}`, bytes);
+  await writeIntoR(webR, name, bytes);
 
   const upload: Upload = { name, kind, bytes: bytes.length, code: readCode(name, kind) };
   // Uploading the same name again replaces the file in R, so it replaces the entry too.
   publish([...uploads.filter((u) => u.name !== name), upload]);
 
+  // The file is usable from here on. What follows can only limit it, so each
+  // problem is reported without taking the file away.
+  let problem: string | null = null;
+  try {
+    await saveStoredFile(name, bytes);
+  } catch {
+    problem = `"${name}" is ready in data/, but this browser would not keep a copy, so it will be gone after a reload.`;
+  }
+
   if (kind === 'excel') {
-    // Only a student with a spreadsheet pays for readxl's download, and it is
-    // ready by the time they paste the line that uses it.
     try {
-      await ensurePackages(webR, ['readxl']);
+      await installExcelReader(webR);
     } catch {
-      throw new UploadError(
-        `"${name}" is in data/, but the package that reads Excel files could not be installed. Check your connection and upload it again, or save the sheet as CSV.`,
-      );
-    } finally {
-      setStatus({ phase: 'ready' });
+      problem = `"${name}" is in data/, but the package that reads Excel files could not be installed. Check your connection and upload it again, or save the sheet as CSV.`;
     }
   }
 
+  if (problem) throw new UploadError(problem);
   return upload;
 }
 
 export async function removeUpload(webR: WebR, name: string): Promise<void> {
+  // The kept copy goes first: if that fails, the file stays listed rather
+  // than vanishing now and reappearing on the next visit.
+  await deleteStoredFile(name);
   const path = `${DATA_DIR}/${name}`;
   if ((await webR.FS.analyzePath(path)).exists) await webR.FS.unlink(path);
   publish(uploads.filter((u) => u.name !== name));
