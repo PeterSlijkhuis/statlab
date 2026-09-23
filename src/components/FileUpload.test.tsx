@@ -6,6 +6,13 @@ import { LessonProvider } from '../content/LessonContext';
 
 const uploadFile = vi.hoisted(() => vi.fn());
 const removeUpload = vi.hoisted(() => vi.fn());
+// IndexedDB is a browser API; an in-memory stand-in keeps these tests about R.
+vi.mock('../state/uploadStore', () => ({
+  saveStoredFile: async () => {},
+  deleteStoredFile: async () => {},
+  loadStoredFiles: async () => [],
+}));
+
 vi.mock('../r/uploads', async (original) => {
   const real = await original<typeof import('../r/uploads')>();
   return { ...real, uploadFile, removeUpload };

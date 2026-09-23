@@ -82,7 +82,7 @@ export default function FileUpload({ compact = false }: { compact?: boolean }) {
         <span className="file-upload-note">
           {compact
             ? 'Use your own CSV, TSV, TXT or Excel file.'
-            : 'CSV, TSV, TXT or Excel, up to 25 MB. It goes into the data folder in this browser tab only, is never sent anywhere, and is gone when you close the tab.'}
+            : 'CSV, TSV, TXT or Excel, up to 25 MB. It goes into the data folder and stays in this browser, even after a reload, until you remove it. It is never sent anywhere.'}
         </span>
       </div>
 

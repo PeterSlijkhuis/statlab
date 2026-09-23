@@ -8,6 +8,21 @@ vi.mock('./session', async (original) => ({
 }));
 vi.mock('webr');
 
+// An in-memory stand-in for IndexedDB, which jsdom does not have.
+const stored = vi.hoisted(() => new Map<string, { name: string; bytes: Uint8Array; savedAt: number }>());
+const storeFails = vi.hoisted(() => ({ save: false, load: false }));
+vi.mock('../state/uploadStore', () => ({
+  saveStoredFile: vi.fn(async (name: string, bytes: Uint8Array) => {
+    if (storeFails.save) throw new Error('QuotaExceededError');
+    stored.set(name, { name, bytes, savedAt: stored.size });
+  }),
+  deleteStoredFile: vi.fn(async (name: string) => void stored.delete(name)),
+  loadStoredFiles: vi.fn(async () => {
+    if (storeFails.load) throw new Error('SecurityError');
+    return [...stored.values()];
+  }),
+}));
+
 import {
   cleanFileName,
   listUploads,
@@ -15,6 +30,7 @@ import {
   readCode,
   removeUpload,
   resetUploads,
+  restoreUploads,
   uploadFile,
   UploadError,
   uploadKind,
@@ -43,6 +59,9 @@ function file(name: string, content = 'a,b\n1,2\n') {
 beforeEach(() => {
   resetUploads();
   ensurePackages.mockReset();
+  stored.clear();
+  storeFails.save = false;
+  storeFails.load = false;
 });
 
 describe('naming', () => {
@@ -143,12 +162,73 @@ describe('uploadFile', () => {
   });
 });
 
+describe('keeping uploads after a reload', () => {
+  test('an upload is kept in the browser', async () => {
+    const { webR } = fakeWebR();
+    await uploadFile(webR, file('a.csv'));
+    expect(new TextDecoder().decode(stored.get('a.csv')?.bytes)).toBe('a,b\n1,2\n');
+  });
+
+  test('a browser that will not keep it still gets the file for this visit, and is told', async () => {
+    const { webR, files } = fakeWebR();
+    storeFails.save = true;
+    await expect(uploadFile(webR, file('a.csv'))).rejects.toThrow(/gone after a reload/);
+    expect(files.has('/home/web_user/data/a.csv')).toBe(true);
+    expect(listUploads().map((u) => u.name)).toEqual(['a.csv']);
+  });
+
+  test('restoring puts kept files back into R and lists them in upload order', async () => {
+    stored.set('first.csv', { name: 'first.csv', bytes: new TextEncoder().encode('x\n1\n'), savedAt: 1 });
+    stored.set('second.txt', { name: 'second.txt', bytes: new TextEncoder().encode('hi'), savedAt: 2 });
+    const { webR, files } = fakeWebR();
+    await restoreUploads(webR);
+    expect(new TextDecoder().decode(files.get('/home/web_user/data/first.csv'))).toBe('x\n1\n');
+    expect(listUploads().map((u) => u.code)).toEqual([
+      'first <- read.csv("data/first.csv", stringsAsFactors = TRUE)',
+      'second <- readLines("data/second.txt")',
+    ]);
+    expect(ensurePackages).not.toHaveBeenCalled();
+  });
+
+  test('restoring runs once per page load', async () => {
+    stored.set('a.csv', { name: 'a.csv', bytes: new Uint8Array([97]), savedAt: 1 });
+    const { webR, FS } = fakeWebR();
+    await Promise.all([restoreUploads(webR), restoreUploads(webR)]);
+    await restoreUploads(webR);
+    expect(FS.writeFile).toHaveBeenCalledTimes(1);
+  });
+
+  test('a kept file can never overwrite a course dataset', async () => {
+    stored.set('workplace.csv', { name: 'workplace.csv', bytes: new Uint8Array([1]), savedAt: 1 });
+    const { webR, FS } = fakeWebR();
+    await restoreUploads(webR);
+    expect(FS.writeFile).not.toHaveBeenCalled();
+    expect(listUploads()).toEqual([]);
+  });
+
+  test('a kept Excel file brings readxl back', async () => {
+    stored.set('s.xlsx', { name: 's.xlsx', bytes: new Uint8Array([1]), savedAt: 1 });
+    ensurePackages.mockResolvedValue(undefined);
+    const { webR } = fakeWebR();
+    await restoreUploads(webR);
+    expect(ensurePackages).toHaveBeenCalledWith(webR, ['readxl']);
+  });
+
+  test('a browser that refuses storage starts with no uploads, and nothing breaks', async () => {
+    storeFails.load = true;
+    const { webR } = fakeWebR();
+    await expect(restoreUploads(webR)).resolves.toBeUndefined();
+    expect(listUploads()).toEqual([]);
+  });
+});
+
 describe('removeUpload', () => {
-  test('deletes the file and its entry', async () => {
+  test('deletes the file, its entry and the kept copy', async () => {
     const { webR, files } = fakeWebR();
     await uploadFile(webR, file('a.csv'));
     await removeUpload(webR, 'a.csv');
     expect(files.has('/home/web_user/data/a.csv')).toBe(false);
+    expect(stored.has('a.csv')).toBe(false);
     expect(listUploads()).toEqual([]);
   });
 });

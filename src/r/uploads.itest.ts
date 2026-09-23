@@ -1,10 +1,17 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { WebR } from 'webr';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { evaluateR } from './evaluate';
 import { mountDatasets } from './session';
 import { uploadFile } from './uploads';
+
+// IndexedDB is a browser API; an in-memory stand-in keeps these tests about R.
+vi.mock('../state/uploadStore', () => ({
+  saveStoredFile: async () => {},
+  deleteStoredFile: async () => {},
+  loadStoredFiles: async () => [],
+}));
 
 let webR: WebR;
 

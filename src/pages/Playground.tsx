@@ -21,7 +21,8 @@ export default function Playground() {
       </p>
       <p>
         To work with your own data, upload a file. It appears in the <code>data</code> folder next to the
-        course datasets, and copying the line of code shown under it reads it into R.
+        course datasets, in every lesson and exercise too, and the line of code shown under it reads it
+        into R.
       </p>
       <FileUpload />
       <CodeBlock
