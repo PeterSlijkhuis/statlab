@@ -266,7 +266,7 @@ StatLab was made by **dr. P.J.H. Slijkhuis** and **dr. V.d.C. Resendez Gomez**,
 based on materials provided by **dr. S.J. Watson**.
 
 It is a project of the [University of Twente](https://www.utwente.nl/en/) and
-the [BMSLab](https://bmslab.utwente.nl/). The same credit shows at the foot of
+[The BMS Lab](https://bmslab.utwente.nl/). The same credit shows at the foot of
 the sidebar on every page of the site and at the bottom of the home page. The
-partner logos appear there once their files are added to `src/assets/logos/`;
-see the README in that folder.
+partner logos are in `src/assets/logos/`, picked up by file name;
+see the README there to replace one.

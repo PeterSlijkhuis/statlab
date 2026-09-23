@@ -15,7 +15,7 @@ describe('Credits', () => {
   test('links to both partners, each opening in a new tab', () => {
     render(<Credits />);
     const twente = screen.getByRole('link', { name: 'University of Twente' });
-    const lab = screen.getByRole('link', { name: 'BMSLab' });
+    const lab = screen.getByRole('link', { name: 'The BMS Lab' });
     for (const link of [twente, lab]) {
       expect(link.getAttribute('target')).toBe('_blank');
       expect(link.getAttribute('rel')).toBe('noopener noreferrer');
@@ -33,6 +33,6 @@ describe('Credits', () => {
     );
     const nav = screen.getByRole('navigation', { name: 'Course navigation' });
     expect(within(nav).getByText(/Made by dr\. P\.J\.H\. Slijkhuis/)).toBeTruthy();
-    expect(within(nav).getByRole('link', { name: 'BMSLab' })).toBeTruthy();
+    expect(within(nav).getByRole('link', { name: 'The BMS Lab' })).toBeTruthy();
   });
 });

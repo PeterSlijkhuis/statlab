@@ -1,13 +1,14 @@
 # Partner logos
 
 The credits at the foot of the sidebar and the home page show a logo for each
-partner when a file with its name is in this folder, and the partner's name as
-text when not. No code change is needed to add one.
+partner whose file is in this folder, and the partner's name as text when not.
+Replacing or adding one needs no code change: the file name is what counts.
 
 | Partner | File name |
 | --- | --- |
-| University of Twente | `utwente.svg` (or `.png`, `.jpg`, `.webp`) |
-| BMSLab | `bmslab.svg` (or `.png`, `.jpg`, `.webp`) |
+| University of Twente | `utwente.png` (or `.svg`, `.jpg`, `.webp`) |
+| The BMS Lab | `bmslab.png` (or `.svg`, `.jpg`, `.webp`) |
 
-Use the official files from each organisation's brand pages. SVG is best; a PNG
-should be at least 120px tall so it stays sharp on high-density screens.
+Keep one file per partner, cropped to the mark with a transparent background.
+SVG is best; a PNG should be at least 90px tall so it stays sharp on
+high-density screens.
