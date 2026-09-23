@@ -8,8 +8,8 @@ import { allAnswers, packagesMissingHere } from './modelTree';
 
 /**
  * Every snippet in the model chooser, run in real R against data made to fit
- * it. A snippet that runs in the Playground runs here with exactly the
- * packages the Playground has. A snippet marked "Needs RStudio" runs too,
+ * it. A snippet that runs in the R Workspace runs here with exactly the
+ * packages the R Workspace has. A snippet marked "Needs RStudio" runs too,
  * after installing the packages it names, so its code is checked even though
  * students run it elsewhere.
  */
@@ -190,7 +190,7 @@ beforeAll(async () => {
   const search = await webR.evalR('search()');
   bootSearch = (await (search as RCharacter).toArray()) as string[];
   await webR.destroy(search);
-  // What the Playground has: the core set at boot, the rest on demand.
+  // What the R Workspace has: the core set at boot, the rest on demand.
   await installCoursePackages(webR);
   await ensurePackages(webR, ON_DEMAND_PACKAGES);
 }, 1_800_000);

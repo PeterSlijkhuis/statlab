@@ -269,7 +269,7 @@ describe('where each snippet runs', () => {
     expect(packagesMissingHere({ rCode: 'library(dplyr)\nlibrary(lavaan)' })).toEqual(['lavaan']);
   });
 
-  test('an answer that runs here says so and links to the Playground', async () => {
+  test('an answer that runs here says so and links to the R Workspace', async () => {
     renderChooser();
     await clickThrough([...GROUPS, /three or more groups/i]);
     expect(screen.getByText('Runs in the R Workspace')).toBeTruthy();
@@ -292,7 +292,7 @@ describe('where each snippet runs', () => {
     expect(text).not.toContain('install.packages');
   });
 
-  test('every answer the course teaches runs in the Playground', () => {
+  test('every answer the course teaches runs in the R Workspace', () => {
     for (const answer of answers().filter((candidate) => candidate.lessonId)) {
       expect(packagesMissingHere(answer), answer.id).toEqual([]);
     }
