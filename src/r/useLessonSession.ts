@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { RObject, WebR } from 'webr';
 import { createLessonEnv, destroyEnv } from './environments';
 import { ensurePackages, fetchDataset, prepareSession } from './session';
+import { restoreUploads } from './uploads';
 import { getWebR, setStatus } from './webrClient';
 
 /** What the hook needs from a lesson: its identity, and what it must attach. */
@@ -35,6 +36,9 @@ export function useLessonSession(
       try {
         const instance = await getWebR();
         await prepareSession(instance, fetchDataset);
+        // Before the page reads as ready, so a student's first Run can read
+        // the file they uploaded on an earlier visit.
+        await restoreUploads(instance);
         if (packages?.length) {
           await ensurePackages(instance, packages);
         }
