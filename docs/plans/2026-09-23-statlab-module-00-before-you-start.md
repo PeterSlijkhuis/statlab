@@ -9,7 +9,7 @@ and operators mean.
 R project, set the file, folder etc and students also don't know why what symbol
 like operators etc. Perhaps a module 0?"
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
 §7 now lists Module 0 in the Foundations part.
 
 **Status (2026-09-23):** Implemented. Four lessons and six checked exercises are

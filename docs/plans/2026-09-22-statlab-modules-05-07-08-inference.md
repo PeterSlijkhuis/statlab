@@ -1,12 +1,10 @@
 # StatLab — Modules 5, 7 and 8: Inference
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Write the three remaining Part 2 modules — the normal distribution, estimation, and hypothesis testing — as complete content against the frozen interfaces: nine lesson MDX files, thirteen checked exercises with negative and alternate fixtures, and the manifest entries that make them live.
 
-**Overview:** `docs/superpowers/plans/2026-09-22-statlab-remaining-work-overview.md`
+**Overview:** `docs/plans/2026-09-22-statlab-remaining-work-overview.md`
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §6, §7 (Modules 5, 7, 8), §7.1, §7.2
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §6, §7 (Modules 5, 7, 8), §7.1, §7.2
 
 **Depends on:** the shell plan (merged); `content-platform` tasks P1, P3 and P4; `simulations` tasks S1 (`distribution`), S2 (`ci`) and S3 (`pvalue`).
 
@@ -53,7 +51,7 @@ The shell plan's Global Constraints and the overview's content constraints apply
 - **Checks never call `exists()`, `get()` or `get0()`.** `src/content/exercises/index.test.ts` already fails on the regex `\b(exists|get|get0)\s*\(` anywhere in a `check` string. Use `has_answer("x")` and `answer("x")` only.
 - **Numeric comparison is `isTRUE(all.equal(actual, expected, tolerance = …, check.attributes = FALSE))` on a value passed through `as.vector()`.** The default tolerance is `1e-6`. Three exercises loosen it, each with an R comment saying which legitimate route needs the slack and why the wrong answers still fall outside it.
 - **Every one of these nine lessons is inferential** (`content.test.ts`'s `INFERENTIAL` regex `^(0[578]|1[0-4]|09)-` matches all of them), so every one ends with an `<Interpret>` whose correct option is an APA 7 sentence and whose distractors are the documented misinterpretations — for Module 7 "there is a 95% chance the true mean is in this interval", for Module 8 "p is the probability the null is true" and "p greater than .05 proves there is no effect".
-- **Simulations are consumed by name only.** `distribution`, `ci` and `pvalue` are built by `docs/superpowers/plans/2026-09-22-statlab-simulations.md` (tasks S1, S2, S3). `<Simulation name="…" />` passes no props (overview decision 6). A module task here cannot start until its simulation is registered, because `content.test.ts` fails on an unregistered name.
+- **Simulations are consumed by name only.** `distribution`, `ci` and `pvalue` are built by `docs/plans/2026-09-22-statlab-simulations.md` (tasks S1, S2, S3). `<Simulation name="…" />` passes no props (overview decision 6). A module task here cannot start until its simulation is registered, because `content.test.ts` fails on an unregistered name.
 - **Block ids are unique within a lesson file** and are written `id="…"` so the validator's `<CodeBlock id="…" code={` …` } />` extractor matches. Keep the attribute order and spacing shown in the MDX below; `validate.itest.ts` extracts code blocks with a literal regex and fails loudly if a block cannot be parsed.
 - **No `readline`, `scan`, `menu` or `browser`** anywhere, including in exercise `setupCode` and `check`.
 

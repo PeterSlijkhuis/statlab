@@ -1,12 +1,10 @@
 # StatLab — The Five Remaining Simulations Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build the five simulations spec §6 names besides `clt`: `distribution`, `ci`, `pvalue`, `correlation` and `leastsquares`, each targeting the specific misconception its spec row names.
 
-**Overview:** `docs/superpowers/plans/2026-09-22-statlab-remaining-work-overview.md`
+**Overview:** `docs/plans/2026-09-22-statlab-remaining-work-overview.md`
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §6
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §6
 
 **Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22. Independent of the content platform — nothing here reads a dataset or a package.
 

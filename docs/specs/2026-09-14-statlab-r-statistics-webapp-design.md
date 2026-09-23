@@ -368,7 +368,7 @@ Module 0 exists because students arrive not knowing how to set up an R project
 or what R's symbols mean. It teaches desktop R and RStudio, which the browser
 cannot run, so its first lesson is guided reading with drawn figures, and its
 paths and symbols lessons are interactive like every other module. Its plan is
-`docs/superpowers/plans/2026-09-23-statlab-module-00-before-you-start.md`.
+`docs/plans/2026-09-23-statlab-module-00-before-you-start.md`.
 
 | # | Module | Content | Simulation |
 |---|---|---|---|

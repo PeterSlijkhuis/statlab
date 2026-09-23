@@ -1,12 +1,10 @@
 # StatLab — Content Platform Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build the four interfaces the remaining thirteen modules need and the shell plan did not provide: per-lesson package installation, the workplace dataset, a manifest covering all fourteen modules, and the validator rules that keep that much content honest.
 
-**Overview:** `docs/superpowers/plans/2026-09-22-statlab-remaining-work-overview.md`
+**Overview:** `docs/plans/2026-09-22-statlab-remaining-work-overview.md`
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §3.5, §7.2, §8
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §3.5, §7.2, §8
 
 **Depends on:** nothing. The shell plan merged to `main` as PR #1 on 2026-09-22.
 

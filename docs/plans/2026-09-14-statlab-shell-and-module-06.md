@@ -1,14 +1,12 @@
 # StatLab Shell + Module 6 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build the StatLab application shell and one complete module (Module 6, Sampling) so the whole architecture is proven end to end.
 
 **Architecture:** A static Vite + React + TypeScript single-page app deployed to GitHub Pages. R runs client-side in a web worker via webR (WebAssembly), so there is no backend. Lessons are MDX files that interleave prose with interactive components; exercises are auto-checked by R snippets that inspect the student's actual result values.
 
 **Tech Stack:** Vite, React 18, TypeScript, MDX (`@mdx-js/rollup`), webR v0.6.0, CodeMirror 6, React Router, Vitest, Playwright.
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md`
 
 **Status (2026-09-22):** Complete. Tasks 1-18 implemented, merged to `main` as PR #1, and deployed. All 131 steps below are ticked: the repository is public, Pages is served from GitHub Actions, the Deploy workflow succeeded on `main`, and the site is live at https://peterslijkhuis.github.io/statlab/. Correctness is covered by the test suite, the content validator, and the Playwright smoke test CI runs against the built site.
 

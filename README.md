@@ -17,7 +17,7 @@
   &nbsp;·&nbsp;
   <a href="#credits">Credits</a>
   &nbsp;·&nbsp;
-  <a href="docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md">Design spec</a>
+  <a href="docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md">Design spec</a>
 </p>
 
 <p align="center">
@@ -262,12 +262,11 @@ public/data/     the two course datasets
 scripts/         dataset generator and the dataset effect check
 e2e/             Playwright smoke tests
 docs/screenshots/  the screenshots in this README
-docs/superpowers/
-  specs/         the design specification
-  plans/         implementation plans
+docs/specs/      the design specification
+docs/plans/      implementation plans
 ```
 
-The design specification in `docs/superpowers/specs/` is the reference for how
+The design specification in `docs/specs/` is the reference for how
 the runtime, the lesson blocks, exercise checking and the curriculum are meant
 to work.
 

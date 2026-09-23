@@ -2,9 +2,7 @@
 
 **Date:** 2026-09-22
 **Status:** Planning complete, ready for implementation
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` on `main` — fourteen modules, tidyverse style. Draft PR #2 reconciles it into one authoritative version; its §0 settles four inconsistencies and its §12 records where the code lags the spec. Read whichever of the two is current when you start.
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement these plans task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` on `main` — fourteen modules, tidyverse style. Draft PR #2 reconciles it into one authoritative version; its §0 settles four inconsistencies and its §12 records where the code lags the spec. Read whichever of the two is current when you start.
 
 This document is the index for everything the spec describes that the first
 implementation plan deliberately left out. It carries the shared conventions,
@@ -43,7 +41,7 @@ install under webR 0.6.0, so Module 13 keeps the shape the spec gives it.
 
 ## What exists today
 
-`docs/superpowers/plans/2026-09-14-statlab-shell-and-module-06.md` built, and
+`docs/plans/2026-09-14-statlab-shell-and-module-06.md` built, and
 its checkboxes now record, the application shell and Module 6 complete:
 
 - the webR runtime layer (`src/r/`): pinned client, evaluation wrapper,

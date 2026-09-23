@@ -1,12 +1,10 @@
 # StatLab — Modules 1–4 (Foundations) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Write Part 1 of the curriculum — Modules 1 to 4 — as twelve lesson files, nineteen checked exercises with negative and alternate fixtures, and four manifest entries, so that a student who has never opened R can reach Module 5 able to load the workplace data, wrangle it with dplyr, describe it, and draw a figure that would survive a supervisor.
 
-**Overview:** `docs/superpowers/plans/2026-09-22-statlab-remaining-work-overview.md`
+**Overview:** `docs/plans/2026-09-22-statlab-remaining-work-overview.md`
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §7 (Modules 1–4), §7.1, §7.2, §4.1, §5
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §7 (Modules 1–4), §7.1, §7.2, §4.1, §5
 
 **Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22; `content-platform` tasks P1 (per-lesson packages), P2 (`public/data/workplace.csv` generated, committed and in `DATASET_FILES`), P3 (`PLANNED_MODULES`, the stub exercise files, `ALL_EXERCISES`) and P4 (the validator rules). Nothing here depends on the simulations plan: Modules 1–4 embed no `<Simulation>`.
 

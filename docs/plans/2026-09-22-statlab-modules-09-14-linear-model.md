@@ -1,12 +1,10 @@
 # StatLab — Modules 9–14: The Linear Model Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Write Part 3 of the curriculum — the six modules that teach one model under many names. Correlation and simple regression, multiple regression, categorical predictors, interactions, repeated measures, and binary outcomes, all fitted to `public/data/workplace.csv`, all reported in APA 7 style, and then wire every leaf of the "Which model should I use?" chooser to the lesson that now teaches it.
 
-**Overview:** `docs/superpowers/plans/2026-09-22-statlab-remaining-work-overview.md`
+**Overview:** `docs/plans/2026-09-22-statlab-remaining-work-overview.md`
 
-**Spec:** `docs/superpowers/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §4.2, §7 (Modules 9–14), §7.1, §7.2
+**Spec:** `docs/specs/2026-09-14-statlab-r-statistics-webapp-design.md` §4.2, §7 (Modules 9–14), §7.1, §7.2
 
 **Depends on:** the shell plan, merged to `main` as PR #1 on 2026-09-22; `content-platform` tasks P1–P4 complete (packages, `workplace.csv`, the fourteen-module manifest, the validator rules); `simulations` tasks S4 (`correlation`) and S5 (`leastsquares`), which Module 9 embeds.
 
