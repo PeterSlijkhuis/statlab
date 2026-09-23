@@ -53,6 +53,18 @@ for (const [name, viewport] of [
       await show.getByRole('button', { name: 'Environment' }).click();
       await expect(page.getByRole('region', { name: 'Environment and History' })).toBeVisible();
       await expect(page.getByRole('region', { name: 'Source' })).toBeHidden();
+      // Visible is not enough: a pane squeezed to its border still counts as
+      // visible, which is how Console and Files once shrank to nothing here.
+      for (const [button, region] of [
+        ['Source', 'Source'],
+        ['Console', 'Console'],
+        ['Environment', 'Environment and History'],
+        ['Files', 'Files, Plots and Help'],
+      ]) {
+        await show.getByRole('button', { name: button }).click();
+        const box = await page.getByRole('region', { name: region }).boundingBox();
+        expect(box?.height ?? 0, `${region} pane height`).toBeGreaterThan(300);
+      }
       await expectNoSidewaysScroll(page);
     });
 
