@@ -83,7 +83,7 @@ const BEYOND: { clicks: RegExp[]; id: string; code: string }[] = [
   { clicks: [/over time/i, /forecast/i], id: 'forecast-series', code: 'arima(' },
   { clicks: [/over time/i, /intervention/i], id: 'interrupted-time-series', code: 'time + after + time_after' },
   { clicks: [/predict new cases/i, /only the useful predictors/i], id: 'lasso', code: 'cv.glmnet(' },
-  { clicks: [/predict new cases/i, /hard to read/i], id: 'random-forest', code: 'ranger(' },
+  { clicks: [/predict new cases/i, /hard to read/i], id: 'random-forest', code: 'randomForest(' },
 ];
 
 async function clickThrough(clicks: RegExp[]) {
