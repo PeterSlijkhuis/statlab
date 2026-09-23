@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { WebR } from 'webr';
+import { WebR, type RCharacter } from 'webr';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createLessonEnv, destroyEnv } from '../r/environments';
 import { evaluateR } from '../r/evaluate';
@@ -143,14 +143,45 @@ d$outcome <- sin(d$V1) + d$V2^2 + rnorm(200, sd = 0.3)`,
  * code works.
  */
 function forTest(rCode: string): string {
-  return rCode.replace('bootstrap = 1000', 'bootstrap = 50');
+  return (
+    rCode
+      .replace('bootstrap = 1000', 'bootstrap = 50')
+      // WebAssembly R has no threads, and ranger stops rather than run on one
+      // unless told to. On a desktop the default of all cores is what a
+      // student wants, so the snippet itself leaves it out.
+      .replace('importance = "permutation")', 'importance = "permutation", num.threads = 1)')
+  );
+}
+
+/**
+ * Detaches every package attached since boot. Each snippet should run as it
+ * would in a fresh session: MASS, attached by an earlier snippet, masks
+ * dplyr's select() and would break later ones for a reason no student sees.
+ */
+const DETACH_ADDED = (boot: string[]) => `for (name in setdiff(search(), c(${boot.map((name) => JSON.stringify(name)).join(', ')}))) {
+  if (startsWith(name, "package:")) detach(name, character.only = TRUE)
+}`;
+
+/** On failure, the calls that led to the error, so a CI log says where it came from. */
+function traced(code: string): string {
+  return `withCallingHandlers({
+${code}
+}, error = function(e) {
+  calls <- vapply(sys.calls(), function(call) paste(deparse(call, nlines = 1L), collapse = ""), "")
+  cat("CALLS:", paste(tail(calls, 12), collapse = "\n  <- "), "\n")
+})`;
 }
 
 let webR: WebR;
+/** search() at boot, before any package is attached. */
+let bootSearch: string[];
 
 beforeAll(async () => {
   webR = new WebR();
   await webR.init();
+  const search = await webR.evalR('search()');
+  bootSearch = (await (search as RCharacter).toArray()) as string[];
+  await webR.destroy(search);
   // What the Playground has: the core set at boot, the rest on demand.
   await installCoursePackages(webR);
   await ensurePackages(webR, ON_DEMAND_PACKAGES);
@@ -170,11 +201,18 @@ describe.each(ANSWERS.map((answer) => [answer.id, answer] as const))('%s', (id, 
   test('runs without an error in real R', async () => {
     const missing = packagesMissingHere(answer);
     if (missing.length) await ensurePackages(webR, missing);
+    await webR.evalRVoid(DETACH_ADDED(bootSearch));
     const env = await createLessonEnv(webR);
     try {
-      const result = await evaluateR(webR, `set.seed(1)\n${FIXTURES[id]}\n${forTest(answer.rCode)}`, { env });
+      const code = `set.seed(1)\n${FIXTURES[id]}\n${forTest(answer.rCode)}`;
+      const result = await evaluateR(webR, code, { env });
       const errors = result.output.filter((line) => line.type === 'error').map((line) => line.data);
-      expect(errors, `${id}:\n${result.output.map((line) => line.data).join('\n')}`).toEqual([]);
+      let log = result.output.map((line) => line.data).join('\n');
+      if (errors.length) {
+        const rerun = await evaluateR(webR, traced(code), { env });
+        log += `\n--- traced rerun ---\n${rerun.output.map((line) => line.data).join('\n')}`;
+      }
+      expect(errors, `${id}:\n${log}`).toEqual([]);
     } finally {
       await destroyEnv(webR, env);
     }
