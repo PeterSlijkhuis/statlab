@@ -272,8 +272,8 @@ describe('where each snippet runs', () => {
   test('an answer that runs here says so and links to the Playground', async () => {
     renderChooser();
     await clickThrough([...GROUPS, /three or more groups/i]);
-    expect(screen.getByText('Runs in the Playground')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Playground' }).getAttribute('href')).toBe('/playground');
+    expect(screen.getByText('Runs in the R Workspace')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'R Workspace' }).getAttribute('href')).toBe('/workspace');
     expect(document.querySelector('.model-chooser-answer')?.textContent).toContain('The first run installs emmeans');
   });
 

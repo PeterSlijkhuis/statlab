@@ -7,7 +7,7 @@ import Toaster from './components/Toaster';
 import { prefersReducedMotion } from './components/celebrate';
 import Home from './pages/Home';
 import Lesson from './pages/Lesson';
-import Playground from './pages/Playground';
+import RWorkspace from './pages/RWorkspace';
 import ModelChooser from './pages/ModelChooser';
 import { fetchDataset, prepareSession } from './r/session';
 import { getWebR } from './r/webrClient';
@@ -90,12 +90,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/lesson/:lessonId" element={<Lesson />} />
-          <Route path="/playground" element={<Playground />} />
+          <Route path="/workspace" element={<RWorkspace />} />
           <Route path="/which-model" element={<ModelChooser />} />
           {/* The page was called "which test" until the curriculum settled on
               teaching one model under many names. Kept so links already shared
               with students, and any bookmark, still land somewhere. */}
           <Route path="/which-test" element={<Navigate to="/which-model" replace />} />
+          <Route path="/playground" element={<Navigate to="/workspace" replace />} />
           <Route path="*" element={<Home />} />
         </Routes>
         </div>

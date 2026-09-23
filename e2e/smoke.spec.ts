@@ -4,7 +4,7 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'StatLab' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'R playground' }).click();
+  await page.getByRole('link', { name: 'R Workspace' }).click();
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
 
   // Real CSS applies here, unlike jsdom: proves the hidden attribute actually
@@ -16,7 +16,7 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
 });
 
 test('the playground works like RStudio: console, environment, plots and help', async ({ page }) => {
-  await page.goto('./playground');
+  await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
   const log = page.getByRole('log', { name: 'Console output' });
   const input = page.getByLabel('Console input');
@@ -59,8 +59,10 @@ test('the playground works like RStudio: console, environment, plots and help', 
   await expect(log).toContainText('[1] 42');
 });
 
-test('the playground installs packages from the browser repository, and completes code', async ({ page }) => {
+test('the R Workspace installs packages from the browser repository, and completes code', async ({ page }) => {
+  // The page's old address still works.
   await page.goto('./playground');
+  await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
   const log = page.getByRole('log', { name: 'Console output' });
 
@@ -145,7 +147,7 @@ test('a ggplot2 plot renders to the canvas', async ({ page }) => {
 });
 
 test('a student uploads their own CSV in the playground and reads it', async ({ page }) => {
-  await page.goto('./playground');
+  await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
 
   await page.getByLabel('Choose a data file').setInputFiles({

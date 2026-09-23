@@ -26,7 +26,7 @@ export const COURSE_PACKAGES = CORE_PACKAGES;
 export const DATASET_FILES = ['wellbeing-population.csv', 'workplace.csv'] as const;
 
 /** webR's working directory; `read.csv("data/x.csv")` resolves under it. */
-const HOME = '/home/web_user';
+export const HOME = '/home/web_user';
 
 /** Where the course datasets live, and where a student's own uploads go too. */
 export const DATA_DIR = `${HOME}/data`;

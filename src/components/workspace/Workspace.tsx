@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorView, keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import type { RObject, WebR } from 'webr';
-import { getDraft, saveDraft } from '../../state/progress';
+import { getDraft } from '../../state/progress';
 import {
   clearObjects,
   completions,
@@ -55,6 +55,8 @@ const PANES: { id: Pane; label: string }[] = [
 type Layout = { columns: number; left: number; right: number };
 const DEFAULT_LAYOUT: Layout = { columns: 50, left: 55, right: 45 };
 const LAYOUT_KEY = 'statlab-workspace-layout';
+/** Every open script, per workspace id. Before scripts had tabs, the one script was a draft in progress storage. */
+const SCRIPTS_KEY = 'statlab-workspace-scripts';
 const HISTORY_KEY = 'statlab-workspace-history';
 const MAX_HISTORY = 200;
 const MAX_LINES = 2000;
@@ -84,12 +86,60 @@ const isLayout = (v: unknown) =>
   typeof v === 'object' && v !== null && ['columns', 'left', 'right'].every((k) => typeof (v as Record<string, unknown>)[k] === 'number');
 const isHistory = (v: unknown) => Array.isArray(v) && v.every((item) => typeof item === 'string');
 
+/** A script open in the Source pane, as a tab in RStudio. */
+type Script = { id: string; name: string; text: string };
+type Scripts = { scripts: Script[]; active: string };
+const isScripts = (v: unknown) => {
+  const value = v as Scripts | null;
+  return (
+    typeof value?.active === 'string' &&
+    Array.isArray(value.scripts) &&
+    value.scripts.length > 0 &&
+    value.scripts.every((sc) => typeof sc?.id === 'string' && typeof sc.name === 'string' && typeof sc.text === 'string') &&
+    value.scripts.some((sc) => sc.id === value.active)
+  );
+};
+
+/** `name`, or `name` with a number added, so no two tabs share a name. */
+function freeName(name: string, taken: string[]): string {
+  if (!taken.includes(name)) return name;
+  const [, stem, ext] = /^(.*?)(\.[^.]*)?$/.exec(name) ?? [name, name, ''];
+  for (let n = 2; ; n++) {
+    const candidate = `${stem}${n}${ext ?? ''}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
+}
+
+/** Saves text to the student's computer under `name`. */
+function saveToComputer(name: string, data: BlobPart, type = 'text/plain') {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Workspace({ id, starter, webR, env }: Props) {
   const ready = Boolean(webR && env);
   const [layout, setLayout] = useState<Layout>(() => load(LAYOUT_KEY, DEFAULT_LAYOUT, isLayout));
   const [focus, setFocus] = useState<Pane>('source');
-  const [source, setSource] = useState(() => getDraft(id, id) ?? starter);
-  const [sourceTab, setSourceTab] = useState<'script' | 'view'>('script');
+  const scriptsKey = `${SCRIPTS_KEY}.${id}`;
+  const [{ scripts, active }, setScripts] = useState<Scripts>(() =>
+    load(scriptsKey, { scripts: [{ id: 's1', name: 'script.R', text: getDraft(id, id) ?? starter }], active: 's1' }, isScripts),
+  );
+  const script = scripts.find((sc) => sc.id === active) ?? scripts[0];
+  const source = script.text;
+  const [viewOpen, setViewOpen] = useState(false);
+  const sourceTab = viewOpen ? 'view' : script.id;
+  const setSourceTab = (tab: string) => {
+    if (tab === 'view') {
+      setViewOpen(true);
+    } else {
+      setViewOpen(false);
+      setScripts((old) => ({ ...old, active: tab }));
+    }
+  };
   const [topRight, setTopRight] = useState<'environment' | 'history'>('environment');
   const [bottomRight, setBottomRight] = useState<'files' | 'plots' | 'packages' | 'help'>('files');
 
@@ -117,6 +167,7 @@ export default function Workspace({ id, starter, webR, env }: Props) {
 
   useEffect(() => store(LAYOUT_KEY, layout), [layout]);
   useEffect(() => store(HISTORY_KEY, history), [history]);
+  useEffect(() => store(scriptsKey, { scripts, active }), [scriptsKey, scripts, active]);
 
   // R's own banner, as RStudio opens its console with one.
   useEffect(() => {
@@ -371,13 +422,46 @@ export default function Workspace({ id, starter, webR, env }: Props) {
   );
 
   function edit(next: string) {
-    setSource(next);
-    saveDraft(id, id, next);
+    setScripts((old) => ({ ...old, scripts: old.scripts.map((sc) => (sc.id === old.active ? { ...sc, text: next } : sc)) }));
+  }
+
+  /** Adds a script as a new tab and shows it. */
+  function addScript(name: string, text: string) {
+    setScripts((old) => {
+      const next = { id: `s${Date.now().toString(36)}${old.scripts.length}`, name: freeName(name, old.scripts.map((sc) => sc.name)), text };
+      return { scripts: [...old.scripts, next], active: next.id };
+    });
+    setViewOpen(false);
+    setFocus('source');
+  }
+
+  function newScript() {
+    addScript('Untitled.R', '');
+  }
+
+  function closeScript(target: Script) {
+    if (target.text.trim() && !window.confirm(`Close ${target.name}? Its code is deleted from this browser, so download it first to keep a copy.`)) return;
+    setScripts((old) => {
+      const left = old.scripts.filter((sc) => sc.id !== target.id);
+      if (!left.length) return old;
+      const index = old.scripts.findIndex((sc) => sc.id === target.id);
+      return { scripts: left, active: old.active === target.id ? left[Math.max(0, index - 1)].id : old.active };
+    });
+  }
+
+  function renameScript() {
+    const typed = window.prompt('Name for this script', script.name)?.trim();
+    if (!typed) return;
+    const name = /\.[A-Za-z]+$/.test(typed) ? typed : `${typed}.R`;
+    setScripts((old) => ({
+      ...old,
+      scripts: old.scripts.map((sc) => (sc.id === old.active ? { ...sc, name: freeName(name, old.scripts.filter((o) => o.id !== sc.id).map((o) => o.name)) } : sc)),
+    }));
   }
 
   function toSource(code: string) {
     const view = editor.current;
-    setSourceTab('script');
+    setViewOpen(false);
     setFocus('source');
     if (!view) return;
     const at = view.state.selection.main.head;
@@ -393,31 +477,23 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     setFocus('console');
   }
 
-  /** RStudio's File > Open: a script from the student's computer replaces the one in the editor. */
+  /** RStudio's File > Open: a script from the student's computer opens in a tab of its own. */
   async function open(files: FileList | null) {
     const file = files?.[0];
     if (scriptPicker.current) scriptPicker.current.value = '';
     if (!file) return;
-    const text = (await file.text()).replace(/\r\n?/g, '\n');
-    if (source.trim() && source !== starter && !window.confirm(`Replace the script in the editor with ${file.name}?`)) return;
-    edit(text);
-    setSourceTab('script');
+    addScript(file.name, (await file.text()).replace(/\r\n?/g, '\n'));
   }
 
   function download() {
-    const url = URL.createObjectURL(new Blob([source], { type: 'text/plain' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'script.R';
-    link.click();
-    URL.revokeObjectURL(url);
+    saveToComputer(script.name, source);
   }
 
   async function clearEnvironment() {
     if (!webR || !env) return;
     await clearObjects(webR, env);
     setViewing(null);
-    setSourceTab('script');
+    setViewOpen(false);
     await refreshObjects();
   }
 
@@ -441,13 +517,13 @@ export default function Workspace({ id, starter, webR, env }: Props) {
               active={sourceTab}
               onSelect={setSourceTab}
               tabs={[
-                { id: 'script', label: 'script.R' },
+                ...scripts.map((sc) => ({ id: sc.id, label: sc.name, onClose: scripts.length > 1 ? () => closeScript(sc) : undefined })),
                 ...(viewing
-                  ? [{ id: 'view' as const, label: viewing.name, onClose: () => { setViewing(null); setSourceTab('script'); } }]
+                  ? [{ id: 'view', label: viewing.name, onClose: () => { setViewing(null); setViewOpen(false); } }]
                   : []),
               ]}
             />
-            <div role="tabpanel" id={panelId('Source', 'script')} aria-labelledby={tabId('Source', 'script')} hidden={sourceTab !== 'script'} className="ide-panel">
+            <div role="tabpanel" id={panelId('Source', script.id)} aria-labelledby={tabId('Source', script.id)} hidden={viewOpen} className="ide-panel">
               <div className="ide-toolbar">
                 <button type="button" onClick={() => void runCurrent()} disabled={!ready || running} title="Run the current line or selection (Ctrl+Enter)">
                   Run
@@ -457,12 +533,16 @@ export default function Workspace({ id, starter, webR, env }: Props) {
                 </button>
                 <span className="ide-toolbar-spacer" />
                 <input ref={scriptPicker} type="file" accept=".R,.r,.txt,text/plain" aria-label="Open a script file" hidden onChange={(event) => void open(event.target.files)} />
-                <button type="button" onClick={() => scriptPicker.current?.click()} title="Open an R script from your computer">Open</button>
-                <button type="button" onClick={download} title="Save the script to your computer as script.R">Download</button>
-                <button type="button" onClick={() => edit(starter)} title="Put the starting script back">Reset</button>
+                <button type="button" onClick={newScript} title="Start a new, empty script in its own tab">New</button>
+                <button type="button" onClick={() => scriptPicker.current?.click()} title="Open an R script from your computer in a new tab">Open</button>
+                <button type="button" onClick={renameScript} title="Give this script a new name">Rename</button>
+                <button type="button" onClick={download} title={`Save ${script.name} to your computer`}>Download</button>
+                {script.id === 's1' && (
+                  <button type="button" onClick={() => edit(starter)} title="Put the starting script back">Reset</button>
+                )}
               </div>
               <div className="ide-editor">
-                <REditor value={source} onChange={edit} extensions={shortcuts} viewRef={editor} label="R script" />
+                <REditor key={script.id} value={source} onChange={edit} extensions={shortcuts} viewRef={editor} label="R script" />
               </div>
             </div>
             {viewing && (
