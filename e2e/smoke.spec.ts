@@ -4,7 +4,7 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'StatLab' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'R playground' }).click();
+  await page.getByRole('link', { name: 'R Workspace' }).click();
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
 
   // Real CSS applies here, unlike jsdom: proves the hidden attribute actually
@@ -16,7 +16,7 @@ test('the app loads, R boots, and code runs', async ({ page }) => {
 });
 
 test('the playground works like RStudio: console, environment, plots and help', async ({ page }) => {
-  await page.goto('./playground');
+  await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
   const log = page.getByRole('log', { name: 'Console output' });
   const input = page.getByLabel('Console input');
@@ -57,6 +57,46 @@ test('the playground works like RStudio: console, environment, plots and help', 
   await expect(log).toContainText('> a <- 2');
   await editor.press('ControlOrMeta+Enter');
   await expect(log).toContainText('[1] 42');
+});
+
+test('the R Workspace installs packages from the browser repository, and completes code', async ({ page }) => {
+  // The page's old address still works.
+  await page.goto('./playground');
+  await expect(page).toHaveURL(/\/workspace$/);
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+  const log = page.getByRole('log', { name: 'Console output' });
+
+  // One click in the Packages pane writes and runs the install.packages() line.
+  await page.getByRole('tab', { name: 'Packages' }).click();
+  const packages = page.getByRole('tabpanel', { name: 'Packages' });
+  await packages.getByRole('button', { name: 'Install writexl' }).click();
+  await expect(log).toContainText('> install.packages("writexl")');
+  await expect(log).toContainText('writexl is installed');
+  await expect(packages.getByRole('button', { name: 'Install writexl' })).toHaveCount(0);
+
+  // Ticking it runs library(), as in RStudio.
+  await packages.getByRole('checkbox', { name: 'Load writexl' }).click();
+  await expect(log).toContainText('> library(writexl)');
+  await expect(packages.getByRole('checkbox', { name: 'Load writexl' })).toBeChecked();
+
+  // A package that cannot work in a browser says so instead of failing obscurely.
+  const input = page.getByLabel('Console input');
+  await input.fill('library(xlsx)');
+  await input.press('Enter');
+  await expect(log).toContainText('xlsx cannot run in the browser');
+
+  // Tab completion offers a data frame's columns after $.
+  await input.fill('population <- read.csv("data/wellbeing-population.csv")');
+  await input.press('Enter');
+  const editor = page.getByRole('region', { name: 'Source' }).locator('.cm-content');
+  await editor.fill('mean(population$');
+  await editor.press('End');
+  await editor.pressSequentially('exam');
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('exam_score');
+  // CodeMirror ignores an accept in the first 75 ms after the list opens, so a slip of the finger does not pick an option.
+  await page.waitForTimeout(300);
+  await editor.press('Tab');
+  await expect(editor).toContainText('mean(population$exam_score');
 });
 
 test('a lesson renders its simulation and responds to the slider', async ({ page }) => {
@@ -107,7 +147,7 @@ test('a ggplot2 plot renders to the canvas', async ({ page }) => {
 });
 
 test('a student uploads their own CSV in the playground and reads it', async ({ page }) => {
-  await page.goto('./playground');
+  await page.goto('./workspace');
   await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
 
   await page.getByLabel('Choose a data file').setInputFiles({

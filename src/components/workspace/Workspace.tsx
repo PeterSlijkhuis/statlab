@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorView, keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
 import type { RObject, WebR } from 'webr';
-import { getDraft, saveDraft } from '../../state/progress';
+import { getDraft } from '../../state/progress';
 import {
   clearObjects,
+  completions,
   DEFAULT_WIDTH,
   helpText,
   listObjects,
@@ -17,8 +18,9 @@ import {
   type ObjectSummary,
   type Request,
 } from '../../r/workspace';
-import { ensurePackages, onDemandPackagesIn } from '../../r/session';
-import { setStatus } from '../../r/webrClient';
+import { browserSupport, installPackageShims, listPackages, packagesIn, TIDYVERSE_CORE, type InstalledPackage } from '../../r/packages';
+import { ensurePackages } from '../../r/session';
+import { getStatus, setStatus } from '../../r/webrClient';
 import { R_STOPPED_MESSAGE } from '../CodeBlock';
 import REditor from '../REditor';
 import ConsolePane from './ConsolePane';
@@ -26,8 +28,10 @@ import DataViewer from './DataViewer';
 import { EnvironmentView, HistoryView } from './EnvironmentPane';
 import FilesPane from './FilesPane';
 import HelpPane, { type HelpPage } from './HelpPane';
+import PackagesPane from './PackagesPane';
 import PaneTabs, { panelId, tabId } from './PaneTabs';
 import PlotsPane from './PlotsPane';
+import { rstudioEditor } from './rstudioEditor';
 import Splitter from './Splitter';
 import './Workspace.css';
 
@@ -51,6 +55,8 @@ const PANES: { id: Pane; label: string }[] = [
 type Layout = { columns: number; left: number; right: number };
 const DEFAULT_LAYOUT: Layout = { columns: 50, left: 55, right: 45 };
 const LAYOUT_KEY = 'statlab-workspace-layout';
+/** Every open script, per workspace id. Before scripts had tabs, the one script was a draft in progress storage. */
+const SCRIPTS_KEY = 'statlab-workspace-scripts';
 const HISTORY_KEY = 'statlab-workspace-history';
 const MAX_HISTORY = 200;
 const MAX_LINES = 2000;
@@ -80,14 +86,62 @@ const isLayout = (v: unknown) =>
   typeof v === 'object' && v !== null && ['columns', 'left', 'right'].every((k) => typeof (v as Record<string, unknown>)[k] === 'number');
 const isHistory = (v: unknown) => Array.isArray(v) && v.every((item) => typeof item === 'string');
 
+/** A script open in the Source pane, as a tab in RStudio. */
+type Script = { id: string; name: string; text: string };
+type Scripts = { scripts: Script[]; active: string };
+const isScripts = (v: unknown) => {
+  const value = v as Scripts | null;
+  return (
+    typeof value?.active === 'string' &&
+    Array.isArray(value.scripts) &&
+    value.scripts.length > 0 &&
+    value.scripts.every((sc) => typeof sc?.id === 'string' && typeof sc.name === 'string' && typeof sc.text === 'string') &&
+    value.scripts.some((sc) => sc.id === value.active)
+  );
+};
+
+/** `name`, or `name` with a number added, so no two tabs share a name. */
+function freeName(name: string, taken: string[]): string {
+  if (!taken.includes(name)) return name;
+  const [, stem, ext] = /^(.*?)(\.[^.]*)?$/.exec(name) ?? [name, name, ''];
+  for (let n = 2; ; n++) {
+    const candidate = `${stem}${n}${ext ?? ''}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
+}
+
+/** Saves text to the student's computer under `name`. */
+function saveToComputer(name: string, data: BlobPart, type = 'text/plain') {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Workspace({ id, starter, webR, env }: Props) {
   const ready = Boolean(webR && env);
   const [layout, setLayout] = useState<Layout>(() => load(LAYOUT_KEY, DEFAULT_LAYOUT, isLayout));
   const [focus, setFocus] = useState<Pane>('source');
-  const [source, setSource] = useState(() => getDraft(id, id) ?? starter);
-  const [sourceTab, setSourceTab] = useState<'script' | 'view'>('script');
+  const scriptsKey = `${SCRIPTS_KEY}.${id}`;
+  const [{ scripts, active }, setScripts] = useState<Scripts>(() =>
+    load(scriptsKey, { scripts: [{ id: 's1', name: 'script.R', text: getDraft(id, id) ?? starter }], active: 's1' }, isScripts),
+  );
+  const script = scripts.find((sc) => sc.id === active) ?? scripts[0];
+  const source = script.text;
+  const [viewOpen, setViewOpen] = useState(false);
+  const sourceTab = viewOpen ? 'view' : script.id;
+  const setSourceTab = (tab: string) => {
+    if (tab === 'view') {
+      setViewOpen(true);
+    } else {
+      setViewOpen(false);
+      setScripts((old) => ({ ...old, active: tab }));
+    }
+  };
   const [topRight, setTopRight] = useState<'environment' | 'history'>('environment');
-  const [bottomRight, setBottomRight] = useState<'files' | 'plots' | 'help'>('files');
+  const [bottomRight, setBottomRight] = useState<'files' | 'plots' | 'packages' | 'help'>('files');
 
   const [lines, setLines] = useState<ConsoleLine[]>([]);
   const [running, setRunning] = useState(false);
@@ -100,15 +154,20 @@ export default function Workspace({ id, starter, webR, env }: Props) {
   const [help, setHelp] = useState<HelpPage>(null);
   const [helpLoading, setHelpLoading] = useState(false);
   const [viewing, setViewing] = useState<{ name: string; data?: DataPreview | null } | null>(null);
+  const [packages, setPackages] = useState<InstalledPackage[] | null>(null);
 
   const editor = useRef<EditorView | null>(null);
   const plotArea = useRef<HTMLElement | null>(null);
   const consoleArea = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement | null>(null);
+  const scriptPicker = useRef<HTMLInputElement | null>(null);
   const busy = useRef(false);
+  /** Settles once install.packages() and library() fetch from webR's repository; every run waits for it. */
+  const shims = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => store(LAYOUT_KEY, layout), [layout]);
   useEffect(() => store(HISTORY_KEY, history), [history]);
+  useEffect(() => store(scriptsKey, { scripts, active }), [scriptsKey, scripts, active]);
 
   // R's own banner, as RStudio opens its console with one.
   useEffect(() => {
@@ -120,7 +179,9 @@ export default function Workspace({ id, starter, webR, env }: Props) {
         if (live) setLines((old) => (old.length ? old : [{ type: 'message', text: `${version}, running in your browser with webR.` }]));
       })
       .catch(() => {});
+    shims.current = installPackageShims(webR, env).catch(() => {});
     void refreshObjects();
+    void refreshPackages();
     return () => {
       live = false;
     };
@@ -144,6 +205,35 @@ export default function Workspace({ id, starter, webR, env }: Props) {
       setObjects(await listObjects(webR, env));
     } catch {
       // Leaves the last listing up; the next run tries again.
+    }
+  }
+
+  async function refreshPackages() {
+    if (!webR) return;
+    try {
+      setPackages(await listPackages(webR));
+    } catch {
+      // Leaves the last listing up; the next run tries again.
+    }
+  }
+
+  /**
+   * Installs the packages a run plainly names before it starts, so the status
+   * pill can show the download. R would fetch them anyway, but silently, with
+   * only "R is running" to show for it. A failure is left for R to explain.
+   */
+  async function prefetch(code: string) {
+    if (!webR) return;
+    const wanted = packagesIn(code)
+      .flatMap((name) => (name === 'tidyverse' ? [...TIDYVERSE_CORE] : [name]))
+      .filter((name) => browserSupport(name) === 'recommended' || browserSupport(name) === 'unknown');
+    if (!wanted.length) return;
+    try {
+      await ensurePackages(webR, wanted);
+    } catch {
+      // R says what went wrong when the run reaches the line.
+    } finally {
+      if (getStatus().phase === 'installing') setStatus({ phase: 'ready' });
     }
   }
 
@@ -230,20 +320,8 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     remember(text);
     setFocus('console');
     try {
-      // The playground boots with the core packages only. The course's
-      // modelling packages install the first time code asks for one, so a
-      // snippet copied from the model chooser runs as it stands.
-      const extra = onDemandPackagesIn(text);
-      if (extra.length) {
-        try {
-          await ensurePackages(webR, extra);
-        } catch (err) {
-          setLines((old) => [...old, { type: 'error' as const, text: err instanceof Error ? err.message : String(err) }]);
-          return;
-        } finally {
-          setStatus({ phase: 'ready' });
-        }
-      }
+      await shims.current;
+      await prefetch(text);
       const result = await runInConsole(webR, env, text, plotSize(), consoleWidth());
       setLines((old) => [...old, ...result.lines].slice(-MAX_LINES));
       const last = result.images[result.images.length - 1];
@@ -260,6 +338,7 @@ export default function Workspace({ id, starter, webR, env }: Props) {
       setRunning(false);
       setFilesVersion((v) => v + 1);
       await refreshObjects();
+      await refreshPackages();
     }
   }
 
@@ -315,11 +394,22 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     await execute(editor.current?.state.doc.toString() ?? source);
   }
 
+  /** Completion never waits for a run: while R is busy it offers nothing. */
+  async function complete(request: Parameters<typeof completions>[2]) {
+    if (!webR || !env || busy.current) return null;
+    try {
+      return await completions(webR, env, request);
+    } catch {
+      return null;
+    }
+  }
+
   // The editor reads its extensions once, so the shortcuts call through refs to today's handlers.
-  const handlers = useRef({ runCurrent, runAll });
-  handlers.current = { runCurrent, runAll };
+  const handlers = useRef({ runCurrent, runAll, complete });
+  handlers.current = { runCurrent, runAll, complete };
   const shortcuts = useMemo(
     () => [
+      rstudioEditor((request) => handlers.current.complete(request)),
       Prec.highest(
         keymap.of([
           { key: 'Mod-Enter', run: () => (void handlers.current.runCurrent(), true) },
@@ -332,13 +422,46 @@ export default function Workspace({ id, starter, webR, env }: Props) {
   );
 
   function edit(next: string) {
-    setSource(next);
-    saveDraft(id, id, next);
+    setScripts((old) => ({ ...old, scripts: old.scripts.map((sc) => (sc.id === old.active ? { ...sc, text: next } : sc)) }));
+  }
+
+  /** Adds a script as a new tab and shows it. */
+  function addScript(name: string, text: string) {
+    setScripts((old) => {
+      const next = { id: `s${Date.now().toString(36)}${old.scripts.length}`, name: freeName(name, old.scripts.map((sc) => sc.name)), text };
+      return { scripts: [...old.scripts, next], active: next.id };
+    });
+    setViewOpen(false);
+    setFocus('source');
+  }
+
+  function newScript() {
+    addScript('Untitled.R', '');
+  }
+
+  function closeScript(target: Script) {
+    if (target.text.trim() && !window.confirm(`Close ${target.name}? Its code is deleted from this browser, so download it first to keep a copy.`)) return;
+    setScripts((old) => {
+      const left = old.scripts.filter((sc) => sc.id !== target.id);
+      if (!left.length) return old;
+      const index = old.scripts.findIndex((sc) => sc.id === target.id);
+      return { scripts: left, active: old.active === target.id ? left[Math.max(0, index - 1)].id : old.active };
+    });
+  }
+
+  function renameScript() {
+    const typed = window.prompt('Name for this script', script.name)?.trim();
+    if (!typed) return;
+    const name = /\.[A-Za-z]+$/.test(typed) ? typed : `${typed}.R`;
+    setScripts((old) => ({
+      ...old,
+      scripts: old.scripts.map((sc) => (sc.id === old.active ? { ...sc, name: freeName(name, old.scripts.filter((o) => o.id !== sc.id).map((o) => o.name)) } : sc)),
+    }));
   }
 
   function toSource(code: string) {
     const view = editor.current;
-    setSourceTab('script');
+    setViewOpen(false);
     setFocus('source');
     if (!view) return;
     const at = view.state.selection.main.head;
@@ -354,20 +477,23 @@ export default function Workspace({ id, starter, webR, env }: Props) {
     setFocus('console');
   }
 
+  /** RStudio's File > Open: a script from the student's computer opens in a tab of its own. */
+  async function open(files: FileList | null) {
+    const file = files?.[0];
+    if (scriptPicker.current) scriptPicker.current.value = '';
+    if (!file) return;
+    addScript(file.name, (await file.text()).replace(/\r\n?/g, '\n'));
+  }
+
   function download() {
-    const url = URL.createObjectURL(new Blob([source], { type: 'text/plain' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'script.R';
-    link.click();
-    URL.revokeObjectURL(url);
+    saveToComputer(script.name, source);
   }
 
   async function clearEnvironment() {
     if (!webR || !env) return;
     await clearObjects(webR, env);
     setViewing(null);
-    setSourceTab('script');
+    setViewOpen(false);
     await refreshObjects();
   }
 
@@ -391,13 +517,13 @@ export default function Workspace({ id, starter, webR, env }: Props) {
               active={sourceTab}
               onSelect={setSourceTab}
               tabs={[
-                { id: 'script', label: 'script.R' },
+                ...scripts.map((sc) => ({ id: sc.id, label: sc.name, onClose: scripts.length > 1 ? () => closeScript(sc) : undefined })),
                 ...(viewing
-                  ? [{ id: 'view' as const, label: viewing.name, onClose: () => { setViewing(null); setSourceTab('script'); } }]
+                  ? [{ id: 'view', label: viewing.name, onClose: () => { setViewing(null); setViewOpen(false); } }]
                   : []),
               ]}
             />
-            <div role="tabpanel" id={panelId('Source', 'script')} aria-labelledby={tabId('Source', 'script')} hidden={sourceTab !== 'script'} className="ide-panel">
+            <div role="tabpanel" id={panelId('Source', script.id)} aria-labelledby={tabId('Source', script.id)} hidden={viewOpen} className="ide-panel">
               <div className="ide-toolbar">
                 <button type="button" onClick={() => void runCurrent()} disabled={!ready || running} title="Run the current line or selection (Ctrl+Enter)">
                   Run
@@ -406,11 +532,17 @@ export default function Workspace({ id, starter, webR, env }: Props) {
                   Source
                 </button>
                 <span className="ide-toolbar-spacer" />
-                <button type="button" onClick={download} title="Save the script to your computer as script.R">Download</button>
-                <button type="button" onClick={() => edit(starter)} title="Put the starting script back">Reset</button>
+                <input ref={scriptPicker} type="file" accept=".R,.r,.txt,text/plain" aria-label="Open a script file" hidden onChange={(event) => void open(event.target.files)} />
+                <button type="button" onClick={newScript} title="Start a new, empty script in its own tab">New</button>
+                <button type="button" onClick={() => scriptPicker.current?.click()} title="Open an R script from your computer in a new tab">Open</button>
+                <button type="button" onClick={renameScript} title="Give this script a new name">Rename</button>
+                <button type="button" onClick={download} title={`Save ${script.name} to your computer`}>Download</button>
+                {script.id === 's1' && (
+                  <button type="button" onClick={() => edit(starter)} title="Put the starting script back">Reset</button>
+                )}
               </div>
               <div className="ide-editor">
-                <REditor value={source} onChange={edit} extensions={shortcuts} viewRef={editor} label="R script" />
+                <REditor key={script.id} value={source} onChange={edit} extensions={shortcuts} viewRef={editor} label="R script" />
               </div>
             </div>
             {viewing && (
@@ -485,7 +617,7 @@ export default function Workspace({ id, starter, webR, env }: Props) {
             onReset={() => setLayout((l) => ({ ...l, right: DEFAULT_LAYOUT.right }))}
           />
 
-          <section className={pane('files')} aria-label="Files, Plots and Help" ref={plotArea}>
+          <section className={pane('files')} aria-label="Files, Plots, Packages and Help" ref={plotArea}>
             <PaneTabs
               pane="Files"
               active={bottomRight}
@@ -493,6 +625,7 @@ export default function Workspace({ id, starter, webR, env }: Props) {
               tabs={[
                 { id: 'files', label: 'Files' },
                 { id: 'plots', label: 'Plots' },
+                { id: 'packages', label: 'Packages' },
                 { id: 'help', label: 'Help' },
               ]}
             />
@@ -501,6 +634,9 @@ export default function Workspace({ id, starter, webR, env }: Props) {
             </div>
             <div role="tabpanel" id={panelId('Files', 'plots')} aria-labelledby={tabId('Files', 'plots')} hidden={bottomRight !== 'plots'} className="ide-panel">
               <PlotsPane plots={plots} index={plotIndex} onIndex={setPlotIndex} onClear={clearPlots} />
+            </div>
+            <div role="tabpanel" id={panelId('Files', 'packages')} aria-labelledby={tabId('Files', 'packages')} hidden={bottomRight !== 'packages'} className="ide-panel">
+              <PackagesPane packages={packages} ready={ready} running={running} onRun={(code) => void execute(code)} />
             </div>
             <div role="tabpanel" id={panelId('Files', 'help')} aria-labelledby={tabId('Files', 'help')} hidden={bottomRight !== 'help'} className="ide-panel">
               <HelpPane page={help} loading={helpLoading} ready={ready} onLookUp={(topic) => void openHelp(topic)} onHome={() => setHelp(null)} />
