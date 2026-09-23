@@ -134,7 +134,7 @@ body.ide-dragging-y { cursor: row-resize; }
 .ide-history button:hover { background: var(--surface-2); }
 .ide-history button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand-ink); }
 
-/* Files, Plots and Help ----------------------------------------------------- */
+/* Files, Plots, Packages and Help -------------------------------------------- */
 .ide-breadcrumbs { flex: none; padding: 0.3rem 0.6rem; font-size: 0.82rem; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .ide-files th { text-align: left; padding: 0.25rem 0.6rem; font-size: 0.74rem; color: var(--muted); border-bottom: 1px solid var(--line); font-weight: 650; }
 .ide-file-name { overflow-wrap: anywhere; }
@@ -147,6 +147,39 @@ body.ide-dragging-y { cursor: row-resize; }
 .ide-help-home { padding: 0.6rem 0.75rem; font-size: 0.88rem; }
 .ide-help-home p { margin: 0 0 0.5rem; }
 .ide-help-home ul { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin: 0; padding: 0; list-style: none; font-family: var(--mono); }
+
+/* Packages ------------------------------------------------------------------- */
+.ide-packages-note { margin: 0; padding: 0.45rem 0.6rem; font-size: 0.78rem; line-height: 1.4; color: var(--ink-2); background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.ide-packages-note code { font-size: 0.76rem; }
+.ide-install { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.4rem; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line); background: var(--brand-soft); }
+.ide-install label { display: flex; flex-direction: column; gap: 0.2rem; flex: 1 1 12rem; min-width: 0; font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+.ide-install input { padding: 0.25rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 5px; font-family: var(--mono); font-size: 0.82rem; }
+.ide-install-actions { display: flex; gap: 0.3rem; }
+.ide-install button, .ide-package-version button {
+  padding: 0.2rem 0.6rem; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface);
+  color: var(--ink-2); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.ide-install button[type="submit"], .ide-package-version button { border-color: var(--brand); color: var(--brand-ink); }
+.ide-install button:disabled, .ide-package-version button:disabled { opacity: 0.45; cursor: not-allowed; }
+.ide-packages td { vertical-align: middle; }
+.ide-package-load { width: 1%; padding-right: 0 !important; }
+.ide-package-load input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--brand); cursor: pointer; }
+.ide-package-name { font-family: var(--mono); font-weight: 600; white-space: nowrap; width: 1%; }
+.ide-package-what { color: var(--ink-2); }
+.ide-package-version { text-align: right; white-space: nowrap; width: 1%; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ide-package-version button { padding: 0.1rem 0.5rem; }
+.ide-unavailable { margin: 0.5rem 0.6rem 0.75rem; font-size: 0.82rem; }
+.ide-unavailable summary { cursor: pointer; font-weight: 650; color: var(--ink-2); }
+.ide-unavailable p { margin: 0.4rem 0; color: var(--muted); }
+.ide-unavailable dl { margin: 0; }
+.ide-unavailable dl div { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.5rem; padding: 0.25rem 0; border-bottom: 1px solid var(--line); }
+.ide-unavailable dt { font-family: var(--mono); font-weight: 600; }
+.ide-unavailable dd { margin: 0; color: var(--ink-2); }
+@container ide (max-width: 420px) {
+  .ide-package-what { display: none; }
+  .ide-package-name { width: auto; }
+  .ide-unavailable dl div { grid-template-columns: 1fr; gap: 0.1rem; }
+}
 
 /* Data viewer ---------------------------------------------------------------- */
 .ide-data { border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
@@ -182,6 +215,8 @@ body.ide-dragging-y { cursor: row-resize; }
 }
 
 @media (pointer: coarse) {
-  .ide-toolbar button, .ide-file-actions button, .ide-tab button { min-height: 40px; }
+  .ide-toolbar button, .ide-file-actions button, .ide-tab button, .ide-install button, .ide-package-version button { min-height: 40px; }
+  .ide-package-load input { width: 1.4rem; height: 1.4rem; }
+  .ide-install input { font-size: 16px; }
   .ide-console-prompt textarea, .ide-toolbar input[type="search"] { font-size: 16px; }
 }

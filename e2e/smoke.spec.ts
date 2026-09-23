@@ -59,6 +59,44 @@ test('the playground works like RStudio: console, environment, plots and help', 
   await expect(log).toContainText('[1] 42');
 });
 
+test('the playground installs packages from the browser repository, and completes code', async ({ page }) => {
+  await page.goto('./playground');
+  await expect(page.getByText('R is ready')).toBeVisible({ timeout: 180_000 });
+  const log = page.getByRole('log', { name: 'Console output' });
+
+  // One click in the Packages pane writes and runs the install.packages() line.
+  await page.getByRole('tab', { name: 'Packages' }).click();
+  const packages = page.getByRole('tabpanel', { name: 'Packages' });
+  await packages.getByRole('button', { name: 'Install writexl' }).click();
+  await expect(log).toContainText('> install.packages("writexl")');
+  await expect(log).toContainText('writexl is installed');
+  await expect(packages.getByRole('button', { name: 'Install writexl' })).toHaveCount(0);
+
+  // Ticking it runs library(), as in RStudio.
+  await packages.getByRole('checkbox', { name: 'Load writexl' }).click();
+  await expect(log).toContainText('> library(writexl)');
+  await expect(packages.getByRole('checkbox', { name: 'Load writexl' })).toBeChecked();
+
+  // A package that cannot work in a browser says so instead of failing obscurely.
+  const input = page.getByLabel('Console input');
+  await input.fill('library(xlsx)');
+  await input.press('Enter');
+  await expect(log).toContainText('xlsx cannot run in the browser');
+
+  // Tab completion offers a data frame's columns after $.
+  await input.fill('population <- read.csv("data/wellbeing-population.csv")');
+  await input.press('Enter');
+  const editor = page.getByRole('region', { name: 'Source' }).locator('.cm-content');
+  await editor.fill('mean(population$');
+  await editor.press('End');
+  await editor.pressSequentially('exam');
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('exam_score');
+  // CodeMirror ignores an accept in the first 75 ms after the list opens, so a slip of the finger does not pick an option.
+  await page.waitForTimeout(300);
+  await editor.press('Tab');
+  await expect(editor).toContainText('mean(population$exam_score');
+});
+
 test('a lesson renders its simulation and responds to the slider', async ({ page }) => {
   // A direct load of a deep link: proves base-path routing under the built site.
   await page.goto('./lesson/06-2');
