@@ -45,12 +45,14 @@ their traditional names.
 
 ## What's in the course
 
-**14 modules, 42 lessons, 61 checked exercises and 6 interactive simulations**,
-in three parts.
+**15 modules, 46 lessons, 67 checked exercises and 6 interactive simulations**,
+in three parts. Module 0 comes first and sets students up for R on their own
+computer.
 
 | | Module | What it covers | Simulation |
 |---|---|---|---|
 | **Foundations** | | | |
+| 0 | Before you start | RStudio Projects, files, folders and paths, and what R's symbols mean, with a cheat sheet | |
 | 1 | First steps in R | Objects, functions, help, packages and `library()` | |
 | 2 | Working with data | `read.csv`, factors, the pipe, `select`, `filter`, `mutate`, wide and long data | |
 | 3 | Describing data | `group_by` and `summarise`, mean versus median, surprises in a summary | |
