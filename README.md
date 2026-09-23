@@ -52,11 +52,11 @@ their traditional names.
     <td align="center"><sub>Exercises are checked in R, with feedback on the specific mistake.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R playground with an uploaded file, my_survey.csv, the line of code that reads it, and a script that runs str(), group means and a linear model on it."></td>
+    <td width="50%"><img src="docs/screenshots/playground-own-data.png" alt="The R playground laid out like RStudio: a Source pane with a script that reads an uploaded my_survey.csv and fits lm(score ~ condition), the Console showing the coefficient table, the Environment listing my_survey and model, and the Files pane listing the uploaded file next to the course datasets."></td>
     <td width="50%"><img src="docs/screenshots/model-chooser.png" alt="The 'Which model should I use?' guide after three choices, recommending multiple linear regression with the lm() code, what to check first, and a link to the lesson."></td>
   </tr>
   <tr>
-    <td align="center"><sub>Bring your own data: upload a CSV or Excel file and analyse it in the playground.</sub></td>
+    <td align="center"><sub>The playground works like RStudio, with your own uploaded data.</sub></td>
     <td align="center"><sub>"Which model should I use?" walks from the question to lm, lmer or glm.</sub></td>
   </tr>
   <tr>
