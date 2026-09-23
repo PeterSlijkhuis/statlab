@@ -157,3 +157,16 @@ describe('ensurePackages', () => {
     expect(KNOWN_PACKAGES).toEqual([...CORE_PACKAGES, ...ON_DEMAND_PACKAGES]);
   });
 });
+
+describe('onDemandPackagesIn', () => {
+  test('finds the modelling packages code attaches or calls with ::', async () => {
+    const { onDemandPackagesIn } = await import('./session');
+    expect(onDemandPackagesIn('library(lmerTest)\nlibrary("emmeans")\ncar::Anova(m)')).toEqual(['emmeans', 'car', 'lmerTest']);
+    expect(onDemandPackagesIn('require(lme4)')).toEqual(['lme4']);
+  });
+
+  test('ignores core, base and unknown packages', async () => {
+    const { onDemandPackagesIn } = await import('./session');
+    expect(onDemandPackagesIn('library(dplyr)\nstats::lm(y ~ x)\nlibrary(lavaan)\nx <- mycar::f()')).toEqual([]);
+  });
+});

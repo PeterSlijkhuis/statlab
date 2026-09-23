@@ -12,7 +12,10 @@ const r = vi.hoisted(() => ({
   clearObjects: vi.fn(),
 }));
 
+const ensurePackages = vi.hoisted(() => vi.fn());
+
 vi.mock('../../r/workspace', async (original) => ({ ...(await original<typeof import('../../r/workspace')>()), ...r }));
+vi.mock('../../r/session', async (original) => ({ ...(await original<typeof import('../../r/session')>()), ensurePackages }));
 vi.mock('../../state/uploadStore', () => ({
   saveStoredFile: async () => {},
   deleteStoredFile: async () => {},
@@ -38,6 +41,8 @@ function renderWorkspace(ready = true) {
 beforeEach(() => {
   localStorage.clear();
   Object.values(r).forEach((fn) => fn.mockReset());
+  ensurePackages.mockReset();
+  ensurePackages.mockResolvedValue(undefined);
   r.listObjects.mockResolvedValue([]);
   r.listFiles.mockResolvedValue([{ name: 'data', folder: true, bytes: 0 }]);
   r.parseStatements.mockResolvedValue({ kind: 'ok', ranges: [[1, 1], [2, 2]] });
@@ -105,6 +110,29 @@ describe('Workspace', () => {
     // The up arrow brings the last command back, as in RStudio.
     await userEvent.type(input, '{ArrowUp}');
     expect((input as HTMLTextAreaElement).value).toBe('mean(1:10)');
+  });
+
+  test("installs a course modelling package the code asks for, then runs it", async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(emmeans){Enter}');
+    await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
+    expect(ensurePackages).toHaveBeenCalledWith(webR, ['emmeans']);
+    expect(ensurePackages.mock.invocationCallOrder[0]).toBeLessThan(r.runInConsole.mock.invocationCallOrder[0]);
+  });
+
+  test('installs nothing for code that names no modelling package', async () => {
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'library(dplyr){Enter}');
+    await waitFor(() => expect(r.runInConsole).toHaveBeenCalled());
+    expect(ensurePackages).not.toHaveBeenCalled();
+  });
+
+  test('a failed install is reported in the console and the code does not run', async () => {
+    ensurePackages.mockRejectedValue(new Error('Could not install car. Check your connection and try again.'));
+    renderWorkspace();
+    await userEvent.type(screen.getByLabelText('Console input'), 'car::Anova(model){Enter}');
+    await waitFor(() => expect(screen.getByRole('log').textContent).toContain('Could not install car'));
+    expect(r.runInConsole).not.toHaveBeenCalled();
   });
 
   test('an unfinished line waits for the rest instead of running', async () => {
