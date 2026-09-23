@@ -262,9 +262,8 @@ public/data/     the two course datasets
 scripts/         dataset generator and the dataset effect check
 e2e/             Playwright smoke tests
 docs/screenshots/  the screenshots in this README
-docs/
-  specs/         the design specification
-  plans/         implementation plans
+docs/specs/      the design specification
+docs/plans/      implementation plans
 ```
 
 The design specification in `docs/specs/` is the reference for how
